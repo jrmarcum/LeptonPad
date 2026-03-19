@@ -1,21 +1,104 @@
-MIT License
+LeptonPad Proprietary License
+Copyright (c) 2026 LeptonPad. All Rights Reserved.
 
-Copyright (c) 2026 MathWasm Project
+================================================================================
+OWNERSHIP
+================================================================================
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+All source code, compiled binaries, design assets, documentation, and other
+materials in this repository ("the Software") are the exclusive intellectual
+property of LeptonPad. No title to or ownership of the Software is transferred
+to you by this license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+================================================================================
+BRAND ASSETS — ALL RIGHTS RESERVED
+================================================================================
+
+The LeptonPad name, wordmark, and logo (including but not limited to
+"LeptonPadLogo.png" and all derivatives thereof) are proprietary brand assets
+of LeptonPad. They are NOT covered by any open-source or permissive grant.
+
+You may NOT:
+  - Use the LeptonPad name or logo in any product, service, or publication
+    without the prior written consent of LeptonPad.
+  - Represent or imply that your work is endorsed by or affiliated with
+    LeptonPad.
+  - Create derivative marks, logos, or brand identities that could be confused
+    with LeptonPad brand assets.
+
+================================================================================
+PERMITTED USES
+================================================================================
+
+Subject to the restrictions below, you are granted a limited, non-exclusive,
+non-transferable, revocable license to:
+
+  1. Run the compiled application for personal and professional engineering work.
+  2. View the source code for educational or evaluation purposes.
+  3. Contribute to this repository if you have been given explicit written
+     permission by LeptonPad to do so.
+
+================================================================================
+RESTRICTIONS
+================================================================================
+
+You may NOT, without the prior written consent of LeptonPad:
+
+  1. Redistribute, sublicense, resell, rent, lease, or otherwise transfer
+     copies of the Software or its source code, in whole or in part.
+  2. Modify, adapt, translate, reverse-engineer, decompile, or disassemble
+     the Software, except to the extent that applicable law expressly permits
+     such activity.
+  3. Create derivative works based on the Software for distribution or
+     commercial use.
+  4. Remove, alter, or obscure any proprietary notices, labels, or marks
+     on or in the Software.
+  5. Use the Software or any portion thereof as part of a competing product
+     or service.
+  6. Use the Software in any manner that violates applicable law.
+
+================================================================================
+THIRD-PARTY COMPONENTS
+================================================================================
+
+The Software incorporates open-source components that remain subject to their
+original licenses. These components are listed in THIRD_PARTY_NOTICES.md, which
+accompanies this license. Your use of those components is governed by their
+respective licenses; this proprietary license does not restrict rights already
+granted to you by those licenses with respect to those components alone.
+
+================================================================================
+DISCLAIMER OF WARRANTIES
+================================================================================
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. LEPTONPAD DOES NOT
+WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE OR THAT ANY DEFECTS WILL BE
+CORRECTED.
+
+================================================================================
+LIMITATION OF LIABILITY
+================================================================================
+
+IN NO EVENT SHALL LEPTONPAD BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF DATA,
+LOSS OF PROFITS, OR BUSINESS INTERRUPTION) ARISING OUT OF OR IN CONNECTION WITH
+THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+OF SUCH DAMAGES.
+
+================================================================================
+GOVERNING LAW
+================================================================================
+
+This license shall be governed by and construed in accordance with applicable
+law. Any disputes arising under or in connection with this license shall be
+subject to the exclusive jurisdiction of the courts of competent jurisdiction.
+
+================================================================================
+CONTACT
+================================================================================
+
+For licensing inquiries, commercial use requests, or permission to use
+LeptonPad brand assets, contact the LeptonPad project maintainers via the
+project repository.

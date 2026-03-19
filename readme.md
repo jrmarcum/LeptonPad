@@ -1,146 +1,191 @@
-# MathWasm PWA // Engineering Suite
+# LeptonPad
 
-A high-performance, web-native engineering workbench. MathWasm utilizes a Rust-powered kernel (via WebAssembly) to provide mathematically rigorous structural analysis within a modern, offline-first Progressive Web App.
+![LeptonPad Logo](public/LeptonPadLogo.png)
 
----
-
-## Build Steps
-
-### 1. Prerequisites
-
-Install the following tools before building:
-
-| Tool | Install |
-| ---- | ------- |
-| [Deno](https://deno.com/manual/getting_started/installation) | `irm https://deno.land/install.ps1 \| iex` (Windows) |
-| Rust | [rustup.rs](https://rustup.rs) |
-| wasm-pack | `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf \| sh` |
-
-Add the WASM compilation target to Rust:
-
-```sh
-rustup target add wasm32-unknown-unknown
-```
-
-### 2. Compile the Rust WASM Kernel
-
-For development (faster compile, unoptimized):
-
-```sh
-deno task build:wasm
-```
-
-For production (optimized release build):
-
-```sh
-deno task build:wasm:release
-```
-
-Both commands run `wasm-pack build --target web` inside `/solver` and output the compiled package to `solver/pkg/`. This step must be run at least once before starting the dev server or building the frontend.
-
-### 3. (Optional) Optimize the WASM Binary
-
-Reduces the `.wasm` file size using [binaryen](https://github.com/WebAssembly/binaryen). Requires `wasm-opt` on your PATH (e.g. `scoop install binaryen`):
-
-```sh
-deno task opt:wasm
-```
-
-> **Windows note:** `wasm-opt` is disabled automatically during `build:wasm:release` (see `Cargo.toml`). Run this task manually after a release build.
-
-### 4. Start the Dev Server
-
-Copies static assets to `dist/`, starts `deno bundle --watch` on `src/main.ts`, and serves `dist/` at `http://localhost:5173`:
-
-```sh
-deno task dev
-```
-
-Changes to `src/main.ts` are re-bundled automatically. CSS and WASM changes require restarting `dev` to re-copy those files.
-
-### 5. Production Build
-
-Compiles a release WASM kernel and produces a minified, flat `dist/` ready to deploy:
-
-```sh
-deno task build
-```
-
-This runs `build:wasm:release` followed by `build.ts`, which bundles `src/main.ts` into `dist/main.js` and copies all other assets alongside it.
-
-### 6. Lint & Format
-
-```sh
-deno task check
-```
-
-Runs `deno fmt` and `deno lint`. The `solver/pkg/` and `dist/` directories are excluded.
+A high-performance, web-native engineering workbench — WebAssembly-powered solver, drag-and-drop canvas, offline-first PWA.
 
 ---
 
-## Architecture
+## What is LeptonPad?
 
-* **Kernel** (`/solver`): Written in Rust using wasm-bindgen and plotters. Exports `generate_plot`, `rect_area`, `rect_ix`, and `solve_beam_deflection` to the browser via WASM.
-* **Frontend** (`/src`): All TypeScript lives in a single `src/main.ts` — types, Canvas class, sidebar, and app logic. Bundled with `deno bundle --platform browser` into one `main.js`.
-* **Styles** (`/src/styles/main.css`): Plain CSS — no Tailwind, no PostCSS. Dark/light mode driven entirely by `@media (prefers-color-scheme: dark)`.
-* **PWA**: Hand-written `public/sw.js` (cache-first) and `public/manifest.json` — no Vite, no vite-plugin-pwa.
-* **Build scripts**: `build.ts` (production) and `dev.ts` (watch + file server) — pure Deno, no npm, no node_modules.
+LeptonPad is a browser-based engineering calculation pad. It gives structural and mechanical engineers a live, programmable workspace where formulas evaluate in real time, beam deflection and section properties are solved at native speed, and results can be assembled into a paginated, printable report — all without installing software or connecting to a server.
 
----
+Key characteristics:
 
-## Key Features
-
-* High-Contrast UI: Adaptive dark/light modes driven by system preference (CSS only).
-* Drag-and-Drop Canvas: A4-sized grid canvas; sidebar modules dropped onto canvas become live blocks.
-* WASM Solver: Beam deflection, section properties (rect area, moment of inertia), and SVG plot generation run in Rust.
-* Vector Reporting: Export engineering reports as PDFs via svg2pdf.js (in progress).
-* Offline-First: Service worker pre-caches JS, CSS, and the WASM binary.
+- **No cloud required.** The app runs fully offline — everything is cached locally by the service worker.
+- **Mathematically rigorous.** The expression evaluator tracks units and propagates dimensional analysis through every formula row.
+- **Composable.** Results from one block are automatically available as variables in every block below it on the same canvas.
+- **Report-ready.** The canvas follows an A4/Letter page grid so that your layout matches a printed or exported document.
 
 ---
 
-## Project Structure
+## User Guide
+
+### The Canvas
+
+When LeptonPad opens you see a two-panel layout:
+
+| Panel          | Purpose                                                     |
+| -------------- | ----------------------------------------------------------- |
+| Sidebar (left) | Block palette — click any module to place it on the canvas  |
+| Canvas (right) | The working surface — blocks live here on a 20 px snap grid |
+
+Each canvas page is A4-sized (or Letter, A3, etc. depending on your project settings). The canvas grows downward automatically as you add content.
+
+---
+
+### Block Types
+
+#### Formula Block
+
+The core calculation block. Each row is an independent expression:
 
 ```text
-mathwasm-pwa/
-├── solver/                     # Rust WASM Kernel
-│   ├── src/
-│   │   └── lib.rs              # Math logic: beam deflection, section props, SVG plots
-│   └── Cargo.toml              # wasm-bindgen + plotters; wasm-opt disabled (Windows workaround)
-├── src/                        # TypeScript Frontend (single file)
-│   ├── main.ts                 # All app logic: types, Canvas, sidebar, WASM init, drag-drop
-│   └── styles/
-│       └── main.css            # Plain CSS: layout, #canvas A4, .block, dark mode
-├── public/
-│   ├── sw.js                   # Cache-first service worker
-│   └── manifest.json           # PWA manifest
-├── .env.example                # Supabase credentials template
-├── build.ts                    # Production build: deno bundle + copy assets → dist/
-├── dev.ts                      # Dev: copy assets + deno bundle --watch + file server
-├── deno.json                   # Import map, tasks, fmt/lint config
-└── index.html                  # PWA shell; links /main.css and /main.js
+b = 150          → assigns variable b = 150
+h = 300          → assigns variable h = 300
+A = b * h        → evaluates to 45000
+Ix = b*h^3/12    → evaluates to 337500000
 ```
 
-### dist/ output (flat, no subdirectories)
+- Assign variables with `=` — they become available to all blocks below.
+- Reference variables by name anywhere on the canvas (within the same scope).
+- Supports inline units: `F = 10 kN`, `L = 6000 mm`.
+- Control flow: `if(cond, then, else)` and `clamp(x, min, max)` are built-in.
+- Define reusable functions: `f(x) = 2*x^2 + 3`.
+- Results display to the right of each row with their computed units.
 
-```text
-dist/
-├── index.html
-├── manifest.json
-├── sw.js
-├── main.js           ← bundled + minified
-├── main.css
-└── solver_bg.wasm
-```
+**Supported operators:** `+ - * / ^ ( ) == != < > <= >= and or xor`
+
+**Built-in functions:** `sin cos tan sqrt cbrt abs exp log floor ceil round sign min max atan2 mod pow hypot if clamp factorial gamma lgamma erf comb perm`
+
+**Constants:** `pi e tau`
 
 ---
 
-## Windows Notes
+#### Beam Deflection Block
 
-* **wasm-opt disabled** in `Cargo.toml` (`wasm-opt = false`) to avoid a Scoop nodejs-lts shim conflict ("Access is denied"). Run `deno task opt:wasm` manually after installing binaryen via `scoop install binaryen`.
-* **`nodeModulesDir: "none"`** in `deno.json` prevents Deno from reading any leftover `node_modules` directory, which previously caused a Deno panic.
+Computes mid-span deflection for a simply-supported beam with a central point load.
+
+| Input                 | Symbol | Unit |
+| --------------------- | ------ | ---- |
+| Point load            | P      | kN   |
+| Span                  | L      | mm   |
+| Elastic modulus       | E      | MPa  |
+| Second moment of area | I      | mm⁴  |
+
+**Output:** δmax (mm) — computed using δ = PL³ / (48EI).
+
+---
+
+#### Section Properties Block
+
+Computes properties for a rectangular cross-section.
+
+| Input  | Symbol | Unit |
+| ------ | ------ | ---- |
+| Width  | b      | mm   |
+| Height | h      | mm   |
+
+**Outputs:** Area (mm²), Ix (mm⁴).
+
+---
+
+#### Plot Block
+
+Renders an SVG curve from a math expression over a variable range.
+
+- Enter any expression using variables defined above (e.g. `sin(x * pi / L) * delta`).
+- Set the `x` range, number of evaluation points, and axis labels.
+- Add permanent markers at specific x-values with custom labels.
+- Plot colors adapt automatically to dark/light mode.
+
+---
+
+#### Section Block
+
+A collapsible container that groups related blocks under a shared namespace.
+
+- Blocks inside a Section prefix their variables with the section name (e.g. `Beam.Ix`).
+- Collapse the section to hide detail and show only a summary line.
+- The summary line shows user-configured output variables and pass/fail comparisons.
+- Sections can be colour-coded for quick visual reference.
+
+---
+
+#### Text Block
+
+A freeform Markdown text block for notes, assumptions, and narrative.
+
+- Supports bold, italic, headings, lists, and inline code via a formatting toolbar.
+- Greek letters are entered as their English name and rendered as the symbol (e.g. `alpha` → α).
+- Math expressions inside `$...$` or `$$...$$` delimiters are rendered as formatted math.
+- Toggle between edit and preview mode with a single click.
+
+---
+
+#### Figure Block
+
+An image block with an auto-numbered caption.
+
+- Click the placeholder or paste an image to embed it.
+- Captions are editable; figure numbers increment automatically across the canvas.
+- Images are stored as Base64 data URLs inside the project file.
+
+---
+
+### Canvas Interactions
+
+| Action          | How                                             |
+| --------------- | ----------------------------------------------- |
+| Place a block   | Click a module in the sidebar                   |
+| Move a block    | Drag it to a new position (snaps to 20 px grid) |
+| Select a block  | Click it (blue border indicates selection)      |
+| Multi-select    | Hold Shift or Ctrl while clicking               |
+| Delete selected | Press Delete or Backspace                       |
+| Undo deletion   | Press Ctrl+Z                                    |
+| Deselect        | Press Escape or click empty canvas              |
+| Resize a block  | Drag the right edge of blocks that support it   |
+
+---
+
+### Projects
+
+#### Saving and Loading
+
+- **Save project:** Click **Save** in the toolbar — uses the browser File System Access API to write a `.json` file to your chosen location.
+- **Load project:** Click **Open** and select a previously saved `.json` file.
+- **New project:** Click **New** — you will be prompted before unsaved changes are discarded.
+
+#### Exporting
+
+- **Export JSON:** Downloads the full project state as a portable `.json` file.
+- **Import custom modules:** Use the custom module import dialog to share reusable block groups between projects.
+
+#### Project File Format
+
+Projects are stored as human-readable JSON containing the block list, global constants, and project metadata (name, date, units, title block fields). They can be version-controlled alongside design documents.
+
+---
+
+### Title Block
+
+Each page has an optional title block at the bottom — a standard engineering drawing title panel with editable fields:
+
+`Project` · `Subject` · `Drawn by` · `Date` · `Job No.` · `Sheet No.` · `Logo`
+
+Click any field to edit it. Upload a company logo by clicking the logo placeholder in the title block.
+
+---
+
+### Custom Modules
+
+Frequently used block groups (e.g. a standard material properties section) can be saved as a **Custom Module** and reloaded in any project from the sidebar. Custom modules are exported and imported as JSON, making them easy to share with a team.
 
 ---
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+LeptonPad source code, compiled binaries, and brand assets (including the LeptonPad name and logo) are proprietary.
+See [LICENSE](LICENSE) for the full terms.
+
+Copyright © 2026 LeptonPad. All rights reserved.
