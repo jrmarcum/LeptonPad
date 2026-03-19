@@ -1,0 +1,20 @@
+[package]
+name = "solver"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+plotters = { version = "0.3", default-features = false, features = ["svg_backend"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+# wasm-pack's auto-discovery picks up a Node.js wasm-opt shim on this machine
+# which fails with "Access is denied" on Windows. Run `opt:wasm` manually after
+# installing Binaryen: scoop install binaryen
+wasm-opt = false
