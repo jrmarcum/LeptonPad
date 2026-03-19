@@ -119,6 +119,7 @@ main {
   z-index: 1;
   -webkit-user-select: none;
   user-select: none;
+  touch-action: none;
 }
 
 .block.selected {
@@ -283,15 +284,16 @@ main {
 /* Right-edge resize handle for text blocks */
 .text-resize-handle {
   position: absolute;
-  right: -5px;
+  right: -10px;
   top: 0;
   bottom: 0;
-  width: 10px;
+  width: 20px;
   cursor: ew-resize;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
+  touch-action: none;
 }
 .text-resize-handle::after {
   content: '';
@@ -1368,10 +1370,11 @@ h2.custom-tools-heading {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 14px;
-  height: 14px;
+  width: 28px;
+  height: 28px;
   cursor: se-resize;
   z-index: 3;
+  touch-action: none;
 }
 .figure-resize-handle::after {
   content: '';
@@ -1494,13 +1497,14 @@ h2.custom-tools-heading {
 
 /* Pull-down resize handle at the bottom of a section */
 .section-resize-handle {
-  height: 8px;
+  height: 20px;
   cursor: ns-resize;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   background: transparent;
+  touch-action: none;
 }
 .section-resize-handle::after {
   content: '';
