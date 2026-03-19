@@ -1520,6 +1520,60 @@ h2.custom-tools-heading {
   opacity: 1;
 }
 
+/* ── Touch-device resize handle enhancements ─────────────────────────────── */
+/* (hover: none) + (pointer: coarse) = touch screen, not mouse/trackpad       */
+@media (hover: none) and (pointer: coarse) {
+  /* Always show indicators on selected blocks — hover doesn't exist on touch */
+  .block.selected .text-resize-handle::after,
+  .figure-block.selected .figure-resize-handle::after,
+  .section-block.selected .section-resize-handle::after {
+    opacity: 1;
+  }
+
+  /* Larger, more visible grip indicators on touch */
+  .text-resize-handle::after {
+    width: 5px;
+    height: 44px;
+    background: #94a3b8;
+  }
+  .figure-resize-handle::after {
+    width: 14px;
+    height: 14px;
+    border-right-width: 3px;
+    border-bottom-width: 3px;
+    bottom: 6px;
+    right: 6px;
+  }
+  .section-resize-handle::after {
+    width: 64px;
+    height: 5px;
+  }
+
+  /* Engaged state — lights up the moment a finger lands on the handle */
+  .text-resize-handle.handle-active::after {
+    background: #3b82f6;
+    width: 6px;
+    height: 52px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    border-radius: 3px;
+  }
+  .figure-resize-handle.handle-active::after {
+    border-color: #3b82f6;
+    border-right-width: 4px;
+    border-bottom-width: 4px;
+    width: 18px;
+    height: 18px;
+    box-shadow: 2px 2px 0 2px rgba(59, 130, 246, 0.2);
+  }
+  .section-resize-handle.handle-active::after {
+    background: #3b82f6;
+    height: 6px;
+    width: 80px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    border-radius: 3px;
+  }
+}
+
 @media print {
   .section-block {
     background: white !important;

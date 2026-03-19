@@ -195,6 +195,59 @@ export class Canvas {
       e.preventDefault();
     });
 
+    // ── Long-press detection (touch only) ────────────────────────────────────
+    // Edge zone long-press  → confirm block selection (drag-ready).
+    // Interior long-press   → cancel drag state + fire contextmenu.
+    const LONG_PRESS_MS = 500;
+    const CANCEL_PX     = 8;   // finger movement threshold that aborts the timer
+    const EDGE_PX       = 24;  // px from any border considered the "edge zone"
+    let lpTimer: ReturnType<typeof setTimeout> | null = null;
+    let lpStartX = 0, lpStartY = 0, lpId = -1;
+
+    el.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      lpStartX = e.clientX;
+      lpStartY = e.clientY;
+      lpId     = e.pointerId;
+      if (lpTimer !== null) { clearTimeout(lpTimer); lpTimer = null; }
+      lpTimer = setTimeout(() => {
+        lpTimer = null;
+        const rect   = el.getBoundingClientRect();
+        const rx     = lpStartX - rect.left;
+        const ry     = lpStartY - rect.top;
+        const onEdge = rx < EDGE_PX || rx > rect.width  - EDGE_PX ||
+                       ry < EDGE_PX || ry > rect.height - EDGE_PX;
+        if (onEdge) {
+          // Edge: ensure block is selected and ready to drag
+          onSelectBlock?.(el);
+        } else {
+          // Interior: cancel any pending drag and open the context menu
+          setMultiDragState(null);
+          document.body.style.cursor = '';
+          const hit = document.elementFromPoint(lpStartX, lpStartY) ?? el;
+          hit.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true, cancelable: true,
+            clientX: lpStartX, clientY: lpStartY,
+            view: window,
+          }));
+        }
+      }, LONG_PRESS_MS);
+    });
+
+    const lpCancel = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch' || e.pointerId !== lpId || lpTimer === null) return;
+      if (e.type === 'pointermove') {
+        if (Math.hypot(e.clientX - lpStartX, e.clientY - lpStartY) > CANCEL_PX) {
+          clearTimeout(lpTimer); lpTimer = null;
+        }
+      } else {
+        clearTimeout(lpTimer); lpTimer = null;
+      }
+    };
+    el.addEventListener('pointermove',   lpCancel);
+    el.addEventListener('pointerup',     lpCancel);
+    el.addEventListener('pointercancel', lpCancel);
+
     this.element.appendChild(el);
   }
 }

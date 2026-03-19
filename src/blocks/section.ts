@@ -344,6 +344,7 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     ev.stopPropagation();
     ev.preventDefault();
     resizeHandle.setPointerCapture(ev.pointerId);
+    resizeHandle.classList.add('handle-active');
     const startY      = ev.clientY;
     const startH      = el.offsetHeight;
     const startBottom = parseInt(el.style.top || '0') + startH;
@@ -361,6 +362,7 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       resizeHandle.removeEventListener('pointermove', onMove);
       resizeHandle.removeEventListener('pointerup', onUp);
+      resizeHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
       // Shift all blocks below by however much the section grew/shrank
       const newBottom = parseInt(el.style.top || '0') + el.offsetHeight;

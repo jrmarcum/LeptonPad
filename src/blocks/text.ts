@@ -356,6 +356,7 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     e.stopPropagation();
     e.preventDefault();
     handle.setPointerCapture(e.pointerId);
+    handle.classList.add('handle-active');
     const startX = e.clientX;
     const startW = el.offsetWidth;
     const blockLeft = parseInt(el.style.left);
@@ -368,6 +369,7 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     function onUp() {
       handle.removeEventListener('pointermove', onMove);
       handle.removeEventListener('pointerup', onUp);
+      handle.classList.remove('handle-active');
       document.body.style.cursor = '';
     }
     handle.addEventListener('pointermove', onMove);

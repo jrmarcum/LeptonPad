@@ -136,6 +136,7 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     e.stopPropagation();
     e.preventDefault();
     resizeHandle.setPointerCapture(e.pointerId);
+    resizeHandle.classList.add('handle-active');
     const startX  = e.clientX;
     const startW  = el.offsetWidth;
     const startH  = el.offsetHeight;
@@ -163,6 +164,7 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       resizeHandle.removeEventListener('pointermove', onMove);
       resizeHandle.removeEventListener('pointerup', onUp);
+      resizeHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
     resizeHandle.addEventListener('pointermove', onMove);
