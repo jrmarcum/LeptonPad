@@ -4,6 +4,8 @@
 
 A high-performance, web-native engineering workbench — WebAssembly-powered solver, drag-and-drop canvas, offline-first PWA.
 
+**[Launch LeptonPad](https://leptonpad.jrmarcum.deno.net/)**
+
 ---
 
 ## What is LeptonPad?
