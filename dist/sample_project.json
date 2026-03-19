@@ -1,8 +1,7 @@
 {
   "project_metadata": {
-    "name": "Beam Analysis - Nicholasville Site",
-    "date": "2026-03-02",
-    "engineer": "MathWasm System",
+    "name": "Untitled Project",
+    "date": "2026-03-06",
     "units": "SI"
   },
   "blocks": [
@@ -15,25 +14,25 @@
     },
     {
       "id": "section-001",
-      "type": "math",
+      "type": "formula",
       "x": 0,
       "y": 80,
-      "content": "b = 150; h = 300; Ix = (b * h^3) / 12",
-      "label": "Section Properties (mm)"
+      "content": "b = 150 [in]; h = 300 [in]; Ix = (b * h^3) / 12",
+      "label": "Section Properties"
     },
     {
       "id": "beam-001",
-      "type": "math",
+      "type": "formula",
       "x": 0,
       "y": 260,
-      "content": "P = 5000; L = 6000; E = 200000; delta = (P * L^3) / (48 * E * Ix)",
-      "label": "Deflection Calculation (mm)"
+      "content": "P = 5000 [lbs]; L = 6000 [in]; E = 200000 [lbs/in^2]; delta = (P * L^3) / (48 * E * Ix)",
+      "label": "Deflection Calculation"
     },
     {
       "id": "plot-001",
       "type": "plot",
-      "x": 380,
-      "y": 80,
+      "x": 280,
+      "y": 420,
       "content": "sin(x * pi / L) * delta",
       "label": "Approximate Deflection Curve"
     },
@@ -41,10 +40,7 @@
       "id": "table-001",
       "type": "table",
       "x": 0,
-      "y": 460,
-      "rows": 3,
-      "cols": 2,
-      "data": [["Load Case", "kN"], ["Dead", "2.5"], ["Live", "5.0"]]
+      "y": 460
     }
   ],
   "global_constants": {
