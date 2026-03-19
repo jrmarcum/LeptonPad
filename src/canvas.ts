@@ -170,8 +170,8 @@ export class Canvas {
       el.appendChild(div);
     }
 
-    el.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return; // ignore right-click so contextmenu fires cleanly
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return; // ignore right-click so contextmenu fires cleanly
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || (target as HTMLElement).isContentEditable) return;
       // Section blocks are dragged via their own header handler

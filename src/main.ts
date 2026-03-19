@@ -426,7 +426,7 @@ async function start() {
     });
 
     // Block move: drag selected blocks; rubber-band: track selection rect
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
       if (multiDragState) {
         const dx = e.clientX - multiDragState.startX;
         const dy = e.clientY - multiDragState.startY;
@@ -480,7 +480,7 @@ async function start() {
       return orig + canvas.snap(absY - orig);
     };
 
-    document.addEventListener('mouseup', (e) => {
+    document.addEventListener('pointerup', (e) => {
       if (multiDragState) {
         for (const [el] of multiDragState.origPositions) {
           const block = state.blocks.find((b) => b.id === el.id);

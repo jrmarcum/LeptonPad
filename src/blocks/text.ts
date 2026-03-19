@@ -352,25 +352,26 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
   // ── Right-edge resize handle ──────────────────────────────────────────────
   const handle = document.createElement('div');
   handle.className = 'text-resize-handle';
-  handle.addEventListener('mousedown', (e) => {
+  handle.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const startW = el.offsetWidth;
     const blockLeft = parseInt(el.style.left);
     const maxW = CANVAS_W - margins.right - blockLeft;
-    function onMove(ev: MouseEvent) {
+    function onMove(ev: PointerEvent) {
       const newW = Math.min(Math.max(DEFAULT_W, startW + (ev.clientX - startX)), maxW);
       el.style.width = `${newW}px`;
       block.w = newW;
     }
     function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
     }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
     document.body.style.cursor = 'ew-resize';
   });
 

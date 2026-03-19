@@ -131,10 +131,11 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
   // ── SE corner resize handle ───────────────────────────────────────────────
   const resizeHandle = document.createElement('div');
   resizeHandle.className = 'figure-resize-handle';
-  resizeHandle.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
+  resizeHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.stopPropagation();
     e.preventDefault();
+    resizeHandle.setPointerCapture(e.pointerId);
     const startX  = e.clientX;
     const startW  = el.offsetWidth;
     const startH  = el.offsetHeight;
@@ -143,7 +144,7 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
       : null;
     const blockAR = startW / startH;
 
-    const onMove = (mv: MouseEvent) => {
+    const onMove = (mv: PointerEvent) => {
       const dX  = mv.clientX - startX;
       const newW = Math.max(80, Math.round((startW + dX) / GRID_SIZE) * GRID_SIZE);
       let newH: number;
@@ -160,12 +161,12 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
       el.style.height = `${newH}px`;
     };
     const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      resizeHandle.removeEventListener('pointermove', onMove);
+      resizeHandle.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    resizeHandle.addEventListener('pointermove', onMove);
+    resizeHandle.addEventListener('pointerup', onUp);
     document.body.style.cursor = 'se-resize';
   });
   el.appendChild(resizeHandle);

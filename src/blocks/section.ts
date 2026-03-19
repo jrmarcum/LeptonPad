@@ -339,15 +339,16 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
   if (block.collapsed) resizeHandle.style.display = 'none';
   el.appendChild(resizeHandle);
 
-  resizeHandle.addEventListener('mousedown', (ev) => {
-    if (ev.button !== 0) return;
+  resizeHandle.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 && ev.pointerType === 'mouse') return;
     ev.stopPropagation();
     ev.preventDefault();
+    resizeHandle.setPointerCapture(ev.pointerId);
     const startY      = ev.clientY;
     const startH      = el.offsetHeight;
     const startBottom = parseInt(el.style.top || '0') + startH;
     document.body.style.cursor = 'ns-resize';
-    const onMove = (mv: MouseEvent) => {
+    const onMove = (mv: PointerEvent) => {
       const newH = Math.max(80, startH + (mv.clientY - startY));
       block.h = newH;
       el.style.height = `${newH}px`;
@@ -358,16 +359,16 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
       content.style.minHeight = `${Math.max(GRID_SIZE * 2, newH - headerH - 2)}px`;
     };
     const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      resizeHandle.removeEventListener('pointermove', onMove);
+      resizeHandle.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
       // Shift all blocks below by however much the section grew/shrank
       const newBottom = parseInt(el.style.top || '0') + el.offsetHeight;
       const deltaY = newBottom - startBottom;
       if (Math.abs(deltaY) > 1) shiftBlocksBelowSection(el, startBottom, deltaY);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    resizeHandle.addEventListener('pointermove', onMove);
+    resizeHandle.addEventListener('pointerup', onUp);
   });
 
   // ── Section content click → move grid cursor (bypass canvas block guard) ──
@@ -397,8 +398,8 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
   childMutationObserver.observe(content, { childList: true });
 
   // ── Drag: use header as handle; do NOT drag when clicking section title ──
-  header.addEventListener('mousedown', (ev) => {
-    if (ev.button !== 0) return;
+  header.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 && ev.pointerType === 'mouse') return;
     if ((ev.target as HTMLElement).isContentEditable) return;
     if ((ev.target as HTMLElement).tagName === 'BUTTON') return;
     ev.stopPropagation(); // prevent canvas rubber-band
