@@ -93,6 +93,14 @@ function renderSidebar() {
   logoImg.className = 'sidebar-logo';
   container.appendChild(logoImg);
 
+  const licenseLink = document.createElement('a');
+  licenseLink.href = 'https://github.com/jrmarcum/LeptonPad/blob/main/LICENSE';
+  licenseLink.target = '_blank';
+  licenseLink.rel = 'noopener noreferrer';
+  licenseLink.textContent = '© 2026 LeptonPad — Proprietary License';
+  licenseLink.className = 'sidebar-license';
+  container.appendChild(licenseLink);
+
   const posHeading = document.createElement('h2');
   posHeading.textContent = 'Cursor';
   container.appendChild(posHeading);

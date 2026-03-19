@@ -1897,32 +1897,22 @@ h2.custom-tools-heading {
   .title-block-table      { border-top-color: #1e293b; border-bottom-color: #1e293b; }
   .tb-logo                { border-right-color: #1e293b !important; }
   .tb-value:empty::before { content: none !important; }
-  #license-footer         { display: none; }
 }
 
-#license-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  text-align: center;
-  padding: 4px 0;
-  font-size: 11px;
-  background: transparent;
-  pointer-events: none;
-  z-index: 10;
-}
-
-#license-footer a {
+.sidebar-license {
+  display: block;
+  font-size: 10px;
   color: #94a3b8;
   text-decoration: none;
-  pointer-events: all;
+  text-align: center;
+  padding: 2px 8px 8px;
+  line-height: 1.4;
 }
 
-#license-footer a:hover {
+.sidebar-license:hover {
   text-decoration: underline;
 }
 
 @media (prefers-color-scheme: dark) {
-  #license-footer a { color: #475569; }
+  .sidebar-license { color: #475569; }
 }
