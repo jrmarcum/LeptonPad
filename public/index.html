@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/LeptonPadLogo.png" />
+    <link rel="apple-touch-icon" href="/LeptonPadLogo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/main.css" />
+    <title>LeptonPad</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar-left"></aside>
+      <main>
+        <div id="canvas">
+          <div id="grid-cursor"></div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+  </body>
+</html>
