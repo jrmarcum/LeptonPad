@@ -1,0 +1,16 @@
+{
+  "name": "LeptonPad",
+  "short_name": "LeptonPad",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#fafafa",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/LeptonPadLogo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

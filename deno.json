@@ -1,8 +1,35 @@
 {
-  "tasks": {
-    "dev": "deno run --watch --allow-read --allow-net main.ts"
+  "nodeModulesDir": "none",
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1"
+    "solver": "./solver/pkg/solver.js"
+  },
+  "tasks": {
+    "build:wasm": "cd solver && wasm-pack build --target web --dev",
+    "build:wasm:release": "cd solver && wasm-pack build --target web --release",
+    "opt:wasm": "NODE_NO_WARNINGS=1 wasm-opt -Os -o solver/pkg/solver_bg.wasm solver/pkg/solver_bg.wasm",
+    "build": "deno task build:wasm:release && deno run -A build.ts",
+    "dev": "deno task build:wasm && deno run -A dev.ts",
+    "check": "deno fmt && deno lint",
+    "serve": "deno run -A serve.ts",
+    "install": "deno task build && deno install --config deno.json -g -f -n leptonpad --allow-net --allow-read --allow-write --allow-run $(pwd)/serve.ts",
+    "compile": "deno compile --allow-net --allow-read --allow-write --allow-run --no-terminal --output leptonpad serve.ts"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": true,
+    "proseWrap": "preserve",
+    "exclude": ["solver/pkg/", "dist/"]
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    },
+    "exclude": ["solver/pkg/", "dist/"]
   }
 }

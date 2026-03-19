@@ -1,0 +1,50 @@
+{
+  "project_metadata": {
+    "name": "Untitled Project",
+    "date": "2026-03-06",
+    "units": "SI"
+  },
+  "blocks": [
+    {
+      "id": "header-001",
+      "type": "header",
+      "x": 0,
+      "y": 0,
+      "content": "Project: Standard Steel Beam Analysis // Case: 40356-A"
+    },
+    {
+      "id": "section-001",
+      "type": "formula",
+      "x": 0,
+      "y": 80,
+      "content": "b = 150 [in]; h = 300 [in]; Ix = (b * h^3) / 12",
+      "label": "Section Properties"
+    },
+    {
+      "id": "beam-001",
+      "type": "formula",
+      "x": 0,
+      "y": 260,
+      "content": "P = 5000 [lbs]; L = 6000 [in]; E = 200000 [lbs/in^2]; delta = (P * L^3) / (48 * E * Ix)",
+      "label": "Deflection Calculation"
+    },
+    {
+      "id": "plot-001",
+      "type": "plot",
+      "x": 280,
+      "y": 420,
+      "content": "sin(x * pi / L) * delta",
+      "label": "Approximate Deflection Curve"
+    },
+    {
+      "id": "table-001",
+      "type": "table",
+      "x": 0,
+      "y": 460
+    }
+  ],
+  "global_constants": {
+    "E": 200000,
+    "gamma_steel": 78.5
+  }
+}
