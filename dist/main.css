@@ -284,10 +284,10 @@ main {
 /* Right-edge resize handle for text blocks */
 .text-resize-handle {
   position: absolute;
-  right: -10px;
+  right: -22px;
   top: 0;
   bottom: 0;
-  width: 20px;
+  width: 44px;
   cursor: ew-resize;
   display: flex;
   align-items: center;
@@ -1370,8 +1370,8 @@ h2.custom-tools-heading {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   cursor: se-resize;
   z-index: 3;
   touch-action: none;
@@ -1497,7 +1497,7 @@ h2.custom-tools-heading {
 
 /* Pull-down resize handle at the bottom of a section */
 .section-resize-handle {
-  height: 20px;
+  height: 44px;
   cursor: ns-resize;
   display: flex;
   align-items: center;
