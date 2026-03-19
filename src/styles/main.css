@@ -57,6 +57,7 @@ main {
   background-color: #ffffff;
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --grid-line: rgba(55, 65, 81, 0.45);
+  touch-action: none;
 }
 
 .engineering-grid {

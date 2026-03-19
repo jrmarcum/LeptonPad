@@ -411,18 +411,57 @@ async function start() {
     bandEl.id = 'selection-band';
     canvas.domElement.appendChild(bandEl);
 
-    // Canvas mousedown on empty area → start rubber-band
-    canvas.domElement.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
+    // Canvas pointerdown on empty area → start rubber-band
+    // Mouse: starts immediately. Touch: requires a 500ms long-hold (prevents
+    // conflicting with quick taps that move the grid cursor).
+    const BAND_LONG_PRESS_MS = 500;
+    const BAND_CANCEL_PX     = 10;
+    canvas.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
       if ((e.target as HTMLElement).closest('.block')) return;
-      const rect = canvas.domElement.getBoundingClientRect();
-      const bs = { startX: e.clientX - rect.left, startY: e.clientY - rect.top, moved: false };
-      setBandState(bs);
-      bandEl.style.left   = `${bs.startX}px`;
-      bandEl.style.top    = `${bs.startY}px`;
-      bandEl.style.width  = '0';
-      bandEl.style.height = '0';
-      bandEl.classList.add('active');
+      const rect   = canvas.domElement.getBoundingClientRect();
+      const startX = e.clientX - rect.left;
+      const startY = e.clientY - rect.top;
+
+      const startBand = () => {
+        const bs = { startX, startY, moved: false };
+        setBandState(bs);
+        bandEl.style.left   = `${startX}px`;
+        bandEl.style.top    = `${startY}px`;
+        bandEl.style.width  = '0';
+        bandEl.style.height = '0';
+        bandEl.classList.add('active');
+      };
+
+      if (e.pointerType !== 'touch') {
+        startBand();
+        return;
+      }
+
+      // Touch: wait for long-hold before arming rubber-band
+      let lpTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        lpTimer = null;
+        startBand();
+      }, BAND_LONG_PRESS_MS);
+
+      const cancelBandLp = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return;
+        if (lpTimer !== null) {
+          if (ev.type === 'pointermove') {
+            const dx = ev.clientX - e.clientX;
+            const dy = ev.clientY - e.clientY;
+            if (Math.hypot(dx, dy) <= BAND_CANCEL_PX) return; // tiny movement, keep waiting
+          }
+          clearTimeout(lpTimer);
+          lpTimer = null;
+        }
+        canvas.domElement.removeEventListener('pointermove',   cancelBandLp);
+        canvas.domElement.removeEventListener('pointerup',     cancelBandLp);
+        canvas.domElement.removeEventListener('pointercancel', cancelBandLp);
+      };
+      canvas.domElement.addEventListener('pointermove',   cancelBandLp);
+      canvas.domElement.addEventListener('pointerup',     cancelBandLp);
+      canvas.domElement.addEventListener('pointercancel', cancelBandLp);
     });
 
     // Block move: drag selected blocks; rubber-band: track selection rect
