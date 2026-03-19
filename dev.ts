@@ -4,10 +4,10 @@ import { serveDir } from 'jsr:@std/http@1/file-server';
 await Deno.mkdir('dist', { recursive: true });
 await Promise.all([
   Deno.copyFile('src/styles/main.css', 'dist/main.css'),
-  Deno.copyFile('solver/pkg/solver_bg.wasm', 'dist/solver_bg.wasm'),
-  Deno.copyFile('public/manifest.webmanifest', 'dist/manifest.webmanifest'),
-  Deno.copyFile('index.html', 'dist/index.html'),
-  Deno.copyFile('LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
+Deno.copyFile('public/manifest.webmanifest', 'dist/manifest.webmanifest'),
+  Deno.copyFile('public/index.html', 'dist/index.html'),
+  Deno.copyFile('public/LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
+  Deno.copyFile('public/sample_project.json', 'dist/sample_project.json'),
 ]);
 
 // Dev service worker: clears all caches + network-only (no stale cache blocking fresh HTML)

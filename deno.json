@@ -4,13 +4,11 @@
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
   },
   "imports": {
-    "solver": "./solver/pkg/solver.js"
+    "solver": "./src/solver.ts"
   },
   "tasks": {
-    "build:wasm": "cd solver && wasm-pack build --target web --dev",
-    "build:wasm:release": "cd solver && wasm-pack build --target web --release",
-    "opt:wasm": "NODE_NO_WARNINGS=1 wasm-opt -Os -o solver/pkg/solver_bg.wasm solver/pkg/solver_bg.wasm",
-    "build": "deno task build:wasm:release && deno run -A build.ts",
+    "build:wasm": "deno run -A jsr:@jrmarcum/wasmtk modc solver/solver.ts -n dist/solver.wasm",
+    "build": "deno task build:wasm && deno run -A build.ts",
     "dev": "deno task build:wasm && deno run -A dev.ts",
     "check": "deno fmt && deno lint",
     "serve": "deno run -A serve.ts",
@@ -24,12 +22,12 @@
     "semiColons": true,
     "singleQuote": true,
     "proseWrap": "preserve",
-    "exclude": ["solver/pkg/", "dist/"]
+    "exclude": ["dist/"]
   },
   "lint": {
     "rules": {
       "tags": ["recommended"]
     },
-    "exclude": ["solver/pkg/", "dist/"]
+    "exclude": ["dist/"]
   }
 }

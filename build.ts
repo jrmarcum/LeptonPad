@@ -11,11 +11,11 @@ if (!success) Deno.exit(1);
 
 await Promise.all([
   Deno.copyFile('src/styles/main.css', 'dist/main.css'),
-  Deno.copyFile('solver/pkg/solver_bg.wasm', 'dist/solver_bg.wasm'),
-  Deno.copyFile('public/manifest.webmanifest', 'dist/manifest.webmanifest'),
+Deno.copyFile('public/manifest.webmanifest', 'dist/manifest.webmanifest'),
   Deno.copyFile('public/sw.js', 'dist/sw.js'),
-  Deno.copyFile('index.html', 'dist/index.html'),
-  Deno.copyFile('LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
+  Deno.copyFile('public/index.html', 'dist/index.html'),
+  Deno.copyFile('public/LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
+  Deno.copyFile('public/sample_project.json', 'dist/sample_project.json'),
 ]);
 
 console.log('Build complete → dist/');
