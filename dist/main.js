@@ -1,3 +1,13 @@
+// src/solver.ts
+var exp;
+async function init() {
+  const { instance } = await WebAssembly.instantiateStreaming(fetch("./solver.wasm"));
+  exp = instance.exports;
+}
+var rect_area = (b, h) => exp.rect_area(b, h);
+var rect_ix = (b, h) => exp.rect_ix(b, h);
+var solve_beam_deflection = (p, l, e, i) => exp.solve_beam_deflection(p, l, e, i);
+
 // src/types.ts
 var DEFAULT_PLOT = {
   expr: "sin(x)",
@@ -3578,13 +3588,6 @@ function buildPlotBlock(el, block) {
   render();
 }
 
-// src/solver.ts
-var { instance } = await WebAssembly.instantiateStreaming(fetch("./solver.wasm"));
-var exp = instance.exports;
-var rect_area = (b, h) => exp.rect_area(b, h);
-var rect_ix = (b, h) => exp.rect_ix(b, h);
-var solve_beam_deflection = (p, l, e, i) => exp.solve_beam_deflection(p, l, e, i);
-
 // src/blocks/_math-block-helpers.ts
 function numInput(label, unit, defaultVal) {
   const wrap = document.createElement("label");
@@ -5665,6 +5668,7 @@ function renderSidebar() {
 }
 async function start() {
   try {
+    await init();
     console.log("MathWasm Engine Ready");
     renderSidebar();
     setCanvas(new Canvas("canvas"));
