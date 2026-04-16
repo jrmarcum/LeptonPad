@@ -315,11 +315,6 @@ export function renderMarkdown(src: string): string {
     closeAllLists();
   }
 
-  function flushBlock() {
-    flushPara();
-    flushBq();
-  }
-
   for (const line of lines) {
     lineIdx++;
     // ── Code fence ────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 ![LeptonPad Logo](public/LeptonPadLogo.png)
 
-A high-performance, web-native engineering workbench — WebAssembly-powered solver, drag-and-drop canvas, offline-first PWA, with account-based access control and encrypted section template packs.
+A high-performance, web-native engineering workbench — TypeScript solver compiled to WebAssembly, drag-and-drop canvas, offline-first PWA, with account-based access control and encrypted section template packs.
 
 **[Launch LeptonPad](https://leptonpad.jrmarcum.deno.net/)**
 
@@ -138,6 +138,8 @@ A collapsible container that groups related blocks under a shared namespace. Req
 
 **Purchased template packs** provide pre-built, encrypted Section blocks available to all users who own the pack — no Pro subscription required.
 
+**Marketplace templates** *(coming soon)* — community members will be able to submit and sell their own Section template packs through the LeptonPad marketplace.
+
 ---
 
 #### Text Block
@@ -223,9 +225,9 @@ deno task serve   # serve dist/ at http://localhost:5173
 ### Supabase setup
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run `supabase/schema.sql` in the SQL editor
+2. Run `supabase/schema.sql` in the SQL editor — the script is fully idempotent and can be re-run safely
 3. Paste your project URL and Publishable (anon) key into `public/config.js`
-4. Set user roles via the SQL snippets in `CLAUDE.md` (gitignored, local only)
+4. Set user roles via the SQL snippets in `CLAUDE.md`
 
 ---
 

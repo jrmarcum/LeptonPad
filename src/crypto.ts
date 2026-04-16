@@ -33,7 +33,7 @@ function b64Decode(s: string): Uint8Array {
 export async function importPackKey(base64Key: string): Promise<CryptoKey> {
   const raw = b64Decode(base64Key);
   // Cast to ArrayBuffer satisfies the SubtleCrypto overload (avoids SharedArrayBuffer ambiguity)
-  return crypto.subtle.importKey(
+  return await crypto.subtle.importKey(
     'raw',
     raw.buffer as ArrayBuffer,
     { name: 'AES-GCM', length: 256 },

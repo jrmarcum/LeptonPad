@@ -24,6 +24,8 @@ create table if not exists public.user_roles (
 
 -- RLS: users can read their own row; nobody can write directly (use RPCs)
 alter table public.user_roles enable row level security;
+drop policy if exists "own role read"   on public.user_roles;
+drop policy if exists "own role insert" on public.user_roles;
 create policy "own role read"  on public.user_roles for select using (auth.uid() = user_id);
 create policy "own role insert" on public.user_roles for insert with check (auth.uid() = user_id);
 
@@ -78,6 +80,7 @@ create table if not exists public.section_packs (
 
 -- Everyone can read pack metadata (name/description for the store UI)
 alter table public.section_packs enable row level security;
+drop policy if exists "packs public read" on public.section_packs;
 create policy "packs public read" on public.section_packs for select using (true);
 
 -- ---------------------------------------------------------------------------
@@ -106,9 +109,11 @@ create table if not exists public.user_packs (
 );
 
 alter table public.user_packs enable row level security;
+drop policy if exists "own packs read" on public.user_packs;
 create policy "own packs read" on public.user_packs for select using (auth.uid() = user_id);
 
 -- Add the FK from license_codes → section_packs now that section_packs exists
+alter table public.license_codes drop constraint if exists fk_grants_pack;
 alter table public.license_codes
   add constraint fk_grants_pack foreign key (grants_pack_id)
   references public.section_packs (id) on delete set null;

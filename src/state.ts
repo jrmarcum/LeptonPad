@@ -9,6 +9,7 @@ import {
   type CustomModule,
   type TitleBlockData,
   PX_PER_IN,
+  // deno-lint-ignore no-unused-vars
   PX_PER_MM,
   TITLE_BLOCK_H,
   PAGE_SIZES,

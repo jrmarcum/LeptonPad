@@ -1,31 +1,21 @@
-import init, { rect_area, rect_ix, solve_beam_deflection } from 'solver';
+import init from 'solver';
 import { initAuth, login, logout, signup, currentUser, currentRole, roleLabel, onAuthChange, canCreateSection } from './auth.ts';
 import { showRedeemCodeDialog, accessSummary } from './license.ts';
-import { evalExpr, evalFormulaRows, formatUnit, type Scope, type FnScope, type FormulaRow } from './expr.ts';
-import { type PlotConfig, type FigureData, type PageSizeKey, DEFAULT_PLOT, GRID_SIZE, PX_PER_IN, PX_PER_MM, PAGE_SIZES } from './types.ts';
-import { mmToPx, inToPx, pxToMm, pxToIn, pxToUnit, unitToPx, clamp } from './utils/units.ts';
+import { type PageSizeKey, GRID_SIZE, PX_PER_IN, PAGE_SIZES } from './types.ts';
+import { pxToUnit, unitToPx, clamp } from './utils/units.ts';
 import { isDark } from './utils/theme.ts';
-import { transformPiece, prettifyExpr, renderInlineMd, renderMarkdown } from './utils/markdown.ts';
-import { buildSectPropBlock } from './blocks/sect-prop.ts';
-import { buildBeamDefBlock } from './blocks/beam-def.ts';
-import { buildFigureBlock, nextFigureNum } from './blocks/figure.ts';
-import { buildFormulaBlock, reEvalAllFormulas, fmtNum, applyEvalResults, parseFormulaRows, expandDotNotation } from './blocks/formula.ts';
-import { buildTextBlock } from './blocks/text.ts';
-import { buildPlotBlock } from './blocks/plot.ts';
-import { buildSectionBlock, refreshAllSectionHeights, refreshSectionHeight, updateSectionSummary, reparentToSection, unparentFromSection, sectionAtPoint, nextSectionName, nextSectionColor } from './blocks/pro/section.ts';
+import { reEvalAllFormulas } from './blocks/formula.ts';
+import { refreshAllSectionHeights, refreshSectionHeight, updateSectionSummary, reparentToSection, sectionAtPoint } from './blocks/pro/section.ts';
 import { Canvas } from './canvas.ts';
-import { showCursor, hideCursor, selectBlock, addToSelection, clearSelection, deleteBlock, shiftBlocksVertical, syncPageSeparators, syncTitleBlocks, updatePageCount, buildTitleBlockOverlay, placeBlock, blocksOverlap, resolveOverlapsRight, blockAtCursor, moveGridCursor, renderBlock, dropBlock } from './dnd.ts';
-import { showImportToolsDialog, importToolsFromFile, showSavePromptDialog, clearProjectState, newProject, newFromTemplate, loadProject, serializeProject, saveProject } from './persistence.ts';
+import { hideCursor, selectBlock, addToSelection, clearSelection, deleteBlock, shiftBlocksVertical, syncPageSeparators, syncTitleBlocks, updatePageCount, placeBlock, resolveOverlapsRight, moveGridCursor, renderBlock, dropBlock } from './dnd.ts';
+import { importToolsFromFile, newProject, newFromTemplate, loadProject, saveProject } from './persistence.ts';
 import {
-  type Block, type WorkspaceState, type CustomModule, type TitleBlockData,
-  type CanvasLike,
+  type Block, type CustomModule,
   CANVAS_W, PAGE_H, numPages, CANVAS_H, marginUnit, margins, titleBlockEnabled, pageNumberingEnabled,
-  setCANVAS_W, setPAGE_H, setNumPages, setCANVAS_H, setMarginUnit, setTitleBlockEnabled, setPageNumberingEnabled,
-  state, globalScope, globalFnScope,
-  sectionSummaryVarNames, sectionSummaryComparisons, childToSection,
-  deletionStack,
-  CUSTOM_MODULES_KEY, customModules, saveCustomModules, setCustomModules,
-  fileHandle, setFileHandle,
+  setCANVAS_W, setPAGE_H, setCANVAS_H, setMarginUnit, setTitleBlockEnabled, setPageNumberingEnabled,
+  state, deletionStack,
+  customModules, saveCustomModules, setCustomModules,
+  setFileHandle,
   canvas, setCanvas,
   selectedEl, setSelectedEl, selectedEls,
   multiDragState, setMultiDragState,
@@ -38,7 +28,7 @@ import {
   setOnUpdatePageCount, setOnSyncPageSeparators, setOnClearSelection,
   setOnAddToSelection, setOnRefreshCustomModulesList, setOnAppendCustomModuleToSidebar,
   setOnAuthStateChange,
-  titleBlockH, TITLE_BLOCK_H,
+  titleBlockH,
 } from './state.ts';
 
 
