@@ -1,19 +1,28 @@
 // Production build: bundle TS, copy static assets into dist/
 await Deno.mkdir('dist', { recursive: true });
 
-// Generate dist/config.js from .env (or fall back to public/config.js placeholder)
+// Generate dist/config.js from env vars (Deno Deploy) or .env file (local dev)
 async function writeConfigJs() {
-  let url = 'https://your-project-id.supabase.co';
-  let key = 'your-public-anon-key';
-  try {
-    const env = await Deno.readTextFile('.env');
-    for (const line of env.split('\n')) {
-      const [k, ...rest] = line.split('=');
-      const v = rest.join('=').trim();
-      if (k.trim() === 'SUPABASE_URL')  url = v;
-      if (k.trim() === 'SUPABASE_ANON_KEY') key = v;
-    }
-  } catch { /* no .env — use placeholders */ }
+  // Prefer process env vars — set these in the Deno Deploy dashboard
+  let url = Deno.env.get('SUPABASE_URL') ?? '';
+  let key = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+  // Fall back to .env file for local dev
+  if (!url || !key) {
+    try {
+      const env = await Deno.readTextFile('.env');
+      for (const line of env.split('\n')) {
+        const [k, ...rest] = line.split('=');
+        const v = rest.join('=').trim();
+        if (k.trim() === 'SUPABASE_URL')      url = url || v;
+        if (k.trim() === 'SUPABASE_ANON_KEY') key = key || v;
+      }
+    } catch { /* no .env — use placeholders */ }
+  }
+
+  url = url || 'https://your-project-id.supabase.co';
+  key = key || 'your-public-anon-key';
+
   const js = `globalThis.__LP_CONFIG__ = {\n  supabaseUrl:     '${url}',\n  supabaseAnonKey: '${key}',\n};\n`;
   await Deno.writeTextFile('dist/config.js', js);
 }

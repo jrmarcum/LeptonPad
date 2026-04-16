@@ -13,6 +13,7 @@
     "dev": "deno task build:wasm && deno run -A dev.ts",
     "check": "deno fmt && deno lint",
     "serve": "deno run -A serve.ts",
+    "serve:prod": "deno run --allow-net --allow-read main.ts",
     "install": "deno task build && deno install --config deno.json -g -f -n leptonpad --allow-net --allow-read --allow-write --allow-run $(pwd)/serve.ts",
     "compile": "deno compile --allow-net --allow-read --allow-write --allow-run --no-terminal --output leptonpad serve.ts"
   },
