@@ -2,7 +2,7 @@
 
 ![LeptonPad Logo](public/LeptonPadLogo.png)
 
-A high-performance, web-native engineering workbench — WebAssembly-powered solver, drag-and-drop canvas, offline-first PWA.
+A high-performance, web-native engineering workbench — WebAssembly-powered solver, drag-and-drop canvas, offline-first PWA, with account-based access control and encrypted section template packs.
 
 **[Launch LeptonPad](https://leptonpad.jrmarcum.deno.net/)**
 
@@ -14,10 +14,34 @@ LeptonPad is a browser-based engineering calculation pad. It gives structural an
 
 Key characteristics:
 
-- **No cloud required.** The app runs fully offline — everything is cached locally by the service worker.
+- **No cloud required.** The app runs fully offline — everything is cached locally by the service worker, including your auth session and purchased template pack keys.
 - **Mathematically rigorous.** The expression evaluator tracks units and propagates dimensional analysis through every formula row.
 - **Composable.** Results from one block are automatically available as variables in every block below it on the same canvas.
 - **Report-ready.** The canvas follows an A4/Letter page grid so that your layout matches a printed or exported document.
+- **Secure templates.** Purchased section template packs are AES-256-GCM encrypted — copying a project file does not grant access without a valid account.
+
+---
+
+## Accounts and Access
+
+LeptonPad uses Supabase for authentication. Sign in or create an account from the sidebar.
+
+### User Roles
+
+| Role      | Access                                                      |
+| --------- | ----------------------------------------------------------- |
+| **Free**  | All non-section blocks; can use purchased template packs    |
+| **Demo**  | Full Pro access for 30 days from trial activation           |
+| **Pro**   | Create and edit all section blocks; use all purchased packs |
+| **Super** | Full access to everything (admin)                           |
+
+### License Codes
+
+Pro subscriptions and section template packs are activated by entering a one-time license code via the **Redeem Code** button in the sidebar. Codes are year-based by default. No card numbers are stored.
+
+### Offline Use
+
+Once signed in, your session and purchased template pack keys are cached locally — the app works without a network connection.
 
 ---
 
@@ -29,7 +53,7 @@ When LeptonPad opens you see a two-panel layout:
 
 | Panel          | Purpose                                                     |
 | -------------- | ----------------------------------------------------------- |
-| Sidebar (left) | Block palette — click any module to place it on the canvas  |
+| Sidebar (left) | Account panel, block palette, custom tools                  |
 | Canvas (right) | The working surface — blocks live here on a 20 px snap grid |
 
 Each canvas page is A4-sized (or Letter, A3, etc. depending on your project settings). The canvas grows downward automatically as you add content.
@@ -103,14 +127,16 @@ Renders an SVG curve from a math expression over a variable range.
 
 ---
 
-#### Section Block
+#### Section Block *(Pro / Demo)*
 
-A collapsible container that groups related blocks under a shared namespace.
+A collapsible container that groups related blocks under a shared namespace. Requires a Pro subscription or active Demo trial to create.
 
 - Blocks inside a Section prefix their variables with the section name (e.g. `Beam.Ix`).
 - Collapse the section to hide detail and show only a summary line.
 - The summary line shows user-configured output variables and pass/fail comparisons.
 - Sections can be colour-coded for quick visual reference.
+
+**Purchased template packs** provide pre-built, encrypted Section blocks available to all users who own the pack — no Pro subscription required.
 
 ---
 
@@ -137,16 +163,20 @@ An image block with an auto-numbered caption.
 
 ### Canvas Interactions
 
-| Action          | How                                             |
-| --------------- | ----------------------------------------------- |
-| Place a block   | Click a module in the sidebar                   |
-| Move a block    | Drag it to a new position (snaps to 20 px grid) |
-| Select a block  | Click it (blue border indicates selection)      |
-| Multi-select    | Hold Shift or Ctrl while clicking               |
-| Delete selected | Press Delete or Backspace                       |
-| Undo deletion   | Press Ctrl+Z                                    |
-| Deselect        | Press Escape or click empty canvas              |
-| Resize a block  | Drag the right edge of blocks that support it   |
+| Action            | How                                                                     |
+| ----------------- | ----------------------------------------------------------------------- |
+| Place a block     | Double-click a module in the sidebar                                    |
+| Drag a block      | Drag from the sidebar to a canvas position                              |
+| Move a block      | Drag it to a new position (snaps to 20 px grid)                         |
+| Select a block    | Click it (blue border indicates selection)                              |
+| Multi-select      | Hold Shift or Ctrl while clicking, or rubber-band drag on empty canvas  |
+| Delete selected   | Press Delete or Ctrl+Delete                                             |
+| Undo deletion     | Press Ctrl+Z                                                            |
+| Nudge selected    | Ctrl + Arrow keys (one grid step)                                       |
+| Push blocks down  | Shift+Enter — shifts all blocks below the cursor down one grid row      |
+| Pull blocks up    | Ctrl+Shift+Enter — shifts all blocks below the cursor up one row        |
+| Deselect          | Press Escape or click empty canvas                                      |
+| Resize a block    | Drag the right edge of blocks that support it                           |
 
 ---
 
@@ -154,18 +184,15 @@ An image block with an auto-numbered caption.
 
 #### Saving and Loading
 
-- **Save project:** Click **Save** in the toolbar — uses the browser File System Access API to write a `.json` file to your chosen location.
-- **Load project:** Click **Open** and select a previously saved `.json` file.
-- **New project:** Click **New** — you will be prompted before unsaved changes are discarded.
-
-#### Exporting
-
-- **Export JSON:** Downloads the full project state as a portable `.json` file.
-- **Import custom modules:** Use the custom module import dialog to share reusable block groups between projects.
+- **Save:** Click **Save** in the sidebar — uses the browser File System Access API to write a `.json` file to your chosen location.
+- **Save As:** Click **Save As** to save to a new file.
+- **Load:** Click **Load Project** and select a previously saved `.json` file.
+- **New:** Click **New Project** — you will be prompted before unsaved changes are discarded.
+- **Template:** Click **New from Template** to start from an existing project as a base.
 
 #### Project File Format
 
-Projects are stored as human-readable JSON containing the block list, global constants, and project metadata (name, date, units, title block fields). They can be version-controlled alongside design documents.
+Projects are stored as human-readable JSON containing the block list, global constants, and project metadata (name, date, units, title block fields). Purchased template section blocks are stored as encrypted ciphertext only — the plaintext content is never written to disk.
 
 ---
 
@@ -182,6 +209,23 @@ Click any field to edit it. Upload a company logo by clicking the logo placehold
 ### Custom Modules
 
 Frequently used block groups (e.g. a standard material properties section) can be saved as a **Custom Module** and reloaded in any project from the sidebar. Custom modules are exported and imported as JSON, making them easy to share with a team.
+
+---
+
+## Build and Development
+
+```bash
+deno task dev     # hot-reload dev server → http://localhost:5173
+deno task build   # production build → dist/
+deno task serve   # serve dist/ at http://localhost:5173
+```
+
+### Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run `supabase/schema.sql` in the SQL editor
+3. Paste your project URL and Publishable (anon) key into `public/config.js`
+4. Set user roles via the SQL snippets in `CLAUDE.md` (gitignored, local only)
 
 ---
 

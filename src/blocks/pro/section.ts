@@ -2,20 +2,20 @@
 // Section block — collapsible container with scoped variable namespace
 // ---------------------------------------------------------------------------
 
-import { evalExpr as _evalExpr } from '../expr.ts';
-import { formatUnit } from '../expr.ts';
-import { type Block, GRID_SIZE } from '../types.ts';
+import { evalExpr as _evalExpr } from '../../expr.ts';
+import { formatUnit } from '../../expr.ts';
+import { type Block, GRID_SIZE } from '../../types.ts';
 import {
   state, canvas, CANVAS_W, CANVAS_H, margins,
   globalScope,
   sectionSummaryVarNames, sectionSummaryComparisons,
   childToSection, selectedEls, setMultiDragState,
   onSelectBlock, onMoveGridCursor,
-} from '../state.ts';
-import { clamp } from '../utils/units.ts';
-import { fmtNum } from './formula.ts';
-import { reEvalAllFormulas } from './formula.ts';
-import { canCreateSection, hasPack } from '../auth.ts';
+} from '../../state.ts';
+import { clamp } from '../../utils/units.ts';
+import { fmtNum } from '../formula.ts';
+import { reEvalAllFormulas } from '../formula.ts';
+import { canCreateSection, hasPack } from '../../auth.ts';
 
 // ---------------------------------------------------------------------------
 // Section layout helpers

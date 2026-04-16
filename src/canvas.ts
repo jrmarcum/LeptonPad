@@ -9,7 +9,7 @@ import {
   onSelectBlock, onAddToSelection,
 } from './state.ts';
 import { clamp } from './utils/units.ts';
-import { buildSectionBlock } from './blocks/section.ts';
+import { buildSectionBlock } from './blocks/pro/section.ts';
 import { buildPlotBlock } from './blocks/plot.ts';
 import { buildFormulaBlock } from './blocks/formula.ts';
 import { buildSectPropBlock } from './blocks/sect-prop.ts';

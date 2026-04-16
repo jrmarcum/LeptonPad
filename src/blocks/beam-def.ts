@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Beam Deflection block — simply-supported beam with mid-point load.
-// Computation is handled by the Rust WASM solver.
+// Computation is handled by the TypeScript solver.
 // ---------------------------------------------------------------------------
 
 import { solve_beam_deflection } from 'solver';

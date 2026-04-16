@@ -14,7 +14,7 @@ import {
   onRefreshCustomModulesList, onAppendCustomModuleToSidebar,
 } from './state.ts';
 import { syncPageSeparators, syncTitleBlocks, updatePageCount, moveGridCursor, clearSelection, renderBlock } from './dnd.ts';
-import { refreshSectionHeight } from './blocks/section.ts';
+import { refreshSectionHeight } from './blocks/pro/section.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
 
 // ---------------------------------------------------------------------------

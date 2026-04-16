@@ -14,7 +14,7 @@ import {
 } from './state.ts';
 import { clamp } from './utils/units.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
-import { unparentFromSection, reparentToSection, sectionAtPoint, nextSectionName } from './blocks/section.ts';
+import { unparentFromSection, reparentToSection, sectionAtPoint, nextSectionName } from './blocks/pro/section.ts';
 import { nextFigureNum } from './blocks/figure.ts';
 
 // ---------------------------------------------------------------------------

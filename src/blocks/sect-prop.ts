@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Section Properties block — rectangular cross-section area & moment of inertia
-// Computation is handled by the Rust WASM solver.
+// Computation is handled by the TypeScript solver.
 // ---------------------------------------------------------------------------
 
 import { rect_area, rect_ix } from 'solver';

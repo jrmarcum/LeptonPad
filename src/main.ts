@@ -12,7 +12,7 @@ import { buildFigureBlock, nextFigureNum } from './blocks/figure.ts';
 import { buildFormulaBlock, reEvalAllFormulas, fmtNum, applyEvalResults, parseFormulaRows, expandDotNotation } from './blocks/formula.ts';
 import { buildTextBlock } from './blocks/text.ts';
 import { buildPlotBlock } from './blocks/plot.ts';
-import { buildSectionBlock, refreshAllSectionHeights, refreshSectionHeight, updateSectionSummary, reparentToSection, unparentFromSection, sectionAtPoint, nextSectionName, nextSectionColor } from './blocks/section.ts';
+import { buildSectionBlock, refreshAllSectionHeights, refreshSectionHeight, updateSectionSummary, reparentToSection, unparentFromSection, sectionAtPoint, nextSectionName, nextSectionColor } from './blocks/pro/section.ts';
 import { Canvas } from './canvas.ts';
 import { showCursor, hideCursor, selectBlock, addToSelection, clearSelection, deleteBlock, shiftBlocksVertical, syncPageSeparators, syncTitleBlocks, updatePageCount, buildTitleBlockOverlay, placeBlock, blocksOverlap, resolveOverlapsRight, blockAtCursor, moveGridCursor, renderBlock, dropBlock } from './dnd.ts';
 import { showImportToolsDialog, importToolsFromFile, showSavePromptDialog, clearProjectState, newProject, newFromTemplate, loadProject, serializeProject, saveProject } from './persistence.ts';
