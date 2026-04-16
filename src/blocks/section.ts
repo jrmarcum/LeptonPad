@@ -15,6 +15,7 @@ import {
 import { clamp } from '../utils/units.ts';
 import { fmtNum } from './formula.ts';
 import { reEvalAllFormulas } from './formula.ts';
+import { canCreateSection, hasPack } from '../auth.ts';
 
 // ---------------------------------------------------------------------------
 // Section layout helpers
@@ -243,6 +244,24 @@ export function sanitizeSectionName(raw: string): string {
 // ---------------------------------------------------------------------------
 
 export function buildSectionBlock(el: HTMLElement, block: Block) {
+  // Gate: only pro+ users can create blank sections.
+  // Purchased template sections (packId set) are allowed for all users who own the pack.
+  if (!block.packId && !canCreateSection()) {
+    el.classList.add('section-block', 'section-locked');
+    el.style.cssText += 'display:flex;align-items:center;justify-content:center;' +
+                        'min-height:60px;background:#f3f4f6;border:2px dashed #cbd5e1;' +
+                        'border-radius:4px;color:#94a3b8;font-size:0.8rem;';
+    el.textContent = '[Pro required to create sections]';
+    return;
+  }
+  if (block.packId && !hasPack(block.packId) && !block.encrypted) {
+    el.classList.add('section-block', 'section-locked');
+    el.style.cssText += 'display:flex;align-items:center;justify-content:center;' +
+                        'min-height:60px;background:#fef3c7;border:2px dashed #fbbf24;' +
+                        'border-radius:4px;color:#92400e;font-size:0.8rem;';
+    el.textContent = `[Pack "${block.packId}" not owned]`;
+    return;
+  }
   const color = block.sectionColor ?? nextSectionColor();
   block.sectionColor = color;
   el.style.setProperty('--section-color', color);

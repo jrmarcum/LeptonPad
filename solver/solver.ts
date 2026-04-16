@@ -1,3 +1,4 @@
+type f64 = number;
 export function rect_area(b: f64, h: f64): f64 {
   return b * h;
 }

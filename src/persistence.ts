@@ -3,6 +3,8 @@
 // ---------------------------------------------------------------------------
 
 import { type Block, type TitleBlockData } from './types.ts';
+import { hasPack, getPackKey } from './auth.ts';
+import { decryptTemplate } from './crypto.ts';
 import {
   state, canvas,
   setTitleBlockEnabled, setPageNumberingEnabled, setFileHandle, fileHandle,
@@ -345,18 +347,48 @@ export function loadProject(proj: Record<string, unknown>) {
     const block: Block = {
       id: (raw.id as string) ?? `block-${Date.now()}`,
       type,
-      subtype: raw.subtype as string | undefined,
-      x: (raw.x as number) ?? 0,
-      y: (raw.y as number) ?? 0,
-      w: raw.w as number | undefined,
-      content: (raw.content as string) ?? '',
-      label: raw.label as string | undefined,
+      subtype:         raw.subtype         as string  | undefined,
+      x:               (raw.x as number)   ?? 0,
+      y:               (raw.y as number)   ?? 0,
+      w:               raw.w               as number  | undefined,
+      content:         (raw.content as string) ?? '',
+      label:           raw.label           as string  | undefined,
       sectionName:     raw.sectionName     as string  | undefined,
       collapsed:       raw.collapsed       as boolean | undefined,
       sectionColor:    raw.sectionColor    as string  | undefined,
       parentSectionId: raw.parentSectionId as string  | undefined,
       h:               raw.h               as number  | undefined,
+      packId:          raw.packId          as string  | undefined,
+      encrypted:       raw.encrypted       as boolean | undefined,
+      encIv:           raw.encIv           as string  | undefined,
+      encContent:      raw.encContent      as string  | undefined,
     };
+
+    // Decrypt purchased template section blocks if the user owns the pack
+    if (block.encrypted && block.packId && block.encIv && block.encContent) {
+      if (hasPack(block.packId)) {
+        // Decrypt asynchronously; block renders as locked placeholder until resolved
+        getPackKey(block.packId).then(async (key) => {
+          if (!key) return;
+          const plain = await decryptTemplate(block.encIv!, block.encContent!, key);
+          if (plain !== null) {
+            block.content = plain;
+            block.encrypted = false; // mark as decrypted in memory
+            // Re-render if the element is already in the DOM
+            const el = document.getElementById(block.id);
+            if (el) {
+              el.remove();
+              renderBlock(block);
+              reEvalAllFormulas();
+            }
+          }
+        });
+      } else {
+        // User doesn't own the pack — render as a locked placeholder
+        block.content = `[Locked: "${block.packId}" pack required]`;
+      }
+    }
+
     state.blocks.push(block);
     if (!block.parentSectionId) {
       renderBlock(block);
@@ -396,7 +428,6 @@ export function loadProject(proj: Record<string, unknown>) {
 export function serializeProject(): string {
   const blocks = state.blocks.map((b) => {
     const out: Record<string, unknown> = { id: b.id, type: b.type, x: b.x, y: b.y };
-    if (b.content)         out.content         = b.content;
     if (b.subtype)         out.subtype         = b.subtype;
     if (b.label)           out.label           = b.label;
     if (b.w)               out.w               = b.w;
@@ -405,6 +436,18 @@ export function serializeProject(): string {
     if (b.sectionColor)    out.sectionColor    = b.sectionColor;
     if (b.parentSectionId) out.parentSectionId = b.parentSectionId;
     if (b.h)               out.h               = b.h;
+
+    if (b.packId && b.encIv && b.encContent) {
+      // Purchased template block — always save the ciphertext, NEVER the plaintext
+      out.packId     = b.packId;
+      out.encrypted  = true;
+      out.encIv      = b.encIv;
+      out.encContent = b.encContent;
+      // content intentionally omitted
+    } else {
+      if (b.content) out.content = b.content;
+    }
+
     return out;
   });
   const out: Record<string, unknown> = {

@@ -1,11 +1,18 @@
-self.addEventListener('install', () => self.skipWaiting());
+const CACHE = 'mathwasm-v1';
+const PRECACHE = ['/', '/main.js', '/main.css', '/solver_bg.wasm', '/manifest.webmanifest'];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
+  self.skipWaiting();
+});
+
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys()
-      .then((ks) => Promise.all(ks.map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
-      .then((cs) => cs.forEach((c) => c.navigate && c.navigate(c.url)))
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
   );
+  self.clients.claim();
 });
-self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request)));
+
+self.addEventListener('fetch', (e) => {
+  e.respondWith(caches.match(e.request).then((cached) => cached ?? fetch(e.request)));
+});

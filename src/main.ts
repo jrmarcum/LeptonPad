@@ -1,4 +1,6 @@
 import init, { rect_area, rect_ix, solve_beam_deflection } from 'solver';
+import { initAuth, login, logout, signup, currentUser, currentRole, roleLabel, onAuthChange, canCreateSection } from './auth.ts';
+import { showRedeemCodeDialog, accessSummary } from './license.ts';
 import { evalExpr, evalFormulaRows, formatUnit, type Scope, type FnScope, type FormulaRow } from './expr.ts';
 import { type PlotConfig, type FigureData, type PageSizeKey, DEFAULT_PLOT, GRID_SIZE, PX_PER_IN, PX_PER_MM, PAGE_SIZES } from './types.ts';
 import { mmToPx, inToPx, pxToMm, pxToIn, pxToUnit, unitToPx, clamp } from './utils/units.ts';
@@ -35,21 +37,29 @@ import {
   setOnSelectBlock, setOnMoveGridCursor,
   setOnUpdatePageCount, setOnSyncPageSeparators, setOnClearSelection,
   setOnAddToSelection, setOnRefreshCustomModulesList, setOnAppendCustomModuleToSidebar,
+  setOnAuthStateChange,
   titleBlockH, TITLE_BLOCK_H,
 } from './state.ts';
 
 
 // --- Sidebar ---
 
-const MODULES: { id: string; name: string; icon: string; type: Block['type']; sectionOnly?: boolean }[] = [
-  { id: 'formula',     name: 'Formula Block',      icon: '\u03a3', type: 'formula'     },
-  { id: 'summary',     name: 'Summary Block',      icon: '\u03a3\u0332', type: 'summary', sectionOnly: true },
-  { id: 'section',     name: 'Section',            icon: '\u29c5', type: 'section'     },
-  { id: 'beam-def',  name: 'Beam Deflection',    icon: '📏',    type: 'math'     },
-  { id: 'sect-prop', name: 'Section Properties', icon: '🏗️',   type: 'math'     },
-  { id: 'plot',      name: 'Plot',               icon: '📈',    type: 'plot'     },
-  { id: 'figure',   name: 'Figure',             icon: '🖼️',   type: 'figure'   },
-  { id: 'text',      name: 'Text Block',         icon: '📝',    type: 'text'     },
+const MODULES: {
+  id: string;
+  name: string;
+  icon: string;
+  type: Block['type'];
+  sectionOnly?: boolean;
+  requiresPro?: boolean;  // section creation is a pro+ feature
+}[] = [
+  { id: 'formula',    name: 'Formula Block',      icon: '\u03a3',        type: 'formula'              },
+  { id: 'summary',    name: 'Summary Block',      icon: '\u03a3\u0332',  type: 'summary', sectionOnly: true },
+  { id: 'section',    name: 'Section',            icon: '\u29c5',        type: 'section', requiresPro: true },
+  { id: 'beam-def',   name: 'Beam Deflection',    icon: '\u{1F4CF}',     type: 'math'                 },
+  { id: 'sect-prop',  name: 'Section Properties', icon: '\u{1F3D7}',     type: 'math'                 },
+  { id: 'plot',       name: 'Plot',               icon: '\u{1F4C8}',     type: 'plot'                 },
+  { id: 'figure',     name: 'Figure',             icon: '\u{1F5BC}',     type: 'figure'               },
+  { id: 'text',       name: 'Text Block',         icon: '\u{1F4DD}',     type: 'text'                 },
 ];
 
 function renderCustomModuleItem(mod: CustomModule): HTMLElement {
@@ -84,6 +94,271 @@ function renderCustomModuleItem(mod: CustomModule): HTMLElement {
   return item;
 }
 
+// ---------------------------------------------------------------------------
+// Auth / login UI
+// ---------------------------------------------------------------------------
+
+/** Show a login/signup modal. Resolves when the user dismisses it. */
+function showLoginModal(): Promise<void> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'import-modal-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'import-modal';
+    dialog.style.maxWidth = '340px';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Sign in to LeptonPad';
+    dialog.appendChild(title);
+
+    // Mode toggle
+    let isSignup = false;
+
+    const modeNote = document.createElement('p');
+    modeNote.style.cssText = 'font-size:0.8rem;margin:0 0 0.5rem;color:var(--muted,#888);';
+    modeNote.textContent = 'Pro and purchased template packs require an account.';
+    dialog.appendChild(modeNote);
+
+    const mkInput = (type: string, placeholder: string) => {
+      const inp = document.createElement('input');
+      inp.type        = type;
+      inp.placeholder = placeholder;
+      inp.style.cssText = 'width:100%;margin:0.3rem 0;padding:0.45rem 0.6rem;' +
+                          'font-size:0.95rem;border:1px solid var(--border);' +
+                          'border-radius:4px;background:var(--bg-input,#fff);color:var(--text);box-sizing:border-box;';
+      return inp;
+    };
+
+    const emailInp = mkInput('email', 'Email address');
+    const passInp  = mkInput('password', 'Password');
+    dialog.appendChild(emailInp);
+    dialog.appendChild(passInp);
+
+    const errorEl = document.createElement('p');
+    errorEl.style.cssText = 'color:#e55;font-size:0.8rem;min-height:1rem;margin:0.2rem 0;';
+    dialog.appendChild(errorEl);
+
+    const successEl = document.createElement('p');
+    successEl.style.cssText = 'color:#3a3;font-size:0.8rem;min-height:1rem;margin:0.2rem 0;display:none;';
+    dialog.appendChild(successEl);
+
+    const btns = document.createElement('div');
+    btns.className = 'import-modal-btns';
+    btns.style.flexDirection = 'column';
+    btns.style.gap = '0.4rem';
+
+    const submitBtn = document.createElement('button');
+    submitBtn.className   = 'import-confirm-btn';
+    submitBtn.textContent = 'Sign In';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.textContent = 'Create account instead';
+    toggleBtn.style.cssText = 'background:none;border:none;color:var(--link,#4a9);cursor:pointer;font-size:0.85rem;padding:0;';
+    toggleBtn.addEventListener('click', () => {
+      isSignup = !isSignup;
+      submitBtn.textContent  = isSignup ? 'Create Account' : 'Sign In';
+      title.textContent      = isSignup ? 'Create LeptonPad Account' : 'Sign in to LeptonPad';
+      toggleBtn.textContent  = isSignup ? 'Back to sign in' : 'Create account instead';
+      errorEl.textContent    = '';
+      successEl.style.display = 'none';
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(); });
+
+    submitBtn.addEventListener('click', async () => {
+      const email    = emailInp.value.trim();
+      const password = passInp.value;
+      errorEl.textContent = '';
+      successEl.style.display = 'none';
+
+      if (!email || !password) {
+        errorEl.textContent = 'Email and password are required.';
+        return;
+      }
+
+      submitBtn.disabled    = true;
+      submitBtn.textContent = isSignup ? 'Creating…' : 'Signing in…';
+
+      const fn = isSignup ? signup : login;
+      const { error } = await fn(email, password);
+
+      if (error) {
+        errorEl.textContent   = error;
+        submitBtn.disabled    = false;
+        submitBtn.textContent = isSignup ? 'Create Account' : 'Sign In';
+      } else if (isSignup) {
+        successEl.textContent   = 'Account created — check your email to confirm, then sign in.';
+        successEl.style.display = '';
+        submitBtn.disabled      = false;
+        submitBtn.textContent   = 'Create Account';
+        isSignup = false;
+        title.textContent     = 'Sign in to LeptonPad';
+        submitBtn.textContent = 'Sign In';
+        toggleBtn.textContent = 'Create account instead';
+      } else {
+        overlay.remove();
+        resolve();
+      }
+    });
+
+    btns.appendChild(submitBtn);
+    btns.appendChild(toggleBtn);
+    btns.appendChild(cancelBtn);
+    dialog.appendChild(btns);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    [emailInp, passInp].forEach((inp) => inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter')  submitBtn.click();
+      if (e.key === 'Escape') { overlay.remove(); resolve(); }
+    }));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(); } });
+    setTimeout(() => emailInp.focus(), 50);
+  });
+}
+
+/**
+ * Build (or rebuild) the auth panel at the top of the sidebar.
+ * Called once at init and again whenever auth state changes.
+ */
+function renderAuthPanel(container: HTMLElement) {
+  const existing = container.querySelector('.auth-panel');
+  if (existing) existing.remove();
+
+  const panel = document.createElement('div');
+  panel.className = 'auth-panel';
+  panel.style.cssText = 'padding:0.4rem 0.5rem 0.5rem;border-bottom:1px solid var(--border);margin-bottom:0.4rem;';
+
+  if (currentUser) {
+    // Signed-in state
+    const emailEl = document.createElement('div');
+    emailEl.style.cssText = 'font-size:0.75rem;color:var(--muted,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    emailEl.textContent = currentUser.email ?? '';
+    panel.appendChild(emailEl);
+
+    const roleRow = document.createElement('div');
+    roleRow.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin:0.25rem 0;';
+
+    const roleBadge = document.createElement('span');
+    const roleColors: Record<string, string> = {
+      super: '#7c3aed', pro: '#0284c7', demo: '#d97706', free: '#6b7280',
+    };
+    roleBadge.style.cssText = `font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;` +
+      `background:${roleColors[currentRole] ?? '#6b7280'};color:#fff;font-weight:600;`;
+    roleBadge.textContent = roleLabel();
+    roleRow.appendChild(roleBadge);
+
+    const accessEl = document.createElement('span');
+    accessEl.style.cssText = 'font-size:0.72rem;color:var(--muted,#888);';
+    accessEl.textContent = accessSummary();
+    roleRow.appendChild(accessEl);
+    panel.appendChild(roleRow);
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:0.35rem;';
+
+    const redeemBtn = document.createElement('button');
+    redeemBtn.className   = 'view-toggle';
+    redeemBtn.textContent = 'Redeem Code';
+    redeemBtn.style.cssText = 'font-size:0.75rem;padding:0.2rem 0.5rem;flex:1;';
+    redeemBtn.addEventListener('click', async () => {
+      const result = await showRedeemCodeDialog();
+      if (result?.success) {
+        // Reload auth state so role/packs update immediately
+        await initAuth();
+        renderAuthPanel(container);
+        _refreshProBadges(container);
+        alert(result.message);
+      }
+    });
+
+    const signOutBtn = document.createElement('button');
+    signOutBtn.className   = 'view-toggle';
+    signOutBtn.textContent = 'Sign Out';
+    signOutBtn.style.cssText = 'font-size:0.75rem;padding:0.2rem 0.5rem;';
+    signOutBtn.addEventListener('click', async () => {
+      await logout();
+      renderAuthPanel(container);
+      _refreshProBadges(container);
+    });
+
+    btnRow.appendChild(redeemBtn);
+    btnRow.appendChild(signOutBtn);
+    panel.appendChild(btnRow);
+  } else {
+    // Signed-out state
+    const msgEl = document.createElement('div');
+    msgEl.style.cssText = 'font-size:0.75rem;color:var(--muted,#888);margin-bottom:0.3rem;';
+    msgEl.textContent = 'Sign in for Pro features and template packs.';
+    panel.appendChild(msgEl);
+
+    const signInBtn = document.createElement('button');
+    signInBtn.className   = 'view-toggle';
+    signInBtn.textContent = 'Sign In / Create Account';
+    signInBtn.style.cssText = 'width:100%;font-size:0.8rem;';
+    signInBtn.addEventListener('click', async () => {
+      await showLoginModal();
+      renderAuthPanel(container);
+      _refreshProBadges(container);
+    });
+    panel.appendChild(signInBtn);
+  }
+
+  // Insert after license link, before the first h2
+  const firstH2 = container.querySelector('h2');
+  if (firstH2) {
+    container.insertBefore(panel, firstH2);
+  } else {
+    container.appendChild(panel);
+  }
+}
+
+/** Update the locked/unlocked appearance of module items that require pro. */
+function _refreshProBadges(container: HTMLElement) {
+  const locked = !canCreateSection();
+  container.querySelectorAll<HTMLElement>('[data-requires-pro]').forEach((el) => {
+    el.classList.toggle('module-locked', locked);
+    const badge = el.querySelector<HTMLElement>('.module-pro-badge');
+    if (badge) badge.style.display = locked ? '' : 'none';
+  });
+}
+
+/** Show a non-blocking upgrade prompt when a locked feature is attempted. */
+function _showProRequiredDialog() {
+  const overlay = document.createElement('div');
+  overlay.className = 'import-modal-overlay';
+  const dialog = document.createElement('div');
+  dialog.className = 'import-modal';
+  dialog.style.maxWidth = '320px';
+
+  const title = document.createElement('h3');
+  title.textContent = 'Pro Feature';
+  dialog.appendChild(title);
+
+  const msg = document.createElement('p');
+  msg.textContent = 'Creating Section blocks requires a Pro subscription or active Demo trial. ' +
+    'Sign in and redeem a license code to unlock.';
+  msg.style.fontSize = '0.9rem';
+  dialog.appendChild(msg);
+
+  const btns = document.createElement('div');
+  btns.className = 'import-modal-btns';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className   = 'import-confirm-btn';
+  closeBtn.textContent = 'OK';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  btns.appendChild(closeBtn);
+
+  dialog.appendChild(btns);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
 function renderSidebar() {
   const container = document.getElementById('sidebar-left')!;
 
@@ -100,6 +375,9 @@ function renderSidebar() {
   licenseLink.textContent = '© 2026 LeptonPad — Proprietary License';
   licenseLink.className = 'sidebar-license';
   container.appendChild(licenseLink);
+
+  // Auth panel (login status, redeem code, sign-out)
+  renderAuthPanel(container);
 
   const posHeading = document.createElement('h2');
   posHeading.textContent = 'Cursor';
@@ -351,6 +629,16 @@ function renderSidebar() {
       badge.title = 'Can only be placed inside a Section';
       item.appendChild(badge);
     }
+    if (mod.requiresPro) {
+      item.dataset.requiresPro = '1';
+      const proBadge = document.createElement('span');
+      proBadge.className = 'module-pro-badge';
+      proBadge.textContent = 'PRO';
+      proBadge.title = 'Requires Pro or higher to create sections';
+      proBadge.style.display = canCreateSection() ? 'none' : '';
+      item.appendChild(proBadge);
+      if (!canCreateSection()) item.classList.add('module-locked');
+    }
     container.appendChild(item);
   });
 
@@ -380,8 +668,27 @@ async function start() {
     await init();
     console.log('MathWasm Engine Ready');
 
+    // Initialise auth before rendering sidebar so role is known immediately
+    await initAuth();
+
     renderSidebar();
     setCanvas(new Canvas('canvas'));
+
+    // Re-render auth panel whenever login state changes
+    onAuthChange(() => {
+      const container = document.getElementById('sidebar-left');
+      if (container) {
+        renderAuthPanel(container);
+        _refreshProBadges(container);
+      }
+    });
+    setOnAuthStateChange(() => {
+      const container = document.getElementById('sidebar-left');
+      if (container) {
+        renderAuthPanel(container);
+        _refreshProBadges(container);
+      }
+    });
 
     // Wire callback slots — breaks circular deps between modules
     setOnSectionSummaryUpdate(updateSectionSummary);
@@ -770,16 +1077,24 @@ async function start() {
     document.getElementById('sidebar-left')!.addEventListener('dblclick', (e) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-module-type]');
       if (!el?.dataset.moduleType) return;
+      if (el.dataset.requiresPro && !canCreateSection()) {
+        _showProRequiredDialog();
+        return;
+      }
       dropBlock(el.dataset.moduleType as Block['type'], el.dataset.moduleId ?? '', gridCursor.x, gridCursor.y);
     });
 
     // Sidebar drag → canvas drop
     document.getElementById('sidebar-left')!.addEventListener('dragstart', (e) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-module-type]');
-      if (el?.dataset.moduleType) {
-        e.dataTransfer!.setData('module-type', el.dataset.moduleType);
-        e.dataTransfer!.setData('module-id', el.dataset.moduleId ?? '');
+      if (!el?.dataset.moduleType) return;
+      if (el.dataset.requiresPro && !canCreateSection()) {
+        e.preventDefault();
+        _showProRequiredDialog();
+        return;
       }
+      e.dataTransfer!.setData('module-type', el.dataset.moduleType);
+      e.dataTransfer!.setData('module-id', el.dataset.moduleId ?? '');
     });
 
     canvas.domElement.addEventListener('drop', (e) => {

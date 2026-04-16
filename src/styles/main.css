@@ -1738,3 +1738,30 @@ h2.custom-tools-heading {
   text-decoration: underline;
 }
 
+/* ── Auth panel ─────────────────────────────────────────────────────────── */
+.auth-panel {
+  font-size: 0.8rem;
+}
+
+/* ── Pro-locked module items ────────────────────────────────────────────── */
+.module-item.module-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.module-item.module-locked:active {
+  transform: none;
+}
+
+.module-pro-badge {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: #0284c7;
+  color: #fff;
+  white-space: nowrap;
+}
+

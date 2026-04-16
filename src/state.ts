@@ -173,6 +173,8 @@ export let onClearSelection: (() => void) | null = null;
 export let onAddToSelection: ((el: HTMLElement) => void) | null = null;
 export let onRefreshCustomModulesList: (() => void) | null = null;
 export let onAppendCustomModuleToSidebar: ((mod: CustomModule) => void) | null = null;
+/** Fired after login/logout/role change so the sidebar login panel re-renders. */
+export let onAuthStateChange: (() => void) | null = null;
 
 export function setOnSectionSummaryUpdate(fn: typeof onSectionSummaryUpdate)       { onSectionSummaryUpdate       = fn; }
 export function setOnRefreshAllSectionHeights(fn: typeof onRefreshAllSectionHeights){ onRefreshAllSectionHeights   = fn; }
@@ -184,6 +186,7 @@ export function setOnClearSelection(fn: typeof onClearSelection)                
 export function setOnAddToSelection(fn: typeof onAddToSelection)                    { onAddToSelection             = fn; }
 export function setOnRefreshCustomModulesList(fn: typeof onRefreshCustomModulesList)  { onRefreshCustomModulesList   = fn; }
 export function setOnAppendCustomModuleToSidebar(fn: typeof onAppendCustomModuleToSidebar) { onAppendCustomModuleToSidebar = fn; }
+export function setOnAuthStateChange(fn: typeof onAuthStateChange) { onAuthStateChange = fn; }
 
 // Re-export types so modules only need one import for both state and types
 export type { Block, WorkspaceState, CustomModule, TitleBlockData };

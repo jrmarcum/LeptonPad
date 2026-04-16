@@ -18,12 +18,12 @@
         </div>
       </main>
     </div>
+    <script src="/config.js"></script>
     <script type="module" src="/main.js"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script>new EventSource('/__dev_sse');</script>
   </body>
 </html>

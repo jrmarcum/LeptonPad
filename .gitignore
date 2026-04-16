@@ -1,2 +1,5 @@
 target/
 version_history/
+dist/
+.env
+CLAUDE.md

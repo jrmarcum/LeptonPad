@@ -2,6 +2,9 @@
 // Shared types, interfaces, and constants
 // ---------------------------------------------------------------------------
 
+// User roles in ascending privilege order
+export type UserRole = 'free' | 'demo' | 'pro' | 'super';
+
 export interface Block {
   id: string;
   type: 'math' | 'plot' | 'text' | 'header' | 'table' | 'formula' | 'section' | 'summary' | 'figure';
@@ -18,6 +21,11 @@ export interface Block {
   sectionColor?: string;     // accent color for left border
   parentSectionId?: string;  // set on child blocks; undefined for top-level blocks
   h?: number;                // explicit height set by pull-down resize handle
+  // Purchased template pack fields (section blocks only)
+  packId?: string;           // pack slug if this block came from a purchased template
+  encrypted?: boolean;       // true = content is encrypted; encIv + encContent hold the data
+  encIv?: string;            // AES-GCM IV, base64
+  encContent?: string;       // AES-GCM ciphertext, base64
 }
 
 export interface WorkspaceState {
