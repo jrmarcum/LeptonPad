@@ -217,10 +217,28 @@ Frequently used block groups (e.g. a standard material properties section) can b
 ## Build and Development
 
 ```bash
-deno task dev     # hot-reload dev server → http://localhost:5173
-deno task build   # production build → dist/
-deno task serve   # serve dist/ at http://localhost:5173
+deno task dev        # hot-reload dev server → http://localhost:5173
+deno task build      # production build → dist/
+deno task serve      # dev server for pre-built dist/
+deno task serve:prod # production server (no dev features)
 ```
+
+### Local configuration
+
+Create a `.env` file in the project root with your Supabase credentials:
+
+```env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+```
+
+`deno task build` reads these and writes them into `dist/config.js`. If no `.env` file is present, `public/config.js` is used as the fallback for local dev.
+
+### Deno Deploy
+
+- **Build command:** `deno task build`
+- **Entrypoint:** `main.ts`
+- **Environment variables:** set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in the Deno Deploy dashboard — the build step injects them into `dist/config.js` automatically.
 
 ### Supabase setup
 
@@ -228,6 +246,12 @@ deno task serve   # serve dist/ at http://localhost:5173
 2. Run `supabase/schema.sql` in the SQL editor — the script is fully idempotent and can be re-run safely
 3. Paste your project URL and Publishable (anon) key into `public/config.js`
 4. Set user roles via the SQL snippets in `CLAUDE.md`
+
+### Releasing a new version
+
+1. Bump `"version"` in `deno.json`
+2. Bump the cache name in `public/sw.js` (e.g. `leptonpad-v3`) to force installed PWA users to receive the update
+3. Deploy
 
 ---
 
