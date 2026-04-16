@@ -1,5 +1,5 @@
-const CACHE = 'mathwasm-v1';
-const PRECACHE = ['/', '/main.js', '/main.css', '/solver_bg.wasm', '/manifest.webmanifest'];
+const CACHE = 'leptonpad-v2';
+const PRECACHE = ['/', '/main.js', '/main.css', '/solver.wasm', '/config.js', '/manifest.webmanifest', '/LeptonPadLogo.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
