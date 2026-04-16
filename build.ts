@@ -1,6 +1,8 @@
 // Production build: bundle TS, copy static assets into dist/
 await Deno.mkdir('dist', { recursive: true });
 
+const { version } = JSON.parse(await Deno.readTextFile('deno.json')) as { version: string };
+
 // Generate dist/config.js from env vars (Deno Deploy) or .env file (local dev)
 async function writeConfigJs() {
   // Prefer process env vars — set these in the Deno Deploy dashboard
@@ -23,7 +25,7 @@ async function writeConfigJs() {
   url = url || 'https://your-project-id.supabase.co';
   key = key || 'your-public-anon-key';
 
-  const js = `globalThis.__LP_CONFIG__ = {\n  supabaseUrl:     '${url}',\n  supabaseAnonKey: '${key}',\n};\n`;
+  const js = `globalThis.__LP_CONFIG__ = {\n  supabaseUrl:     '${url}',\n  supabaseAnonKey: '${key}',\n  version:         '${version}',\n};\n`;
   await Deno.writeTextFile('dist/config.js', js);
 }
 

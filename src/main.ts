@@ -366,6 +366,15 @@ function renderSidebar() {
   licenseLink.className = 'sidebar-license';
   container.appendChild(licenseLink);
 
+  // deno-lint-ignore no-explicit-any
+  const version = (globalThis as any).__LP_CONFIG__?.version ?? '';
+  if (version) {
+    const versionEl = document.createElement('div');
+    versionEl.className = 'sidebar-version';
+    versionEl.textContent = `v${version}`;
+    container.appendChild(versionEl);
+  }
+
   // Auth panel (login status, redeem code, sign-out)
   renderAuthPanel(container);
 

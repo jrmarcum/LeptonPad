@@ -1738,6 +1738,13 @@ h2.custom-tools-heading {
   text-decoration: underline;
 }
 
+.sidebar-version {
+  font-size: 10px;
+  color: #64748b;
+  padding: 0 0.5rem 0.25rem;
+  line-height: 1.4;
+}
+
 /* ── Auth panel ─────────────────────────────────────────────────────────── */
 .auth-panel {
   font-size: 0.8rem;
