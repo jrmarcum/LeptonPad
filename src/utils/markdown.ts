@@ -54,6 +54,24 @@ export function stripOuter(s: string): string {
   return s.slice(1, -1).trim();
 }
 
+/**
+ * Find the index of a top-level assignment '=' that is NOT part of <=, >=, !=, ==.
+ * Returns -1 if none found.
+ */
+function findAssignmentIdx(s: string): number {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    else if (depth === 0 && s[i] === '=') {
+      if (i > 0 && /[<>!=]/.test(s[i - 1])) continue;
+      if (i + 1 < s.length && s[i + 1] === '=') continue;
+      return i;
+    }
+  }
+  return -1;
+}
+
 /** Apply Greek/superscript/subscript/sqrt/× transforms to a raw text piece. */
 export function transformPiece(raw: string): string {
   let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -111,9 +129,15 @@ export function renderExpr(raw: string): string {
   // No top-level additive op — check for a top-level /
   const divIdx = topLevelIdx(s, '/');
   if (divIdx >= 0) {
-    const num = stripOuter(s.slice(0, divIdx).trim());
-    const den = stripOuter(s.slice(divIdx + 1).trim());
-    return `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(den)}</span></span>`;
+    const denStr = s.slice(divIdx + 1).trim();
+    // Only render as a stacked fraction when the denominator has no top-level * at the same
+    // level. Without this guard, `1/2 * base * height` would show as `1` over `2·base·height`,
+    // which is visually misleading (it reads as 1/(2·base·height) but computes as (1/2)·base·height).
+    if (topLevelIdx(denStr, '*') < 0) {
+      const num = stripOuter(s.slice(0, divIdx).trim());
+      const den = stripOuter(denStr);
+      return `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(den)}</span></span>`;
+    }
   }
 
   return transformPiece(s);
@@ -137,15 +161,17 @@ export function prettifyExpr(src: string): string {
   }
 
   // Split assignment: "Ix = expr" → lhs "Ix", rhs "expr"
+  // Uses findAssignmentIdx so that <= >= != == are never mistaken for an assignment.
   let lhsHtml = '';
   let rhsRaw = body;
-  const eqIdx = topLevelIdx(body, '=');
+  const eqIdx = findAssignmentIdx(body);
   if (eqIdx > 0) {
     const lhs = body.slice(0, eqIdx).trim();
-    if (/^[A-Za-z_]\w*$/.test(lhs)) {
-      lhsHtml = transformPiece(lhs) + ' <span class="fp-eq">=</span> ';
-      rhsRaw = body.slice(eqIdx + 1).trim();
-    }
+    rhsRaw = body.slice(eqIdx + 1).trim();
+    // Plain identifier → compact transformPiece; complex LHS (e.g. f(x)) → renderExpr.
+    // Either way rhsRaw is always the part after '=', so the LHS can never end up inside a fraction.
+    lhsHtml = (/^[A-Za-z_]\w*$/.test(lhs) ? transformPiece(lhs) : renderExpr(lhs))
+      + ' <span class="fp-eq">=</span> ';
   }
 
   const rhsHtml = renderExpr(rhsRaw);
