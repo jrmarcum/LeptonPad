@@ -129,14 +129,24 @@ export function renderExpr(raw: string): string {
   // No top-level additive op — check for a top-level /
   const divIdx = topLevelIdx(s, '/');
   if (divIdx >= 0) {
+    const numStr = s.slice(0, divIdx).trim();
     const denStr = s.slice(divIdx + 1).trim();
-    // Only render as a stacked fraction when the denominator has no top-level * at the same
-    // level. Without this guard, `1/2 * base * height` would show as `1` over `2·base·height`,
-    // which is visually misleading (it reads as 1/(2·base·height) but computes as (1/2)·base·height).
-    if (topLevelIdx(denStr, '*') < 0) {
-      const num = stripOuter(s.slice(0, divIdx).trim());
+    const num = stripOuter(numStr);
+    const mulIdx = topLevelIdx(denStr, '*');
+
+    if (mulIdx < 0) {
+      // Simple denominator — show as stacked fraction.
       const den = stripOuter(denStr);
       return `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(den)}</span></span>`;
+    }
+
+    // Denominator has a top-level *: split at the first * so that `P/2 * x` renders
+    // as [P/2 fraction] · x rather than P over 2·x (which would read as P/(2·x)).
+    const pureDen = stripOuter(denStr.slice(0, mulIdx).trim());
+    if (pureDen) {
+      const trailing = denStr.slice(mulIdx + 1).trim();
+      const fracHtml = `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(pureDen)}</span></span>`;
+      return fracHtml + (trailing ? ' · ' + renderExpr(trailing) : '');
     }
   }
 
