@@ -3,7 +3,9 @@ import { serveDir } from 'jsr:@std/http@1/file-server';
 // Copy static assets
 await Deno.mkdir('dist', { recursive: true });
 
-// Generate config.js from .env (falls back to public/config.js placeholder)
+const { version } = JSON.parse(await Deno.readTextFile('deno.json')) as { version: string };
+
+// Generate config.js from .env (falls back to placeholders)
 async function writeConfigJs() {
   let url = 'https://your-project-id.supabase.co';
   let key = 'your-public-anon-key';
@@ -16,7 +18,7 @@ async function writeConfigJs() {
       if (k.trim() === 'SUPABASE_ANON_KEY') key = v;
     }
   } catch { /* no .env — use placeholders */ }
-  const js = `globalThis.__LP_CONFIG__ = {\n  supabaseUrl:     '${url}',\n  supabaseAnonKey: '${key}',\n};\n`;
+  const js = `globalThis.__LP_CONFIG__ = {\n  supabaseUrl:     '${url}',\n  supabaseAnonKey: '${key}',\n  version:         '${version}',\n};\n`;
   await Deno.writeTextFile('dist/config.js', js);
 }
 

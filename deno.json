@@ -1,5 +1,6 @@
 {
-  "version": "2.0.1",
+  "version": "2.0.2",
+  "name": "leptonpad",
   "nodeModulesDir": "none",
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
@@ -10,8 +11,9 @@
   },
   "tasks": {
     "build:wasm": "deno run -A jsr:@jrmarcum/wasmtk modc solver/solver.ts -n dist/solver.wasm",
-    "build": "deno task build:wasm && deno run -A build.ts",
-    "dev": "deno task build:wasm && deno run -A dev.ts",
+    "sync:version": "deno run -A scripts/sync-version.ts",
+    "build": "deno task sync:version && deno task build:wasm && deno run -A build.ts",
+    "dev": "deno task sync:version && deno task build:wasm && deno run -A dev.ts",
     "check": "deno fmt && deno lint",
     "serve": "deno run -A serve.ts",
     "serve:prod": "deno run --allow-net --allow-read main.ts",
