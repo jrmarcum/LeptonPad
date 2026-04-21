@@ -957,7 +957,20 @@ main {
 
 .plot-expr  { flex: 1; min-width: 8rem; }
 .plot-xvar  { width: 2.2rem; text-align: center; }
-.plot-range { width: 4.5rem; }
+.plot-range { min-width: 3rem; max-width: 5.5rem; text-align: center; }
+.plot-fill-label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: #6b7280;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  margin-left: 0.25rem;
+  white-space: nowrap;
+}
+.plot-fill-check { cursor: pointer; }
 
 /* contentEditable math-preview cells inside plot blocks */
 .plot-cell {

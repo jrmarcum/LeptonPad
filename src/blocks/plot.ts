@@ -2,7 +2,7 @@
 // Plot block — SVG curve plotter
 // ---------------------------------------------------------------------------
 
-import { evalExpr, type Scope } from '../expr.ts';
+import { evalExpr, type Scope, type FnScope } from '../expr.ts';
 import { type Block, type PlotConfig, DEFAULT_PLOT } from '../types.ts';
 import { globalScope, globalFnScope } from '../state.ts';
 import { isDark } from '../utils/theme.ts';
@@ -128,6 +128,30 @@ export function buildPlotSVG(
     s += `<line x1="${ml}" y1="${sy}" x2="${ml + pw}" y2="${sy}" stroke="${zero}" stroke-width="1" stroke-dasharray="3,2"/>`;
   }
 
+  // Fill area between curve and y=0
+  if (cfg.fill && points.length > 1) {
+    const sy0 = Math.max(PLOT_MT, Math.min(PLOT_MT + ph, toSY(0)));
+    let d = '';
+    let penDown = false;
+    let lastSx = '';
+    for (const [xv, yv] of points) {
+      const sx = toSX(xv).toFixed(1);
+      if (!isFinite(yv)) {
+        if (penDown) { d += ` L${lastSx},${sy0.toFixed(1)} Z`; penDown = false; }
+        continue;
+      }
+      const sy = toSY(yv).toFixed(1);
+      if (!penDown) { d += ` M${sx},${sy0.toFixed(1)} L${sx},${sy}`; penDown = true; }
+      else d += ` L${sx},${sy}`;
+      lastSx = sx;
+    }
+    if (penDown) d += ` L${lastSx},${sy0.toFixed(1)} Z`;
+    if (d) {
+      const fillCol = dark ? 'rgba(56,189,248,0.18)' : 'rgba(37,99,235,0.12)';
+      s += `<path d="${d.trim()}" fill="${fillCol}" stroke="none" clip-path="url(#${cpId})"/>`;
+    }
+  }
+
   // Curve — gap at NaN (discontinuity)
   if (points.length > 1) {
     let d = '';
@@ -226,18 +250,36 @@ export function buildPlotSVG(
 // Data evaluation
 // ---------------------------------------------------------------------------
 
-export function evalPlotData(block: Block): { points: [number, number][]; yMin: number; yMax: number; markerData: [number, number][]; error?: string } {
+/** Resolve a from/to expression to a number. Tries evalExpr first, then parseFloat. */
+function resolveRangeExpr(expr: string, fallback: number, scope: Scope, fnScope: FnScope): number {
+  if (!expr) return fallback;
+  const n = parseFloat(expr);
+  if (isFinite(n) && String(n) === expr.trim()) return n;
+  try { return evalExpr(expr, scope, fnScope).v; }
+  catch { return isFinite(n) ? n : fallback; }
+}
+
+export function evalPlotData(block: Block): { points: [number, number][]; yMin: number; yMax: number; markerData: [number, number][]; xMin: number; xMax: number; error?: string } {
   let cfg: PlotConfig;
   try { cfg = { ...DEFAULT_PLOT, ...JSON.parse(block.content || '{}') }; }
   catch { cfg = { ...DEFAULT_PLOT }; }
-  if (!cfg.expr.trim()) return { points: [], yMin: -1, yMax: 1, markerData: [] };
+  if (!cfg.expr.trim()) return { points: [], yMin: -1, yMax: 1, markerData: [], xMin: cfg.xMin, xMax: cfg.xMax };
+
+  // Resolve from/to expressions against the current scope (handles variable names like 'l')
+  const baseScope: Scope = { ...globalScope };
+  const xMinExpr = cfg.xMinExpr ?? String(cfg.xMin);
+  const xMaxExpr = cfg.xMaxExpr ?? String(cfg.xMax);
+  const xMin = resolveRangeExpr(xMinExpr, cfg.xMin, baseScope, globalFnScope);
+  const xMax = resolveRangeExpr(xMaxExpr, cfg.xMax, baseScope, globalFnScope);
+  const resolvedXMin = isFinite(xMin) ? xMin : 0;
+  const resolvedXMax = (isFinite(xMax) && xMax > resolvedXMin) ? xMax : resolvedXMin + 1;
 
   const points: [number, number][] = [];
   let yMin = Infinity, yMax = -Infinity;
   let error: string | undefined;
 
   for (let i = 0; i <= cfg.nPts; i++) {
-    const xv = cfg.xMin + (cfg.xMax - cfg.xMin) * (i / cfg.nPts);
+    const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg.nPts);
     const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: {} } };
     try {
       const yv = evalExpr(cfg.expr, scope, globalFnScope).v;
@@ -261,7 +303,7 @@ export function evalPlotData(block: Block): { points: [number, number][]; yMin: 
     catch { return [xv, NaN] as [number, number]; }
   });
 
-  return { points, yMin, yMax, markerData, error };
+  return { points, yMin, yMax, markerData, xMin: resolvedXMin, xMax: resolvedXMax, error };
 }
 
 // ---------------------------------------------------------------------------
@@ -477,14 +519,15 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     s.textContent = text;
     return s;
   };
-  const mkNumInput = (val: number, w: string) => {
-    const inp = document.createElement('input');
-    inp.type = 'number';
-    inp.className = 'plot-input plot-range';
-    inp.style.width = w;
-    inp.value = String(val);
-    inp.step = 'any';
-    return inp;
+
+  const mkRangeCell = (raw: string, placeholder: string, title: string) => {
+    const cell = document.createElement('div');
+    cell.contentEditable = 'true';
+    cell.className = 'plot-input plot-range plot-cell';
+    cell.dataset.placeholder = placeholder;
+    cell.dataset.raw = raw;
+    cell.title = title;
+    return cell;
   };
 
   const xVarCell = document.createElement('div');
@@ -494,15 +537,28 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
   xVarCell.dataset.raw = cfg.xVar;
   xVarCell.title = 'Sweep variable name';
 
-  const xMinInput = mkNumInput(cfg.xMin, '4.5rem');
-  const xMaxInput = mkNumInput(cfg.xMax, '4.5rem');
+  const xMinExprInit = cfg.xMinExpr ?? String(cfg.xMin);
+  const xMaxExprInit = cfg.xMaxExpr ?? String(cfg.xMax);
+  const xMinCell = mkRangeCell(xMinExprInit, '0', 'Lower bound — number or variable name');
+  const xMaxCell = mkRangeCell(xMaxExprInit, '1', 'Upper bound — number or variable name');
+
+  // Fill checkbox
+  const fillLabel = document.createElement('label');
+  fillLabel.className = 'plot-fill-label';
+  const fillCheck = document.createElement('input');
+  fillCheck.type = 'checkbox';
+  fillCheck.className = 'plot-fill-check';
+  fillCheck.checked = cfg.fill ?? true;
+  fillLabel.appendChild(fillCheck);
+  fillLabel.append(' Fill');
 
   rangeRow.appendChild(mkLabel('x:'));
   rangeRow.appendChild(xVarCell);
   rangeRow.appendChild(mkLabel('from'));
-  rangeRow.appendChild(xMinInput);
+  rangeRow.appendChild(xMinCell);
   rangeRow.appendChild(mkLabel('to'));
-  rangeRow.appendChild(xMaxInput);
+  rangeRow.appendChild(xMaxCell);
+  rangeRow.appendChild(fillLabel);
   controls.appendChild(rangeRow);
 
   el.appendChild(controls);
@@ -518,7 +574,7 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   function render() {
-    const { points, yMin, yMax, markerData, error } = evalPlotData(block);
+    const { points, yMin, yMax, markerData, xMin, xMax, error } = evalPlotData(block);
     if (error) {
       errEl.textContent = '⚠ ' + error;
       svgWrap.innerHTML = '';
@@ -528,6 +584,9 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     let cfgNow: PlotConfig;
     try { cfgNow = { ...DEFAULT_PLOT, ...JSON.parse(block.content || '{}') }; }
     catch { cfgNow = { ...DEFAULT_PLOT }; }
+    // Use resolved bounds for axis rendering
+    cfgNow.xMin = xMin;
+    cfgNow.xMax = xMax;
     svgWrap.innerHTML = buildPlotSVG(points, cfgNow, yMin, yMax, isDark(), markerData);
     attachPlotHover(svgWrap, points, cfgNow, yMin, yMax, () => {
       block.content = JSON.stringify(cfgNow);
@@ -536,12 +595,11 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
   }
 
   function syncAndRender() {
-    cfg.expr  = exprCell.dataset.raw ?? '';
-    cfg.xVar  = xVarCell.dataset.raw?.trim() || 'x';
-    cfg.xMin  = parseFloat(xMinInput.value);
-    cfg.xMax  = parseFloat(xMaxInput.value);
-    if (!isFinite(cfg.xMin)) cfg.xMin = 0;
-    if (!isFinite(cfg.xMax) || cfg.xMax <= cfg.xMin) cfg.xMax = cfg.xMin + 1;
+    cfg.expr     = exprCell.dataset.raw ?? '';
+    cfg.xVar     = xVarCell.dataset.raw?.trim() || 'x';
+    cfg.xMinExpr = xMinCell.dataset.raw?.trim() || '0';
+    cfg.xMaxExpr = xMaxCell.dataset.raw?.trim() || '1';
+    cfg.fill     = fillCheck.checked;
     block.content = JSON.stringify(cfg);
     render();
   }
@@ -578,16 +636,23 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     });
   }
 
+  function renderRangeCell(cell: HTMLDivElement) {
+    const html = prettifyExpr(cell.dataset.raw ?? '');
+    if (html) cell.innerHTML = html;
+    else cell.textContent = cell.dataset.raw ?? '';
+  }
+
   bindCell(exprCell, renderExprMath);
   bindCell(xVarCell, renderXVarMath);
+  bindCell(xMinCell, () => renderRangeCell(xMinCell));
+  bindCell(xMaxCell, () => renderRangeCell(xMaxCell));
 
-  for (const inp of [xMinInput, xMaxInput]) {
-    inp.addEventListener('blur', syncAndRender);
-    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); });
-  }
+  fillCheck.addEventListener('change', syncAndRender);
 
   renderExprMath();
   renderXVarMath();
+  renderRangeCell(xMinCell);
+  renderRangeCell(xMaxCell);
 
   // Hook for reEvalAllFormulas to refresh after formula changes
   // deno-lint-ignore no-explicit-any

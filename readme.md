@@ -121,8 +121,10 @@ Computes properties for a rectangular cross-section.
 Renders an SVG curve from a math expression over a variable range.
 
 - Enter any expression using variables defined above (e.g. `sin(x * pi / L) * delta`).
-- Set the `x` range, number of evaluation points, and axis labels.
-- Add permanent markers at specific x-values with custom labels.
+- Set the sweep variable and its range. The **from** and **to** fields accept either a number or a variable name (e.g. `0` and `l`) — when a referenced variable changes in a formula block above, the plot range updates automatically.
+- **Fill** checkbox (default on) shades the area between the curve and y = 0, making the area-under-the-curve immediately visible.
+- Zero crossings and local extrema are annotated automatically.
+- Add permanent markers at specific x-values via right-click on the plot.
 - Plot colors adapt automatically to dark/light mode.
 
 ---
@@ -250,7 +252,7 @@ SUPABASE_ANON_KEY=your-anon-key
 ### Releasing a new version
 
 1. Bump `"version"` in `deno.json`
-2. Bump the cache name in `public/sw.js` (e.g. `leptonpad-v3`) to force installed PWA users to receive the update
+2. Run `deno task build` — the `sync:version` step automatically patches the version into `public/config.js` and the service worker cache name in `public/sw.js`, forcing installed PWA users to receive the update
 3. Deploy
 
 ---

@@ -12971,10 +12971,13 @@ var DEFAULT_PLOT = {
   xVar: "x",
   xMin: 0,
   xMax: 6.2832,
+  xMinExpr: "0",
+  xMaxExpr: "6.2832",
   nPts: 200,
   xLabel: "x",
   yLabel: "y",
-  markers: []
+  markers: [],
+  fill: true
 };
 var GRID_SIZE = 20;
 var PX_PER_IN = 96;
@@ -16124,6 +16127,33 @@ function buildPlotSVG(points, cfg2, yMin, yMax, dark, markerData = []) {
     const sy = toSY(0).toFixed(1);
     s += `<line x1="${ml}" y1="${sy}" x2="${ml + pw}" y2="${sy}" stroke="${zero}" stroke-width="1" stroke-dasharray="3,2"/>`;
   }
+  if (cfg2.fill && points.length > 1) {
+    const sy0 = Math.max(PLOT_MT, Math.min(PLOT_MT + ph, toSY(0)));
+    let d = "";
+    let penDown = false;
+    let lastSx = "";
+    for (const [xv, yv] of points) {
+      const sx = toSX(xv).toFixed(1);
+      if (!isFinite(yv)) {
+        if (penDown) {
+          d += ` L${lastSx},${sy0.toFixed(1)} Z`;
+          penDown = false;
+        }
+        continue;
+      }
+      const sy = toSY(yv).toFixed(1);
+      if (!penDown) {
+        d += ` M${sx},${sy0.toFixed(1)} L${sx},${sy}`;
+        penDown = true;
+      } else d += ` L${sx},${sy}`;
+      lastSx = sx;
+    }
+    if (penDown) d += ` L${lastSx},${sy0.toFixed(1)} Z`;
+    if (d) {
+      const fillCol = dark ? "rgba(56,189,248,0.18)" : "rgba(37,99,235,0.12)";
+      s += `<path d="${d.trim()}" fill="${fillCol}" stroke="none" clip-path="url(#${cpId})"/>`;
+    }
+  }
   if (points.length > 1) {
     let d = "";
     let penDown = false;
@@ -16219,6 +16249,16 @@ function buildPlotSVG(points, cfg2, yMin, yMax, dark, markerData = []) {
   s += "</svg>";
   return s;
 }
+function resolveRangeExpr(expr, fallback, scope, fnScope) {
+  if (!expr) return fallback;
+  const n = parseFloat(expr);
+  if (isFinite(n) && String(n) === expr.trim()) return n;
+  try {
+    return evalExpr(expr, scope, fnScope).v;
+  } catch {
+    return isFinite(n) ? n : fallback;
+  }
+}
 function evalPlotData(block) {
   let cfg2;
   try {
@@ -16235,13 +16275,24 @@ function evalPlotData(block) {
     points: [],
     yMin: -1,
     yMax: 1,
-    markerData: []
+    markerData: [],
+    xMin: cfg2.xMin,
+    xMax: cfg2.xMax
   };
+  const baseScope = {
+    ...globalScope
+  };
+  const xMinExpr = cfg2.xMinExpr ?? String(cfg2.xMin);
+  const xMaxExpr = cfg2.xMaxExpr ?? String(cfg2.xMax);
+  const xMin = resolveRangeExpr(xMinExpr, cfg2.xMin, baseScope, globalFnScope);
+  const xMax = resolveRangeExpr(xMaxExpr, cfg2.xMax, baseScope, globalFnScope);
+  const resolvedXMin = isFinite(xMin) ? xMin : 0;
+  const resolvedXMax = isFinite(xMax) && xMax > resolvedXMin ? xMax : resolvedXMin + 1;
   const points = [];
   let yMin = Infinity, yMax = -Infinity;
   let error;
   for (let i = 0; i <= cfg2.nPts; i++) {
-    const xv = cfg2.xMin + (cfg2.xMax - cfg2.xMin) * (i / cfg2.nPts);
+    const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg2.nPts);
     const scope = {
       ...globalScope,
       [cfg2.xVar]: {
@@ -16301,6 +16352,8 @@ function evalPlotData(block) {
     yMin,
     yMax,
     markerData,
+    xMin: resolvedXMin,
+    xMax: resolvedXMax,
     error
   };
 }
@@ -16485,14 +16538,14 @@ function buildPlotBlock(el, block) {
     s.textContent = text;
     return s;
   };
-  const mkNumInput = (val, w) => {
-    const inp = document.createElement("input");
-    inp.type = "number";
-    inp.className = "plot-input plot-range";
-    inp.style.width = w;
-    inp.value = String(val);
-    inp.step = "any";
-    return inp;
+  const mkRangeCell = (raw, placeholder, title) => {
+    const cell = document.createElement("div");
+    cell.contentEditable = "true";
+    cell.className = "plot-input plot-range plot-cell";
+    cell.dataset.placeholder = placeholder;
+    cell.dataset.raw = raw;
+    cell.title = title;
+    return cell;
   };
   const xVarCell = document.createElement("div");
   xVarCell.contentEditable = "true";
@@ -16500,14 +16553,25 @@ function buildPlotBlock(el, block) {
   xVarCell.dataset.placeholder = "x";
   xVarCell.dataset.raw = cfg2.xVar;
   xVarCell.title = "Sweep variable name";
-  const xMinInput = mkNumInput(cfg2.xMin, "4.5rem");
-  const xMaxInput = mkNumInput(cfg2.xMax, "4.5rem");
+  const xMinExprInit = cfg2.xMinExpr ?? String(cfg2.xMin);
+  const xMaxExprInit = cfg2.xMaxExpr ?? String(cfg2.xMax);
+  const xMinCell = mkRangeCell(xMinExprInit, "0", "Lower bound \u2014 number or variable name");
+  const xMaxCell = mkRangeCell(xMaxExprInit, "1", "Upper bound \u2014 number or variable name");
+  const fillLabel = document.createElement("label");
+  fillLabel.className = "plot-fill-label";
+  const fillCheck = document.createElement("input");
+  fillCheck.type = "checkbox";
+  fillCheck.className = "plot-fill-check";
+  fillCheck.checked = cfg2.fill ?? true;
+  fillLabel.appendChild(fillCheck);
+  fillLabel.append(" Fill");
   rangeRow.appendChild(mkLabel("x:"));
   rangeRow.appendChild(xVarCell);
   rangeRow.appendChild(mkLabel("from"));
-  rangeRow.appendChild(xMinInput);
+  rangeRow.appendChild(xMinCell);
   rangeRow.appendChild(mkLabel("to"));
-  rangeRow.appendChild(xMaxInput);
+  rangeRow.appendChild(xMaxCell);
+  rangeRow.appendChild(fillLabel);
   controls.appendChild(rangeRow);
   el.appendChild(controls);
   const svgWrap = document.createElement("div");
@@ -16517,7 +16581,7 @@ function buildPlotBlock(el, block) {
   errEl.className = "plot-err";
   el.appendChild(errEl);
   function render() {
-    const { points, yMin, yMax, markerData, error } = evalPlotData(block);
+    const { points, yMin, yMax, markerData, xMin, xMax, error } = evalPlotData(block);
     if (error) {
       errEl.textContent = "\u26A0 " + error;
       svgWrap.innerHTML = "";
@@ -16535,6 +16599,8 @@ function buildPlotBlock(el, block) {
         ...DEFAULT_PLOT
       };
     }
+    cfgNow.xMin = xMin;
+    cfgNow.xMax = xMax;
     svgWrap.innerHTML = buildPlotSVG(points, cfgNow, yMin, yMax, isDark(), markerData);
     attachPlotHover(svgWrap, points, cfgNow, yMin, yMax, () => {
       block.content = JSON.stringify(cfgNow);
@@ -16544,10 +16610,9 @@ function buildPlotBlock(el, block) {
   function syncAndRender() {
     cfg2.expr = exprCell.dataset.raw ?? "";
     cfg2.xVar = xVarCell.dataset.raw?.trim() || "x";
-    cfg2.xMin = parseFloat(xMinInput.value);
-    cfg2.xMax = parseFloat(xMaxInput.value);
-    if (!isFinite(cfg2.xMin)) cfg2.xMin = 0;
-    if (!isFinite(cfg2.xMax) || cfg2.xMax <= cfg2.xMin) cfg2.xMax = cfg2.xMin + 1;
+    cfg2.xMinExpr = xMinCell.dataset.raw?.trim() || "0";
+    cfg2.xMaxExpr = xMaxCell.dataset.raw?.trim() || "1";
+    cfg2.fill = fillCheck.checked;
     block.content = JSON.stringify(cfg2);
     render();
   }
@@ -16585,19 +16650,20 @@ function buildPlotBlock(el, block) {
       }
     });
   }
+  function renderRangeCell(cell) {
+    const html = prettifyExpr(cell.dataset.raw ?? "");
+    if (html) cell.innerHTML = html;
+    else cell.textContent = cell.dataset.raw ?? "";
+  }
   bindCell(exprCell, renderExprMath);
   bindCell(xVarCell, renderXVarMath);
-  for (const inp of [
-    xMinInput,
-    xMaxInput
-  ]) {
-    inp.addEventListener("blur", syncAndRender);
-    inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") e.target.blur();
-    });
-  }
+  bindCell(xMinCell, () => renderRangeCell(xMinCell));
+  bindCell(xMaxCell, () => renderRangeCell(xMaxCell));
+  fillCheck.addEventListener("change", syncAndRender);
   renderExprMath();
   renderXVarMath();
+  renderRangeCell(xMinCell);
+  renderRangeCell(xMaxCell);
   el.__plotRerender = render;
   render();
 }

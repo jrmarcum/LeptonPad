@@ -52,14 +52,17 @@ export interface CustomModule {
 }
 
 export interface PlotConfig {
-  expr: string;      // expression in terms of xVar (and any globalScope variables)
-  xVar: string;      // sweep variable name (default 'x')
-  xMin: number;
-  xMax: number;
-  nPts: number;      // number of sample points
+  expr: string;       // expression in terms of xVar (and any globalScope variables)
+  xVar: string;       // sweep variable name (default 'x')
+  xMin: number;       // resolved numeric lower bound (may be derived from xMinExpr)
+  xMax: number;       // resolved numeric upper bound (may be derived from xMaxExpr)
+  xMinExpr: string;   // raw text for lower bound — number literal or scope variable
+  xMaxExpr: string;   // raw text for upper bound — number literal or scope variable
+  nPts: number;       // number of sample points
   xLabel: string;
   yLabel: string;
-  markers: number[]; // x values for permanent labeled markers
+  markers: number[];  // x values for permanent labeled markers
+  fill: boolean;      // shade area between curve and y=0
 }
 
 export const DEFAULT_PLOT: PlotConfig = {
@@ -67,10 +70,13 @@ export const DEFAULT_PLOT: PlotConfig = {
   xVar: 'x',
   xMin: 0,
   xMax: 6.2832,
+  xMinExpr: '0',
+  xMaxExpr: '6.2832',
   nPts: 200,
   xLabel: 'x',
   yLabel: 'y',
   markers: [],
+  fill: true,
 };
 
 export interface TitleBlockData {
