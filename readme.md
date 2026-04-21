@@ -35,7 +35,7 @@ Version is controlled by the `"version"` field in `deno.json`. Running `build` o
 | Beam Def | Beam deflection math block |
 | Sect Prop | Section properties math block |
 
-All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, and Figure blocks have a **stretch-right** handle; Plot and Figure also have a **stretch-down** handle.
+All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, and Figure blocks have a **stretch-right** handle at the right edge; Plot and Figure also have a **stretch-down** handle at the bottom edge.
 
 ## User roles
 
