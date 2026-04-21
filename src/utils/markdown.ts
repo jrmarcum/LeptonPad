@@ -72,6 +72,19 @@ function findAssignmentIdx(s: string): number {
   return -1;
 }
 
+/**
+ * Render a unit string for display — HTML-escapes, converts ^N to superscripts,
+ * and replaces * with ·, but deliberately skips Greek-letter substitution so that
+ * unit abbreviations like "psi" (lb/in²) are never converted to Greek symbols.
+ */
+export function transformUnit(raw: string): string {
+  let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = s.replace(/\^(\d+)/g, '<sup>$1</sup>');
+  s = s.replace(/\^([A-Za-z])\b/g, '<sup>$1</sup>');
+  s = s.replace(/\s*\*\s*/g, ' · ');
+  return s;
+}
+
 /** Apply Greek/superscript/subscript/sqrt/× transforms to a raw text piece. */
 export function transformPiece(raw: string): string {
   let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
