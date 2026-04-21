@@ -7,6 +7,21 @@
 
 import { PX_PER_IN, PX_PER_MM } from '../types.ts';
 import { marginUnit } from '../state.ts';
+export type { UnitDef, UnitCategory, UnitSystem } from './unit-defs.ts';
+export {
+  UNIT_CATEGORIES,
+  getCategory,
+  findUnitDef,
+  unitsBySystem,
+} from './unit-defs.ts';
+import type { UnitDef } from './unit-defs.ts';
+
+// General unit conversion using factors and optional affine offsets (temperature).
+// WASM-READY: (f64, f64, f64, f64, f64) -> f64
+export function convert(value: number, from: UnitDef, to: UnitDef): number {
+  const base = value * from.factor + (from.offset ?? 0);
+  return (base - (to.offset ?? 0)) / to.factor;
+}
 
 // WASM-READY: (f64) -> f64
 export function mmToPx(mm: number): number { return Math.round(mm * PX_PER_MM); }

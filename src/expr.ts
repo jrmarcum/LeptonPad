@@ -1,3 +1,5 @@
+import { UNIT_LOOKUP } from './utils/unit-defs.ts';
+
 // Recursive-descent expression evaluator with dimensional analysis.
 // Supports: + - * / ^ () identifiers function-calls numbers (incl. sci notation)
 // Comparison: = == != <> < > <= >=  (return 1 or 0)
@@ -159,6 +161,57 @@ function parseUnitExpr(s: string): UnitMap {
   applyTerms(si >= 0 ? s.slice(0, si) : s, 1);
   if (si >= 0) applyTerms(s.slice(si + 1), -1);
   return cleanU(result);
+}
+
+// ---------------------------------------------------------------------------
+// [[targetUnit]] conversion helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the net SI factor for a compound unit map.
+ * e.g. {N:1, mm:-2} → 1^1 * (0.001)^-2 = 1e6  (Pascals per N/mm²)
+ * Throws if any symbol is not in the unit catalog.
+ */
+function unitMapSiFactor(umap: UnitMap): number {
+  let f = 1;
+  for (const [sym, exp] of Object.entries(umap)) {
+    const def = UNIT_LOOKUP.get(sym);
+    if (!def) throw new Error(`No SI conversion factor for unit: "${sym}"`);
+    f *= Math.pow(def.factor, exp);
+  }
+  return f;
+}
+
+/**
+ * Returns true when umap is exactly one temperature unit with exponent 1.
+ * Only this case requires affine (offset) conversion; all other cases
+ * (temperature differences, compound expressions like J/K) use factor scaling.
+ */
+function isSingleTempUnit(umap: UnitMap): boolean {
+  const keys = Object.keys(umap);
+  if (keys.length !== 1 || umap[keys[0]] !== 1) return false;
+  const def = UNIT_LOOKUP.get(keys[0]);
+  return !!def && (def.offset ?? 0) !== 0;
+}
+
+/**
+ * Convert a Quantity to targetUmap.
+ * - Simple temperature (e.g. °C → °F): full affine conversion with offset.
+ * - Everything else (lengths, areas, pressures, compound units): pure factor scaling.
+ *   This correctly handles compound units such as {N:1, mm:-2} → {ksi:1}.
+ */
+function applyTargetUnit(q: Quantity, targetUmap: UnitMap): Quantity {
+  // Affine temperature path: only when both sides are a single temperature unit
+  if (isSingleTempUnit(q.u) && isSingleTempUnit(targetUmap)) {
+    const src = UNIT_LOOKUP.get(Object.keys(q.u)[0])!;
+    const tgt = UNIT_LOOKUP.get(Object.keys(targetUmap)[0])!;
+    const base = q.v * src.factor + (src.offset ?? 0);
+    return { v: (base - (tgt.offset ?? 0)) / tgt.factor, u: targetUmap };
+  }
+  // Factor-scaling path
+  const srcF = unitMapSiFactor(q.u);   // throws if source symbol unknown
+  const tgtF = unitMapSiFactor(targetUmap); // throws if target symbol unknown
+  return { v: q.v * srcF / tgtF, u: targetUmap };
 }
 
 // ---------------------------------------------------------------------------
@@ -565,13 +618,21 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     const s = raw.trim();
     if (!s) continue;
 
-    // Strip optional unit tag [unit] from end — overrides propagated unit
-    let tagUnit: UnitMap | undefined;
+    // Strip [[targetUnit]] first — double-bracket means "convert result to this unit"
+    let targetUnit: UnitMap | undefined;
     let stmt = s;
-    const unitMatch = s.match(/\[([^\]]+)\]\s*$/);
+    const targetMatch = s.match(/\[\[([^\]]+)\]\]\s*$/);
+    if (targetMatch) {
+      targetUnit = parseUnitExpr(targetMatch[1]);
+      stmt = s.slice(0, targetMatch.index!).trim();
+    }
+
+    // Strip optional [unit] tag — single-bracket declares/overrides unit, no conversion
+    let tagUnit: UnitMap | undefined;
+    const unitMatch = stmt.match(/\[([^\]]+)\]\s*$/);
     if (unitMatch) {
       tagUnit = parseUnitExpr(unitMatch[1]);
-      stmt = s.slice(0, unitMatch.index!).trim();
+      stmt = stmt.slice(0, unitMatch.index!).trim();
     }
 
     // Function definition: f(x) = expr  — stored in fnScope, no numeric result
@@ -592,6 +653,7 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
         try {
           let q = evalExpr(expr, scope, fnScope);
           if (tagUnit !== undefined) q = { v: q.v, u: tagUnit };
+          if (targetUnit !== undefined) q = applyTargetUnit(q, targetUnit);
           scope[name] = q;
           results.push({ raw: s, name, expr, value: q.v, unit: q.u });
         } catch (e) {
@@ -605,6 +667,7 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     try {
       let q = evalExpr(stmt, scope, fnScope);
       if (tagUnit !== undefined) q = { v: q.v, u: tagUnit };
+      if (targetUnit !== undefined) q = applyTargetUnit(q, targetUnit);
       results.push({ raw: s, name: '', expr: stmt, value: q.v, unit: q.u });
     } catch (e) {
       results.push({ raw: s, name: '', expr: stmt, value: NaN, unit: {}, error: (e as Error).message });

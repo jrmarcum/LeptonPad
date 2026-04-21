@@ -187,10 +187,17 @@ export function prettifyExpr(src: string): string {
   const raw = src.trim();
   if (!raw) return '';
 
-  // Strip optional unit annotation [unit] from end for display
+  // Strip [[targetUnit]] first, then [sourceUnit], for display
+  let targetUnitHtml = '';
+  const targetMatch = raw.match(/\[\[([^\]]+)\]\]\s*$/);
+  const afterTarget = targetMatch ? raw.slice(0, targetMatch.index!).trim() : raw;
+  if (targetMatch) {
+    targetUnitHtml = ` <span class="fp-unit fp-unit-target">→ ${transformPiece(targetMatch[1])}</span>`;
+  }
+
   let unitHtml = '';
-  const unitMatch = raw.match(/\[([^\]]+)\]\s*$/);
-  const body = unitMatch ? raw.slice(0, unitMatch.index!).trim() : raw;
+  const unitMatch = afterTarget.match(/\[([^\]]+)\]\s*$/);
+  const body = unitMatch ? afterTarget.slice(0, unitMatch.index!).trim() : afterTarget;
   if (unitMatch) {
     unitHtml = ` <span class="fp-unit">${transformPiece(unitMatch[1])}</span>`;
   }
@@ -210,7 +217,7 @@ export function prettifyExpr(src: string): string {
   }
 
   const rhsHtml = renderExpr(rhsRaw);
-  return lhsHtml + rhsHtml + unitHtml;
+  return lhsHtml + rhsHtml + unitHtml + targetUnitHtml;
 }
 
 /**

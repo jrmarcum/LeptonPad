@@ -53,6 +53,7 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 | `src/main.ts` | Entry point — sidebar, event wiring, keyboard handling |
 | `src/state.ts` | All shared mutable state |
 | `src/types.ts` | Shared TypeScript interfaces and constants |
+| `src/expr.ts` | Math evaluator — dimensional analysis, units, control flow |
 | `src/canvas.ts` | Canvas class — DOM, snap grid, margin guide |
 | `src/dnd.ts` | Drag-and-drop, block placement, selection |
 | `src/auth.ts` | Supabase auth, roles, pack ownership, offline JWT cache |
@@ -62,6 +63,9 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 | `src/blocks/figure.ts` | Figure/image block |
 | `src/blocks/text.ts` | Markdown text block |
 | `src/blocks/pro/section.ts` | Section block — gated to pro+ |
+| `src/utils/unit-defs.ts` | Unit catalog — 22 categories, English + metric, SI factors |
+| `src/utils/units.ts` | Unit conversion helpers and `convert()` function |
+| `src/utils/markdown.ts` | Markdown and math-expression rendering |
 | `src/styles/main.css` | All application styles |
 | `public/index.html` | HTML shell |
 | `supabase/schema.sql` | Complete DB schema |
@@ -72,6 +76,7 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 2. Run `supabase/schema.sql` in the SQL editor
 3. Copy your project URL and anon key into `public/config.js`
 4. Insert a super-user row:
+
    ```sql
    insert into user_roles (user_id, role)
    select id, 'super' from auth.users where email = 'your@email.com';
