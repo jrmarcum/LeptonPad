@@ -205,14 +205,14 @@ export function prettifyExpr(src: string): string {
   const targetMatch = raw.match(/\[\[([^\]]+)\]\]\s*$/);
   const afterTarget = targetMatch ? raw.slice(0, targetMatch.index!).trim() : raw;
   if (targetMatch) {
-    targetUnitHtml = ` <span class="fp-unit fp-unit-target">→ ${transformPiece(targetMatch[1])}</span>`;
+    targetUnitHtml = ` <span class="fp-unit fp-unit-target">→ ${transformUnit(targetMatch[1])}</span>`;
   }
 
   let unitHtml = '';
   const unitMatch = afterTarget.match(/\[([^\]]+)\]\s*$/);
   const body = unitMatch ? afterTarget.slice(0, unitMatch.index!).trim() : afterTarget;
   if (unitMatch) {
-    unitHtml = ` <span class="fp-unit">${transformPiece(unitMatch[1])}</span>`;
+    unitHtml = ` <span class="fp-unit">${transformUnit(unitMatch[1])}</span>`;
   }
 
   // Split assignment: "Ix = expr" → lhs "Ix", rhs "expr"

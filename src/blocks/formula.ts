@@ -10,7 +10,7 @@ import {
   onSectionSummaryUpdate, onRefreshAllSectionHeights,
   CANVAS_W, margins,
 } from '../state.ts';
-import { transformPiece, prettifyExpr, renderInlineMd } from '../utils/markdown.ts';
+import { transformPiece, transformUnit, prettifyExpr, renderInlineMd } from '../utils/markdown.ts';
 
 /** Regex that detects comparison operators in a raw expression string. */
 const COMP_RE = /[<>]=?|[!=]=/;
@@ -157,7 +157,7 @@ export function applyEvalResults(
       r.textContent = 'err'; r.title = stmt.error; r.className = 'formula-result formula-error';
     } else {
       const unitStr = formatUnit(stmt.unit);
-      r.innerHTML = fmtNum(stmt.value) + (unitStr ? ` <span class="result-unit">${transformPiece(unitStr)}</span>` : '');
+      r.innerHTML = fmtNum(stmt.value) + (unitStr ? ` <span class="result-unit">${transformUnit(unitStr)}</span>` : '');
       r.title = ''; r.className = 'formula-result';
     }
   });
