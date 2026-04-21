@@ -76,7 +76,7 @@ let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
 Deno.serve(
   { port: 5173, onListen: () => console.log('Dev server → http://localhost:5173') },
-  (req) => {
+  async (req) => {
     const { pathname } = new URL(req.url);
 
     if (pathname === '/__dev_sse') {
@@ -101,7 +101,9 @@ Deno.serve(
       );
     }
 
-    return serveDir(req, { fsRoot: 'dist', quiet: true });
+    const res = await serveDir(req, { fsRoot: 'dist', quiet: true });
+    res.headers.set('Cache-Control', 'no-store');
+    return res;
   },
 );
 
