@@ -1,5 +1,5 @@
 {
-  "version": "2.0.5",
+  "version": "2.0.7",
   "nodeModulesDir": "none",
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]

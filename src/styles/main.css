@@ -333,10 +333,8 @@ main {
   opacity: 0;
   transition: opacity 150ms;
 }
-.formula-block:hover .formula-resize-handle::after,
-.formula-block.selected .formula-resize-handle::after,
-.summary-block:hover .formula-resize-handle::after,
-.summary-block.selected .formula-resize-handle::after {
+.block:hover .formula-resize-handle::after,
+.block.selected .formula-resize-handle::after {
   opacity: 1;
 }
 
@@ -1058,8 +1056,8 @@ main {
   opacity: 0;
   transition: opacity 150ms;
 }
-.plot-block:hover .plot-right-handle::after,
-.plot-block.selected .plot-right-handle::after {
+.block:hover .plot-right-handle::after,
+.block.selected .plot-right-handle::after {
   opacity: 1;
 }
 
@@ -1086,8 +1084,8 @@ main {
   opacity: 0;
   transition: opacity 150ms;
 }
-.plot-block:hover .plot-bottom-handle::after,
-.plot-block.selected .plot-bottom-handle::after {
+.block:hover .plot-bottom-handle::after,
+.block.selected .plot-bottom-handle::after {
   opacity: 1;
 }
 
@@ -1465,13 +1463,13 @@ h2.custom-tools-heading {
   pointer-events: none;
 }
 
-/* Right-edge resize handle for figure blocks */
+/* Right-edge resize handle for figure blocks — inside-edge (figure has overflow:hidden) */
 .figure-resize-handle {
   position: absolute;
-  right: -22px;
+  right: 0;
   top: 0;
   bottom: 0;
-  width: 44px;
+  width: 16px;
   cursor: ew-resize;
   display: flex;
   align-items: center;
@@ -1488,18 +1486,18 @@ h2.custom-tools-heading {
   opacity: 0;
   transition: opacity 150ms;
 }
-.figure-block:hover .figure-resize-handle::after,
-.figure-block.selected .figure-resize-handle::after {
+.block:hover .figure-resize-handle::after,
+.block.selected .figure-resize-handle::after {
   opacity: 1;
 }
 
-/* Bottom resize handle for figure blocks */
+/* Bottom resize handle for figure blocks — inside-edge (figure has overflow:hidden) */
 .figure-bottom-handle {
   position: absolute;
-  bottom: -22px;
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 44px;
+  height: 16px;
   cursor: ns-resize;
   display: flex;
   align-items: center;
@@ -1516,8 +1514,8 @@ h2.custom-tools-heading {
   opacity: 0;
   transition: opacity 150ms;
 }
-.figure-block:hover .figure-bottom-handle::after,
-.figure-block.selected .figure-bottom-handle::after {
+.block:hover .figure-bottom-handle::after,
+.block.selected .figure-bottom-handle::after {
   opacity: 1;
 }
 
@@ -1660,8 +1658,8 @@ h2.custom-tools-heading {
   .block.selected .formula-resize-handle::after,
   .block.selected .plot-right-handle::after,
   .block.selected .plot-bottom-handle::after,
-  .figure-block.selected .figure-resize-handle::after,
-  .figure-block.selected .figure-bottom-handle::after,
+  .block.selected .figure-resize-handle::after,
+  .block.selected .figure-bottom-handle::after,
   .section-block.selected .section-resize-handle::after {
     opacity: 1;
   }
@@ -1674,7 +1672,6 @@ h2.custom-tools-heading {
     width: 5px;
     height: 44px;
     background: #94a3b8;
-    border: none;
   }
   .plot-bottom-handle::after,
   .figure-bottom-handle::after {
@@ -1693,8 +1690,8 @@ h2.custom-tools-heading {
   .figure-resize-handle.handle-active::after,
   .plot-right-handle.handle-active::after {
     background: #3b82f6;
-    width: 6px;
-    height: 52px;
+    width: 5px;
+    height: 44px;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
     border-radius: 3px;
   }

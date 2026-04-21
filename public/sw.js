@@ -1,4 +1,4 @@
-const CACHE = 'leptonpad-v2.0.5';
+const CACHE = 'leptonpad-v2.0.6';
 const PRECACHE = ['/', '/main.js', '/main.css', '/solver.wasm', '/config.js', '/manifest.webmanifest', '/LeptonPadLogo.png'];
 
 self.addEventListener('install', (e) => {
