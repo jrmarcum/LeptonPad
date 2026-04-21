@@ -33,7 +33,7 @@ export interface Quantity {
 export type Scope = Record<string, Quantity>;
 
 /** FnScope maps user-defined function names to their parameter and expression. */
-export type FnScope = Record<string, { param: string; expr: string }>;
+export type FnScope = Record<string, { param: string; expr: string; targetUnit?: UnitMap }>;
 
 export interface Statement {
   raw: string;      // original text of this statement
@@ -500,7 +500,9 @@ class Parser {
           if (name in this.fnScope) {
             const fn = this.fnScope[name];
             const innerScope: Scope = { ...this.scope, [fn.param]: arg };
-            return evalExpr(fn.expr, innerScope, this.fnScope);
+            let result = evalExpr(fn.expr, innerScope, this.fnScope);
+            if (fn.targetUnit) result = applyTargetUnit(result, fn.targetUnit);
+            return result;
           }
         }
 
@@ -571,7 +573,9 @@ class Parser {
         if (args.length === 1 && name in this.fnScope) {
           const fn = this.fnScope[name];
           const innerScope: Scope = { ...this.scope, [fn.param]: args[0] };
-          return evalExpr(fn.expr, innerScope, this.fnScope);
+          let result = evalExpr(fn.expr, innerScope, this.fnScope);
+          if (fn.targetUnit) result = applyTargetUnit(result, fn.targetUnit);
+          return result;
         }
 
         throw new Error(`Unknown function or wrong argument count: ${name}(${args.length} args)`);
@@ -639,7 +643,7 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     const fnDefMatch = stmt.match(/^([a-zA-Z_]\w*)\s*\(([a-zA-Z_]\w*)\)\s*=\s*(.+)$/);
     if (fnDefMatch) {
       const [, fnName, param, fnExpr] = fnDefMatch;
-      fnScope[fnName] = { param, expr: fnExpr.trim() };
+      fnScope[fnName] = { param, expr: fnExpr.trim(), ...(targetUnit && { targetUnit }) };
       results.push({ raw: s, name: fnName, expr: fnExpr.trim(), value: NaN, unit: {}, isFn: true, fnParam: param });
       continue;
     }

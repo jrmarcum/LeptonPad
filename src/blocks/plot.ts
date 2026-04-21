@@ -2,7 +2,7 @@
 // Plot block — SVG curve plotter
 // ---------------------------------------------------------------------------
 
-import { evalExpr, type Scope, type FnScope } from '../expr.ts';
+import { evalExpr, type Scope, type FnScope, type UnitMap } from '../expr.ts';
 import { type Block, type PlotConfig, DEFAULT_PLOT } from '../types.ts';
 import { globalScope, globalFnScope, CANVAS_W, margins } from '../state.ts';
 import { isDark } from '../utils/theme.ts';
@@ -252,13 +252,18 @@ export function buildPlotSVG(
 // Data evaluation
 // ---------------------------------------------------------------------------
 
-/** Resolve a from/to expression to a number. Tries evalExpr first, then parseFloat. */
-function resolveRangeExpr(expr: string, fallback: number, scope: Scope, fnScope: FnScope): number {
-  if (!expr) return fallback;
+/**
+ * Resolve a from/to expression to a Quantity (value + unit).
+ * Bare numbers are dimensionless; variable references inherit their unit from scope.
+ * This unit is propagated to the sweep variable so that polynomials like
+ * (l^3 - 2*l*x^2 + x^3) stay dimensionally consistent when l carries a unit.
+ */
+function resolveRangeQty(expr: string, fallback: number, scope: Scope, fnScope: FnScope): { v: number; u: UnitMap } {
+  if (!expr) return { v: fallback, u: {} };
   const n = parseFloat(expr);
-  if (isFinite(n) && String(n) === expr.trim()) return n;
-  try { return evalExpr(expr, scope, fnScope).v; }
-  catch { return isFinite(n) ? n : fallback; }
+  if (isFinite(n) && String(n) === expr.trim()) return { v: n, u: {} };
+  try { return evalExpr(expr, scope, fnScope); }
+  catch { return { v: isFinite(n) ? n : fallback, u: {} }; }
 }
 
 export function evalPlotData(block: Block): { points: [number, number][]; yMin: number; yMax: number; markerData: [number, number][]; xMin: number; xMax: number; error?: string } {
@@ -267,14 +272,19 @@ export function evalPlotData(block: Block): { points: [number, number][]; yMin: 
   catch { cfg = { ...DEFAULT_PLOT }; }
   if (!cfg.expr.trim()) return { points: [], yMin: -1, yMax: 1, markerData: [], xMin: cfg.xMin, xMax: cfg.xMax };
 
-  // Resolve from/to expressions against the current scope (handles variable names like 'l')
+  // Resolve from/to expressions, preserving units so the sweep variable carries the
+  // same unit as the range bounds (e.g. x gets {ft:1} when xMax references l [ft]).
   const baseScope: Scope = { ...globalScope };
   const xMinExpr = cfg.xMinExpr ?? String(cfg.xMin);
   const xMaxExpr = cfg.xMaxExpr ?? String(cfg.xMax);
-  const xMin = resolveRangeExpr(xMinExpr, cfg.xMin, baseScope, globalFnScope);
-  const xMax = resolveRangeExpr(xMaxExpr, cfg.xMax, baseScope, globalFnScope);
-  const resolvedXMin = isFinite(xMin) ? xMin : 0;
-  const resolvedXMax = (isFinite(xMax) && xMax > resolvedXMin) ? xMax : resolvedXMin + 1;
+  const xMinQty = resolveRangeQty(xMinExpr, cfg.xMin, baseScope, globalFnScope);
+  const xMaxQty = resolveRangeQty(xMaxExpr, cfg.xMax, baseScope, globalFnScope);
+  const resolvedXMin = isFinite(xMinQty.v) ? xMinQty.v : 0;
+  const resolvedXMax = (isFinite(xMaxQty.v) && xMaxQty.v > resolvedXMin) ? xMaxQty.v : resolvedXMin + 1;
+  // Prefer the unit from whichever bound is non-trivial (xMax usually references a variable)
+  const xUnit: UnitMap = Object.keys(xMaxQty.u).length > 0 ? xMaxQty.u
+                       : Object.keys(xMinQty.u).length > 0 ? xMinQty.u
+                       : {};
 
   const points: [number, number][] = [];
   let yMin = Infinity, yMax = -Infinity;
@@ -282,7 +292,7 @@ export function evalPlotData(block: Block): { points: [number, number][]; yMin: 
 
   for (let i = 0; i <= cfg.nPts; i++) {
     const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg.nPts);
-    const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: {} } };
+    const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: xUnit } };
     try {
       const yv = evalExpr(cfg.expr, scope, globalFnScope).v;
       points.push([xv, isFinite(yv) ? yv : NaN]);
@@ -300,7 +310,7 @@ export function evalPlotData(block: Block): { points: [number, number][]; yMin: 
   // Evaluate marker y values
   const markers: number[] = Array.isArray(cfg.markers) ? cfg.markers : [];
   const markerData: [number, number][] = markers.map((xv) => {
-    const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: {} } };
+    const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: xUnit } };
     try { return [xv, evalExpr(cfg.expr, scope, globalFnScope).v] as [number, number]; }
     catch { return [xv, NaN] as [number, number]; }
   });
