@@ -92,7 +92,7 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
       { id: 'kg',    label: 'Kilograms',         symbol: 'kg',   factor: 1,                system: 'metric'  },
       { id: 't',     label: 'Metric Tons',       symbol: 't',    factor: 1e3,              system: 'metric'  },
       { id: 'oz',    label: 'Ounces',            symbol: 'oz',   factor: 0.028349523125,   system: 'english' },
-      { id: 'lb',    label: 'Pounds',            symbol: 'lb',   factor: 0.45359237,       system: 'english' },
+      { id: 'lbm',    label: 'Pounds',            symbol: 'lbm',   factor: 0.45359237,       system: 'english' },
       { id: 'slug',  label: 'Slugs',             symbol: 'slug', factor: 14.593902937206,  system: 'english' },
       { id: 'ton_s', label: 'Tons (US short)',   symbol: 'ton',  factor: 907.18474,        system: 'english' },
       { id: 'ton_l', label: 'Tons (long)',       symbol: 'LT',   factor: 1016.0469088,     system: 'english' },
@@ -137,19 +137,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
     ],
   },
 
-  // ---- Weight (same physical dimension as force) --------------------------
-  weight: {
-    id: 'weight', label: 'Weight', siBase: 'N',
-    units: [
-      { id: 'N',    label: 'Newtons',         symbol: 'N',    factor: 1,                 system: 'metric'  },
-      { id: 'kN',   label: 'Kilonewtons',     symbol: 'kN',   factor: 1e3,               system: 'metric'  },
-      { id: 'MN',   label: 'Meganewtons',     symbol: 'MN',   factor: 1e6,               system: 'metric'  },
-      { id: 'lbf',  label: 'Pounds-force',    symbol: 'lbf',  factor: 4.4482216152605,   system: 'english' },
-      { id: 'kip',  label: 'Kips',            symbol: 'kip',  factor: 4448.2216152605,   system: 'english' },
-      { id: 'tonf', label: 'Tons-force (US)', symbol: 'tonf', factor: 8896.443230521,    system: 'english' },
-    ],
-  },
-
   // ---- Pressure (base: Pa) ------------------------------------------------
   pressure: {
     id: 'pressure', label: 'Pressure', siBase: 'Pa',
@@ -179,19 +166,9 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
       { id: 'kcal',   label: 'Kilocalories',   symbol: 'kcal',   factor: 4184,            system: 'metric'  },
       { id: 'BTU',    label: 'BTU',            symbol: 'BTU',    factor: 1055.05585262,   system: 'english' },
       { id: 'ft_lbf', label: 'Foot-pounds',    symbol: 'ft·lbf', factor: 1.3558179483314, system: 'english' },
-    ],
-  },
-
-  // ---- Work (same physical dimension as energy) ---------------------------
-  work: {
-    id: 'work', label: 'Work', siBase: 'J',
-    units: [
-      { id: 'J',      label: 'Joules',         symbol: 'J',      factor: 1,               system: 'metric'  },
-      { id: 'kJ',     label: 'Kilojoules',     symbol: 'kJ',     factor: 1e3,             system: 'metric'  },
-      { id: 'MJ',     label: 'Megajoules',     symbol: 'MJ',     factor: 1e6,             system: 'metric'  },
-      { id: 'kWh',    label: 'Kilowatt-hours', symbol: 'kWh',    factor: 3.6e6,           system: 'metric'  },
-      { id: 'BTU',    label: 'BTU',            symbol: 'BTU',    factor: 1055.05585262,   system: 'english' },
-      { id: 'ft_lbf', label: 'Foot-pounds',    symbol: 'ft·lbf', factor: 1.3558179483314, system: 'english' },
+      { id: 'ft_kip', label: 'Foot-kips',      symbol: 'ft·kip', factor: 1355.8179483314, system: 'english' },
+      { id: 'in_lbf', label: 'Inch-pounds',    symbol: 'in·lbf', factor: 0.1129848290276,   system: 'english' },
+      { id: 'in_kip', label: 'Inch-kips',      symbol: 'in·kip', factor: 112.9848290276,   system: 'english' },
     ],
   },
 
@@ -199,11 +176,11 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   power: {
     id: 'power', label: 'Power', siBase: 'W',
     units: [
-      { id: 'W',      label: 'Watts',        symbol: 'W',      factor: 1,               system: 'metric'  },
-      { id: 'kW',     label: 'Kilowatts',    symbol: 'kW',     factor: 1e3,             system: 'metric'  },
-      { id: 'MW',     label: 'Megawatts',    symbol: 'MW',     factor: 1e6,             system: 'metric'  },
-      { id: 'hp',     label: 'Horsepower',   symbol: 'hp',     factor: 745.69987158227, system: 'english' },
-      { id: 'BTU_hr', label: 'BTU per hour', symbol: 'BTU/hr', factor: 0.29307107017,   system: 'english' },
+      { id: 'W', label: 'Watts', symbol: 'W', factor: 1, system: 'metric'},
+      { id: 'kW', label: 'Kilowatts', symbol: 'kW', factor: 1e3, system: 'metric'},
+      { id: 'MW', label: 'Megawatts', symbol: 'MW', factor: 1e6, system: 'metric'},
+      { id: 'hp', label: 'Horsepower', symbol: 'hp', factor: 745.69987158227, system: 'english'},
+      { id: 'BTU_hr', label: 'BTU per hour', symbol: 'BTU/hr', factor: 0.29307107017, system: 'english'},
     ],
   },
 
@@ -211,11 +188,14 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   velocity: {
     id: 'velocity', label: 'Velocity', siBase: 'm/s',
     units: [
-      { id: 'm_s',  label: 'Meters per second',   symbol: 'm/s',  factor: 1,               system: 'metric'  },
-      { id: 'km_h', label: 'Kilometers per hour', symbol: 'km/h', factor: 1 / 3.6,         system: 'metric'  },
-      { id: 'ft_s', label: 'Feet per second',     symbol: 'ft/s', factor: 0.3048,          system: 'english' },
-      { id: 'mph',  label: 'Miles per hour',      symbol: 'mph',  factor: 0.44704,         system: 'english' },
-      { id: 'kn',   label: 'Knots',               symbol: 'kn',   factor: 0.5144444444444, system: 'both'    },
+      { id: 'm_s', label: 'Meters per second', symbol: 'm/s', factor: 1, system: 'metric'},
+      { id: 'm_h', label: 'Meters per hour', symbol: 'm/h', factor: 1 / 3600, system: 'metric'},
+      { id: 'km_s', label: 'Kilometers per second', symbol: 'km/s', factor: 1 / 1000, system: 'metric'},
+      { id: 'km_h', label: 'Kilometers per hour', symbol: 'km/h', factor: 1 / 3.6, system: 'metric'},
+      { id: 'ft_s', label: 'Feet per second', symbol: 'ft/s', factor: 0.3048, system: 'english'},
+      { id: 'in_s', label: 'Inches per second', symbol: 'in/s', factor: 0.0254, system: 'english'},
+      { id: 'mph', label: 'Miles per hour', symbol: 'mph', factor: 0.44704, system: 'english'},
+      { id: 'kn', label: 'Knots', symbol: 'kn', factor: 1.852 / 3.6, system: 'both'},
     ],
   },
 
