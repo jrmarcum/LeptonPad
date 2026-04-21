@@ -1389,7 +1389,6 @@ h2.custom-tools-heading {
   padding: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   min-width: 80px;
   min-height: 60px;
   box-sizing: border-box;
@@ -1463,13 +1462,13 @@ h2.custom-tools-heading {
   pointer-events: none;
 }
 
-/* Right-edge resize handle for figure blocks — inside-edge (figure has overflow:hidden) */
+/* Right-edge resize handle for figure blocks */
 .figure-resize-handle {
   position: absolute;
-  right: 0;
+  right: -22px;
   top: 0;
   bottom: 0;
-  width: 16px;
+  width: 44px;
   cursor: ew-resize;
   display: flex;
   align-items: center;
@@ -1491,13 +1490,13 @@ h2.custom-tools-heading {
   opacity: 1;
 }
 
-/* Bottom resize handle for figure blocks — inside-edge (figure has overflow:hidden) */
+/* Bottom resize handle for figure blocks */
 .figure-bottom-handle {
   position: absolute;
-  bottom: 0;
+  bottom: -22px;
   left: 0;
   right: 0;
-  height: 16px;
+  height: 44px;
   cursor: ns-resize;
   display: flex;
   align-items: center;

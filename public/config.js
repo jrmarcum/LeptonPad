@@ -4,5 +4,5 @@
 globalThis.__LP_CONFIG__ = {
   supabaseUrl:     'https://drlikjmxarcmsephapmv.supabase.co',
   supabaseAnonKey: 'sb_publishable_EtfRkcqMbwhsAXyu825LCA_umAtkNgj',
-  version:         '2.0.7',
+  version:         '2.0.8',
 };
