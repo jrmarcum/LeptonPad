@@ -8,6 +8,7 @@ import {
   state, canvas, globalScope, globalFnScope,
   childToSection, sectionSummaryVarNames, sectionSummaryComparisons,
   onSectionSummaryUpdate, onRefreshAllSectionHeights,
+  CANVAS_W, margins,
 } from '../state.ts';
 import { transformPiece, prettifyExpr, renderInlineMd } from '../utils/markdown.ts';
 
@@ -274,6 +275,7 @@ export function reEvalAllFormulas() {
 
 export function buildFormulaBlock(el: HTMLElement, block: Block) {
   el.classList.add('formula-block');
+  if (block.w) el.style.width = `${block.w}px`;
 
   const labelEl = document.createElement('div');
   labelEl.className = 'formula-label';
@@ -965,4 +967,34 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
   };
 
   rebuildRows();
+
+  // ── Right-edge resize handle ─────────────────────────────────────────────
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'formula-resize-handle';
+  resizeHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.stopPropagation();
+    e.preventDefault();
+    resizeHandle.setPointerCapture(e.pointerId);
+    resizeHandle.classList.add('handle-active');
+    const startX = e.clientX;
+    const startW = el.offsetWidth;
+    const blockLeft = parseInt(el.style.left);
+    const maxW = CANVAS_W - margins.right - blockLeft;
+    const onMove = (mv: PointerEvent) => {
+      const newW = Math.min(Math.max(220, startW + (mv.clientX - startX)), maxW);
+      el.style.width = `${newW}px`;
+      block.w = newW;
+    };
+    const onUp = () => {
+      resizeHandle.removeEventListener('pointermove', onMove);
+      resizeHandle.removeEventListener('pointerup', onUp);
+      resizeHandle.classList.remove('handle-active');
+      document.body.style.cursor = '';
+    };
+    resizeHandle.addEventListener('pointermove', onMove);
+    resizeHandle.addEventListener('pointerup', onUp);
+    document.body.style.cursor = 'ew-resize';
+  });
+  el.appendChild(resizeHandle);
 }

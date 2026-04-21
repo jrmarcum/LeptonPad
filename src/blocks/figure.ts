@@ -128,53 +128,66 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     }
   });
 
-  // ── SE corner resize handle ───────────────────────────────────────────────
-  const resizeHandle = document.createElement('div');
-  resizeHandle.className = 'figure-resize-handle';
-  resizeHandle.addEventListener('pointerdown', (e) => {
+  // ── Right-edge resize handle ──────────────────────────────────────────────
+  const rightHandle = document.createElement('div');
+  rightHandle.className = 'figure-resize-handle';
+  rightHandle.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.stopPropagation();
     e.preventDefault();
-    resizeHandle.setPointerCapture(e.pointerId);
-    resizeHandle.classList.add('handle-active');
-    const startX  = e.clientX;
-    const startW  = el.offsetWidth;
-    const startH  = el.offsetHeight;
-    const imgAR = img.naturalWidth && img.naturalHeight
-      ? img.naturalWidth / img.naturalHeight
-      : null;
-    const blockAR = startW / startH;
-
+    rightHandle.setPointerCapture(e.pointerId);
+    rightHandle.classList.add('handle-active');
+    const startX = e.clientX;
+    const startW = el.offsetWidth;
     const onMove = (mv: PointerEvent) => {
-      const dX  = mv.clientX - startX;
-      const newW = Math.max(80, Math.round((startW + dX) / GRID_SIZE) * GRID_SIZE);
-      let newH: number;
-      if (imgAR) {
-        const chromeH = header.offsetHeight + caption.offsetHeight;
-        const imgH = Math.round((newW / imgAR) / GRID_SIZE) * GRID_SIZE;
-        newH = Math.max(GRID_SIZE * 2, imgH) + chromeH;
-      } else {
-        newH = Math.max(60, Math.round((newW / blockAR) / GRID_SIZE) * GRID_SIZE);
-      }
+      const newW = Math.max(80, Math.round((startW + (mv.clientX - startX)) / GRID_SIZE) * GRID_SIZE);
       block.w = newW;
+      el.style.width = `${newW}px`;
+    };
+    const onUp = () => {
+      rightHandle.removeEventListener('pointermove', onMove);
+      rightHandle.removeEventListener('pointerup', onUp);
+      rightHandle.classList.remove('handle-active');
+      document.body.style.cursor = '';
+    };
+    rightHandle.addEventListener('pointermove', onMove);
+    rightHandle.addEventListener('pointerup', onUp);
+    document.body.style.cursor = 'ew-resize';
+  });
+
+  // ── Bottom resize handle ──────────────────────────────────────────────────
+  const bottomHandle = document.createElement('div');
+  bottomHandle.className = 'figure-bottom-handle';
+  bottomHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.stopPropagation();
+    e.preventDefault();
+    bottomHandle.setPointerCapture(e.pointerId);
+    bottomHandle.classList.add('handle-active');
+    const startY = e.clientY;
+    const startH = el.offsetHeight;
+    const onMove = (mv: PointerEvent) => {
+      const newH = Math.max(GRID_SIZE * 3, Math.round((startH + (mv.clientY - startY)) / GRID_SIZE) * GRID_SIZE);
       block.h = newH;
-      el.style.width  = `${newW}px`;
       el.style.height = `${newH}px`;
     };
     const onUp = () => {
-      resizeHandle.removeEventListener('pointermove', onMove);
-      resizeHandle.removeEventListener('pointerup', onUp);
-      resizeHandle.classList.remove('handle-active');
+      bottomHandle.removeEventListener('pointermove', onMove);
+      bottomHandle.removeEventListener('pointerup', onUp);
+      bottomHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
-    resizeHandle.addEventListener('pointermove', onMove);
-    resizeHandle.addEventListener('pointerup', onUp);
-    document.body.style.cursor = 'se-resize';
+    bottomHandle.addEventListener('pointermove', onMove);
+    bottomHandle.addEventListener('pointerup', onUp);
+    document.body.style.cursor = 'ns-resize';
   });
-  el.appendChild(resizeHandle);
+
+  el.appendChild(rightHandle);
+  el.appendChild(bottomHandle);
 
   // Stop mousedown inside img/placeholder from starting a block drag
   imgWrap.addEventListener('mousedown', (e) => {
-    if ((e.target as HTMLElement) !== resizeHandle) e.stopPropagation();
+    const t = e.target as HTMLElement;
+    if (t !== rightHandle && t !== bottomHandle) e.stopPropagation();
   });
 }

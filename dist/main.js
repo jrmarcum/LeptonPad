@@ -14936,6 +14936,7 @@ function reEvalAllFormulas() {
 }
 function buildFormulaBlock(el, block) {
   el.classList.add("formula-block");
+  if (block.w) el.style.width = `${block.w}px`;
   const labelEl = document.createElement("div");
   labelEl.className = "formula-label";
   labelEl.contentEditable = "true";
@@ -15720,6 +15721,34 @@ function buildFormulaBlock(el, block) {
     hasReference: (rowEl) => !!rowEl?.classList.contains("has-ref")
   };
   rebuildRows();
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "formula-resize-handle";
+  resizeHandle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    e.stopPropagation();
+    e.preventDefault();
+    resizeHandle.setPointerCapture(e.pointerId);
+    resizeHandle.classList.add("handle-active");
+    const startX = e.clientX;
+    const startW = el.offsetWidth;
+    const blockLeft = parseInt(el.style.left);
+    const maxW = CANVAS_W - margins.right - blockLeft;
+    const onMove = (mv) => {
+      const newW = Math.min(Math.max(220, startW + (mv.clientX - startX)), maxW);
+      el.style.width = `${newW}px`;
+      block.w = newW;
+    };
+    const onUp = () => {
+      resizeHandle.removeEventListener("pointermove", onMove);
+      resizeHandle.removeEventListener("pointerup", onUp);
+      resizeHandle.classList.remove("handle-active");
+      document.body.style.cursor = "";
+    };
+    resizeHandle.addEventListener("pointermove", onMove);
+    resizeHandle.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "ew-resize";
+  });
+  el.appendChild(resizeHandle);
 }
 
 // src/blocks/pro/section.ts
@@ -16085,10 +16114,10 @@ function interpolatePlot(points, xTarget) {
   }
   return NaN;
 }
-function buildPlotSVG(points, cfg2, yMin, yMax, dark, markerData = []) {
+function buildPlotSVG(points, cfg2, yMin, yMax, dark, markerData = [], plotW = PLOT_W, plotH = PLOT_H) {
   const ml = computePlotML(yMin, yMax);
-  const pw = PLOT_W - ml - PLOT_MR;
-  const ph = PLOT_H - PLOT_MT - PLOT_MB;
+  const pw = plotW - ml - PLOT_MR;
+  const ph = plotH - PLOT_MT - PLOT_MB;
   const bg = dark ? "#18181b" : "#ffffff";
   const fg = dark ? "#e4e4e7" : "#18181b";
   const grid = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
@@ -16100,9 +16129,9 @@ function buildPlotSVG(points, cfg2, yMin, yMax, dark, markerData = []) {
   const toSX = (x) => ml + (x - cfg2.xMin) / xRange * pw;
   const toSY = (y) => PLOT_MT + ph - (y - yMin) / yRange * ph;
   const cpId = `pc${Math.random().toString(36).slice(2, 9)}`;
-  const clampLy = (y) => Math.max(PLOT_MT + 8, Math.min(PLOT_H - 6, y));
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${PLOT_W}" height="${PLOT_H}" style="display:block;max-width:100%">`;
-  s += `<rect width="${PLOT_W}" height="${PLOT_H}" fill="${bg}"/>`;
+  const clampLy = (y) => Math.max(PLOT_MT + 8, Math.min(plotH - 6, y));
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${plotW}" height="${plotH}" style="display:block;max-width:100%">`;
+  s += `<rect width="${plotW}" height="${plotH}" fill="${bg}"/>`;
   s += `<clipPath id="${cpId}"><rect x="${ml}" y="${PLOT_MT}" width="${pw}" height="${ph}"/></clipPath>`;
   const xStep = niceStep(xRange, 5);
   for (let xv = Math.ceil(cfg2.xMin / xStep) * xStep; xv <= cfg2.xMax + xStep * 1e-3; xv += xStep) {
@@ -16240,7 +16269,7 @@ function buildPlotSVG(points, cfg2, yMin, yMax, dark, markerData = []) {
     }
   }
   if (cfg2.xLabel) {
-    s += `<text x="${ml + pw / 2}" y="${PLOT_H - 4}" text-anchor="middle" font-size="10" fill="${fg}" font-family="system-ui,sans-serif">${cfg2.xLabel}</text>`;
+    s += `<text x="${ml + pw / 2}" y="${plotH - 4}" text-anchor="middle" font-size="10" fill="${fg}" font-family="system-ui,sans-serif">${cfg2.xLabel}</text>`;
   }
   if (cfg2.yLabel) {
     const cy = PLOT_MT + ph / 2;
@@ -16413,12 +16442,12 @@ function showPlotMarkerInput(xDefault, cfg2, onMarkerChange, clientX, clientY) {
   };
   setTimeout(() => document.addEventListener("mousedown", closeOutside), 0);
 }
-function attachPlotHover(svgWrap, points, cfg2, yMin, yMax, onMarkerChange) {
+function attachPlotHover(svgWrap, points, cfg2, yMin, yMax, onMarkerChange, plotW, plotH) {
   const svgEl = svgWrap.querySelector("svg");
   if (!svgEl) return;
   const ml = computePlotML(yMin, yMax);
-  const pw = PLOT_W - ml - PLOT_MR;
-  const ph = PLOT_H - PLOT_MT - PLOT_MB;
+  const pw = plotW - ml - PLOT_MR;
+  const ph = plotH - PLOT_MT - PLOT_MB;
   const xRange = cfg2.xMax - cfg2.xMin || 1;
   const yRange = yMax - yMin || 1;
   const toSY = (y) => PLOT_MT + ph - (y - yMin) / yRange * ph;
@@ -16454,7 +16483,7 @@ function attachPlotHover(svgWrap, points, cfg2, yMin, yMax, onMarkerChange) {
   svgEl.appendChild(hg);
   function getSVGX(e) {
     const rect = svgEl.getBoundingClientRect();
-    return (e.clientX - rect.left) * (PLOT_W / rect.width);
+    return (e.clientX - rect.left) * (plotW / rect.width);
   }
   svgEl.addEventListener("mousemove", (e) => {
     const me = e;
@@ -16581,6 +16610,8 @@ function buildPlotBlock(el, block) {
   errEl.className = "plot-err";
   el.appendChild(errEl);
   function render() {
+    const plotW = block.w ?? PLOT_W;
+    const plotH = block.h ?? PLOT_H;
     const { points, yMin, yMax, markerData, xMin, xMax, error } = evalPlotData(block);
     if (error) {
       errEl.textContent = "\u26A0 " + error;
@@ -16601,11 +16632,11 @@ function buildPlotBlock(el, block) {
     }
     cfgNow.xMin = xMin;
     cfgNow.xMax = xMax;
-    svgWrap.innerHTML = buildPlotSVG(points, cfgNow, yMin, yMax, isDark(), markerData);
+    svgWrap.innerHTML = buildPlotSVG(points, cfgNow, yMin, yMax, isDark(), markerData, plotW, plotH);
     attachPlotHover(svgWrap, points, cfgNow, yMin, yMax, () => {
       block.content = JSON.stringify(cfgNow);
       render();
-    });
+    }, plotW, plotH);
   }
   function syncAndRender() {
     cfg2.expr = exprCell.dataset.raw ?? "";
@@ -16664,6 +16695,60 @@ function buildPlotBlock(el, block) {
   renderXVarMath();
   renderRangeCell(xMinCell);
   renderRangeCell(xMaxCell);
+  const rightHandle = document.createElement("div");
+  rightHandle.className = "plot-right-handle";
+  rightHandle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    e.stopPropagation();
+    e.preventDefault();
+    rightHandle.setPointerCapture(e.pointerId);
+    rightHandle.classList.add("handle-active");
+    const startX = e.clientX;
+    const startW = block.w ?? PLOT_W;
+    const blockLeft = parseInt(el.style.left);
+    const maxW = CANVAS_W - margins.right - blockLeft;
+    const onMove = (mv) => {
+      const newW = Math.min(Math.max(300, startW + (mv.clientX - startX)), maxW);
+      block.w = newW;
+      render();
+    };
+    const onUp = () => {
+      rightHandle.removeEventListener("pointermove", onMove);
+      rightHandle.removeEventListener("pointerup", onUp);
+      rightHandle.classList.remove("handle-active");
+      document.body.style.cursor = "";
+    };
+    rightHandle.addEventListener("pointermove", onMove);
+    rightHandle.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "ew-resize";
+  });
+  const bottomHandle = document.createElement("div");
+  bottomHandle.className = "plot-bottom-handle";
+  bottomHandle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    e.stopPropagation();
+    e.preventDefault();
+    bottomHandle.setPointerCapture(e.pointerId);
+    bottomHandle.classList.add("handle-active");
+    const startY = e.clientY;
+    const startH = block.h ?? PLOT_H;
+    const onMove = (mv) => {
+      const newH = Math.max(120, startH + (mv.clientY - startY));
+      block.h = newH;
+      render();
+    };
+    const onUp = () => {
+      bottomHandle.removeEventListener("pointermove", onMove);
+      bottomHandle.removeEventListener("pointerup", onUp);
+      bottomHandle.classList.remove("handle-active");
+      document.body.style.cursor = "";
+    };
+    bottomHandle.addEventListener("pointermove", onMove);
+    bottomHandle.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "ns-resize";
+  });
+  el.appendChild(rightHandle);
+  el.appendChild(bottomHandle);
   el.__plotRerender = render;
   render();
 }
@@ -17280,48 +17365,61 @@ function buildFigureBlock(el, block) {
       }
     }
   });
-  const resizeHandle = document.createElement("div");
-  resizeHandle.className = "figure-resize-handle";
-  resizeHandle.addEventListener("pointerdown", (e) => {
+  const rightHandle = document.createElement("div");
+  rightHandle.className = "figure-resize-handle";
+  rightHandle.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     e.stopPropagation();
     e.preventDefault();
-    resizeHandle.setPointerCapture(e.pointerId);
-    resizeHandle.classList.add("handle-active");
+    rightHandle.setPointerCapture(e.pointerId);
+    rightHandle.classList.add("handle-active");
     const startX = e.clientX;
     const startW = el.offsetWidth;
-    const startH = el.offsetHeight;
-    const imgAR = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null;
-    const blockAR = startW / startH;
     const onMove = (mv) => {
-      const dX = mv.clientX - startX;
-      const newW = Math.max(80, Math.round((startW + dX) / GRID_SIZE) * GRID_SIZE);
-      let newH;
-      if (imgAR) {
-        const chromeH = header.offsetHeight + caption.offsetHeight;
-        const imgH = Math.round(newW / imgAR / GRID_SIZE) * GRID_SIZE;
-        newH = Math.max(GRID_SIZE * 2, imgH) + chromeH;
-      } else {
-        newH = Math.max(60, Math.round(newW / blockAR / GRID_SIZE) * GRID_SIZE);
-      }
+      const newW = Math.max(80, Math.round((startW + (mv.clientX - startX)) / GRID_SIZE) * GRID_SIZE);
       block.w = newW;
-      block.h = newH;
       el.style.width = `${newW}px`;
+    };
+    const onUp = () => {
+      rightHandle.removeEventListener("pointermove", onMove);
+      rightHandle.removeEventListener("pointerup", onUp);
+      rightHandle.classList.remove("handle-active");
+      document.body.style.cursor = "";
+    };
+    rightHandle.addEventListener("pointermove", onMove);
+    rightHandle.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "ew-resize";
+  });
+  const bottomHandle = document.createElement("div");
+  bottomHandle.className = "figure-bottom-handle";
+  bottomHandle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    e.stopPropagation();
+    e.preventDefault();
+    bottomHandle.setPointerCapture(e.pointerId);
+    bottomHandle.classList.add("handle-active");
+    const startY = e.clientY;
+    const startH = el.offsetHeight;
+    const onMove = (mv) => {
+      const newH = Math.max(GRID_SIZE * 3, Math.round((startH + (mv.clientY - startY)) / GRID_SIZE) * GRID_SIZE);
+      block.h = newH;
       el.style.height = `${newH}px`;
     };
     const onUp = () => {
-      resizeHandle.removeEventListener("pointermove", onMove);
-      resizeHandle.removeEventListener("pointerup", onUp);
-      resizeHandle.classList.remove("handle-active");
+      bottomHandle.removeEventListener("pointermove", onMove);
+      bottomHandle.removeEventListener("pointerup", onUp);
+      bottomHandle.classList.remove("handle-active");
       document.body.style.cursor = "";
     };
-    resizeHandle.addEventListener("pointermove", onMove);
-    resizeHandle.addEventListener("pointerup", onUp);
-    document.body.style.cursor = "se-resize";
+    bottomHandle.addEventListener("pointermove", onMove);
+    bottomHandle.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "ns-resize";
   });
-  el.appendChild(resizeHandle);
+  el.appendChild(rightHandle);
+  el.appendChild(bottomHandle);
   imgWrap.addEventListener("mousedown", (e) => {
-    if (e.target !== resizeHandle) e.stopPropagation();
+    const t = e.target;
+    if (t !== rightHandle && t !== bottomHandle) e.stopPropagation();
   });
 }
 

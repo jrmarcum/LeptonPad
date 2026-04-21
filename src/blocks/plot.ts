@@ -4,7 +4,7 @@
 
 import { evalExpr, type Scope, type FnScope } from '../expr.ts';
 import { type Block, type PlotConfig, DEFAULT_PLOT } from '../types.ts';
-import { globalScope, globalFnScope } from '../state.ts';
+import { globalScope, globalFnScope, CANVAS_W, margins } from '../state.ts';
 import { isDark } from '../utils/theme.ts';
 import { prettifyExpr } from '../utils/markdown.ts';
 
@@ -74,10 +74,12 @@ export function buildPlotSVG(
   yMax: number,
   dark: boolean,
   markerData: [number, number][] = [],
+  plotW = PLOT_W,
+  plotH = PLOT_H,
 ): string {
   const ml = computePlotML(yMin, yMax);
-  const pw = PLOT_W - ml - PLOT_MR;
-  const ph = PLOT_H - PLOT_MT - PLOT_MB;
+  const pw = plotW - ml - PLOT_MR;
+  const ph = plotH - PLOT_MT - PLOT_MB;
   const bg    = dark ? '#18181b' : '#ffffff';
   const fg    = dark ? '#e4e4e7' : '#18181b';
   const grid  = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
@@ -91,10 +93,10 @@ export function buildPlotSVG(
   // unique clip-path id per render to avoid cross-block conflicts
   const cpId = `pc${Math.random().toString(36).slice(2, 9)}`;
   // clamp annotation label y so it stays within SVG bounds
-  const clampLy = (y: number) => Math.max(PLOT_MT + 8, Math.min(PLOT_H - 6, y));
+  const clampLy = (y: number) => Math.max(PLOT_MT + 8, Math.min(plotH - 6, y));
 
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${PLOT_W}" height="${PLOT_H}" style="display:block;max-width:100%">`;
-  s += `<rect width="${PLOT_W}" height="${PLOT_H}" fill="${bg}"/>`;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${plotW}" height="${plotH}" style="display:block;max-width:100%">`;
+  s += `<rect width="${plotW}" height="${plotH}" fill="${bg}"/>`;
   s += `<clipPath id="${cpId}"><rect x="${ml}" y="${PLOT_MT}" width="${pw}" height="${ph}"/></clipPath>`;
 
   // X ticks + grid
@@ -236,7 +238,7 @@ export function buildPlotSVG(
 
   // Axis labels
   if (cfg.xLabel) {
-    s += `<text x="${ml + pw / 2}" y="${PLOT_H - 4}" text-anchor="middle" font-size="10" fill="${fg}" font-family="system-ui,sans-serif">${cfg.xLabel}</text>`;
+    s += `<text x="${ml + pw / 2}" y="${plotH - 4}" text-anchor="middle" font-size="10" fill="${fg}" font-family="system-ui,sans-serif">${cfg.xLabel}</text>`;
   }
   if (cfg.yLabel) {
     const cy = PLOT_MT + ph / 2;
@@ -384,13 +386,15 @@ function attachPlotHover(
   yMin: number,
   yMax: number,
   onMarkerChange: () => void,
+  plotW: number,
+  plotH: number,
 ) {
   const svgEl = svgWrap.querySelector('svg');
   if (!svgEl) return;
 
   const ml = computePlotML(yMin, yMax);
-  const pw = PLOT_W - ml - PLOT_MR;
-  const ph = PLOT_H - PLOT_MT - PLOT_MB;
+  const pw = plotW - ml - PLOT_MR;
+  const ph = plotH - PLOT_MT - PLOT_MB;
   const xRange = (cfg.xMax - cfg.xMin) || 1;
   const yRange = (yMax - yMin) || 1;
   const toSY = (y: number) => PLOT_MT + ph - ((y - yMin) / yRange) * ph;
@@ -434,7 +438,7 @@ function attachPlotHover(
 
   function getSVGX(e: MouseEvent): number {
     const rect = svgEl!.getBoundingClientRect();
-    return (e.clientX - rect.left) * (PLOT_W / rect.width);
+    return (e.clientX - rect.left) * (plotW / rect.width);
   }
 
   svgEl.addEventListener('mousemove', (e: Event) => {
@@ -574,6 +578,8 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   function render() {
+    const plotW = block.w ?? PLOT_W;
+    const plotH = block.h ?? PLOT_H;
     const { points, yMin, yMax, markerData, xMin, xMax, error } = evalPlotData(block);
     if (error) {
       errEl.textContent = '⚠ ' + error;
@@ -587,11 +593,11 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     // Use resolved bounds for axis rendering
     cfgNow.xMin = xMin;
     cfgNow.xMax = xMax;
-    svgWrap.innerHTML = buildPlotSVG(points, cfgNow, yMin, yMax, isDark(), markerData);
+    svgWrap.innerHTML = buildPlotSVG(points, cfgNow, yMin, yMax, isDark(), markerData, plotW, plotH);
     attachPlotHover(svgWrap, points, cfgNow, yMin, yMax, () => {
       block.content = JSON.stringify(cfgNow);
       render();
-    });
+    }, plotW, plotH);
   }
 
   function syncAndRender() {
@@ -653,6 +659,65 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
   renderXVarMath();
   renderRangeCell(xMinCell);
   renderRangeCell(xMaxCell);
+
+  // ── Right-edge resize handle ─────────────────────────────────────────────
+  const rightHandle = document.createElement('div');
+  rightHandle.className = 'plot-right-handle';
+  rightHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.stopPropagation();
+    e.preventDefault();
+    rightHandle.setPointerCapture(e.pointerId);
+    rightHandle.classList.add('handle-active');
+    const startX = e.clientX;
+    const startW = block.w ?? PLOT_W;
+    const blockLeft = parseInt(el.style.left);
+    const maxW = CANVAS_W - margins.right - blockLeft;
+    const onMove = (mv: PointerEvent) => {
+      const newW = Math.min(Math.max(300, startW + (mv.clientX - startX)), maxW);
+      block.w = newW;
+      render();
+    };
+    const onUp = () => {
+      rightHandle.removeEventListener('pointermove', onMove);
+      rightHandle.removeEventListener('pointerup', onUp);
+      rightHandle.classList.remove('handle-active');
+      document.body.style.cursor = '';
+    };
+    rightHandle.addEventListener('pointermove', onMove);
+    rightHandle.addEventListener('pointerup', onUp);
+    document.body.style.cursor = 'ew-resize';
+  });
+
+  // ── Bottom resize handle ──────────────────────────────────────────────────
+  const bottomHandle = document.createElement('div');
+  bottomHandle.className = 'plot-bottom-handle';
+  bottomHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.stopPropagation();
+    e.preventDefault();
+    bottomHandle.setPointerCapture(e.pointerId);
+    bottomHandle.classList.add('handle-active');
+    const startY = e.clientY;
+    const startH = block.h ?? PLOT_H;
+    const onMove = (mv: PointerEvent) => {
+      const newH = Math.max(120, startH + (mv.clientY - startY));
+      block.h = newH;
+      render();
+    };
+    const onUp = () => {
+      bottomHandle.removeEventListener('pointermove', onMove);
+      bottomHandle.removeEventListener('pointerup', onUp);
+      bottomHandle.classList.remove('handle-active');
+      document.body.style.cursor = '';
+    };
+    bottomHandle.addEventListener('pointermove', onMove);
+    bottomHandle.addEventListener('pointerup', onUp);
+    document.body.style.cursor = 'ns-resize';
+  });
+
+  el.appendChild(rightHandle);
+  el.appendChild(bottomHandle);
 
   // Hook for reEvalAllFormulas to refresh after formula changes
   // deno-lint-ignore no-explicit-any

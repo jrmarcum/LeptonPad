@@ -310,6 +310,36 @@ main {
   opacity: 1;
 }
 
+/* Right-edge resize handle for formula/summary blocks */
+.formula-resize-handle {
+  position: absolute;
+  right: -22px;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  touch-action: none;
+}
+.formula-resize-handle::after {
+  content: '';
+  width: 3px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.formula-block:hover .formula-resize-handle::after,
+.formula-block.selected .formula-resize-handle::after,
+.summary-block:hover .formula-resize-handle::after,
+.summary-block.selected .formula-resize-handle::after {
+  opacity: 1;
+}
+
 /* Placeholder for empty contenteditable elements */
 [contenteditable][data-placeholder]:empty::before {
   content: attr(data-placeholder);
@@ -1005,6 +1035,62 @@ main {
   min-height: 1em;
 }
 
+/* Right-edge resize handle for plot blocks */
+.plot-right-handle {
+  position: absolute;
+  right: -22px;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  touch-action: none;
+}
+.plot-right-handle::after {
+  content: '';
+  width: 3px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.plot-block:hover .plot-right-handle::after,
+.plot-block.selected .plot-right-handle::after {
+  opacity: 1;
+}
+
+/* Bottom resize handle for plot blocks */
+.plot-bottom-handle {
+  position: absolute;
+  bottom: -22px;
+  left: 0;
+  right: 0;
+  height: 44px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  touch-action: none;
+}
+.plot-bottom-handle::after {
+  content: '';
+  height: 3px;
+  width: 32px;
+  background: #d1d5db;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.plot-block:hover .plot-bottom-handle::after,
+.plot-block.selected .plot-bottom-handle::after {
+  opacity: 1;
+}
+
 /* Plot right-click marker popup */
 .plot-ctx-popup {
   position: fixed;
@@ -1379,26 +1465,26 @@ h2.custom-tools-heading {
   pointer-events: none;
 }
 
-/* SE corner resize handle */
+/* Right-edge resize handle for figure blocks */
 .figure-resize-handle {
   position: absolute;
+  right: -22px;
+  top: 0;
   bottom: 0;
-  right: 0;
   width: 44px;
-  height: 44px;
-  cursor: se-resize;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 3;
   touch-action: none;
 }
 .figure-resize-handle::after {
   content: '';
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 6px;
-  height: 6px;
-  border-right: 2px solid #94a3b8;
-  border-bottom: 2px solid #94a3b8;
+  width: 3px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 2px;
   opacity: 0;
   transition: opacity 150ms;
 }
@@ -1407,8 +1493,40 @@ h2.custom-tools-heading {
   opacity: 1;
 }
 
+/* Bottom resize handle for figure blocks */
+.figure-bottom-handle {
+  position: absolute;
+  bottom: -22px;
+  left: 0;
+  right: 0;
+  height: 44px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  touch-action: none;
+}
+.figure-bottom-handle::after {
+  content: '';
+  height: 3px;
+  width: 32px;
+  background: #d1d5db;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.figure-block:hover .figure-bottom-handle::after,
+.figure-block.selected .figure-bottom-handle::after {
+  opacity: 1;
+}
+
 @media print {
-  .figure-resize-handle { display: none !important; }
+  .figure-resize-handle  { display: none !important; }
+  .figure-bottom-handle  { display: none !important; }
+  .formula-resize-handle { display: none !important; }
+  .plot-right-handle     { display: none !important; }
+  .plot-bottom-handle    { display: none !important; }
   .figure-placeholder    { display: none !important; }
 }
 
@@ -1539,24 +1657,30 @@ h2.custom-tools-heading {
 @media (hover: none) and (pointer: coarse) {
   /* Always show indicators on selected blocks — hover doesn't exist on touch */
   .block.selected .text-resize-handle::after,
+  .block.selected .formula-resize-handle::after,
+  .block.selected .plot-right-handle::after,
+  .block.selected .plot-bottom-handle::after,
   .figure-block.selected .figure-resize-handle::after,
+  .figure-block.selected .figure-bottom-handle::after,
   .section-block.selected .section-resize-handle::after {
     opacity: 1;
   }
 
   /* Larger, more visible grip indicators on touch */
-  .text-resize-handle::after {
+  .text-resize-handle::after,
+  .formula-resize-handle::after,
+  .figure-resize-handle::after,
+  .plot-right-handle::after {
     width: 5px;
     height: 44px;
     background: #94a3b8;
+    border: none;
   }
-  .figure-resize-handle::after {
-    width: 14px;
-    height: 14px;
-    border-right-width: 3px;
-    border-bottom-width: 3px;
-    bottom: 6px;
-    right: 6px;
+  .plot-bottom-handle::after,
+  .figure-bottom-handle::after {
+    height: 5px;
+    width: 44px;
+    background: #94a3b8;
   }
   .section-resize-handle::after {
     width: 64px;
@@ -1564,20 +1688,23 @@ h2.custom-tools-heading {
   }
 
   /* Engaged state — lights up the moment a finger lands on the handle */
-  .text-resize-handle.handle-active::after {
+  .text-resize-handle.handle-active::after,
+  .formula-resize-handle.handle-active::after,
+  .figure-resize-handle.handle-active::after,
+  .plot-right-handle.handle-active::after {
     background: #3b82f6;
     width: 6px;
     height: 52px;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
     border-radius: 3px;
   }
-  .figure-resize-handle.handle-active::after {
-    border-color: #3b82f6;
-    border-right-width: 4px;
-    border-bottom-width: 4px;
-    width: 18px;
-    height: 18px;
-    box-shadow: 2px 2px 0 2px rgba(59, 130, 246, 0.2);
+  .plot-bottom-handle.handle-active::after,
+  .figure-bottom-handle.handle-active::after {
+    background: #3b82f6;
+    height: 6px;
+    width: 52px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    border-radius: 3px;
   }
   .section-resize-handle.handle-active::after {
     background: #3b82f6;
