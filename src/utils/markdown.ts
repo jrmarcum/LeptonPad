@@ -102,7 +102,7 @@ export function transformPiece(raw: string): string {
  * This prevents `a/b + c/d` from being misread as `a / (b + c/d)`.
  */
 export function renderExpr(raw: string): string {
-  const s = raw.trim();
+  const s = stripOuter(raw.trim());
   if (!s) return '';
 
   // Find top-level + and - (unary minus at position 0 is not a split point)
@@ -148,6 +148,31 @@ export function renderExpr(raw: string): string {
       const fracHtml = `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(pureDen)}</span></span>`;
       return fracHtml + (trailing ? ' · ' + renderExpr(trailing) : '');
     }
+  }
+
+  // No top-level / — split at top-level * and recurse into (groups) so that
+  // sub-expressions like (w*x/2)*(l-x) render their inner fractions correctly.
+  const mulSplits: number[] = [];
+  depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    else if (depth === 0 && s[i] === '*') mulSplits.push(i);
+  }
+
+  if (mulSplits.length > 0) {
+    const pieces: string[] = [];
+    let start = 0;
+    for (const idx of mulSplits) {
+      pieces.push(s.slice(start, idx).trim());
+      start = idx + 1;
+    }
+    pieces.push(s.slice(start).trim());
+
+    return pieces.map((piece) => {
+      const stripped = stripOuter(piece);
+      return stripped !== piece ? '(' + renderExpr(stripped) + ')' : transformPiece(piece);
+    }).join(' · ');
   }
 
   return transformPiece(s);
