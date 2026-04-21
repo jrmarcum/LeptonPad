@@ -14389,6 +14389,26 @@ function renderExpr(raw) {
       return fracHtml + (trailing ? " \xB7 " + renderExpr(trailing) : "");
     }
   }
+  const mulSplits = [];
+  depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "(") depth++;
+    else if (s[i] === ")") depth--;
+    else if (depth === 0 && s[i] === "*") mulSplits.push(i);
+  }
+  if (mulSplits.length > 0) {
+    const pieces = [];
+    let start2 = 0;
+    for (const idx of mulSplits) {
+      pieces.push(s.slice(start2, idx).trim());
+      start2 = idx + 1;
+    }
+    pieces.push(s.slice(start2).trim());
+    return pieces.map((piece) => {
+      const stripped = stripOuter(piece);
+      return stripped !== piece ? "(" + renderExpr(stripped) + ")" : transformPiece(piece);
+    }).join(" \xB7 ");
+  }
   return transformPiece(s);
 }
 function prettifyExpr(src) {
