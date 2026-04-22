@@ -10,7 +10,7 @@ import {
   setTitleBlockEnabled, setPageNumberingEnabled, setFileHandle, fileHandle,
   customModules, setCustomModules, saveCustomModules,
   globalScope, globalFnScope, deletionStack, childToSection,
-  PAGE_H, CANVAS_H, numPages, setNumPages, setCANVAS_H, margins, titleBlockH,
+  PAGE_H, CANVAS_H, setNumPages, setCANVAS_H, margins, titleBlockH,
   onRefreshCustomModulesList, onAppendCustomModuleToSidebar,
 } from './state.ts';
 import { syncPageSeparators, syncTitleBlocks, updatePageCount, moveGridCursor, clearSelection, renderBlock } from './dnd.ts';

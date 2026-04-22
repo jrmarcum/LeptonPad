@@ -37,20 +37,6 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     block.content = editArea.value;
   }
 
-  /** Insert text at cursor, replacing any selection. */
-  function insertAt(text: string, cursorOffset?: number) {
-    const start = editArea.selectionStart;
-    const end = editArea.selectionEnd;
-    editArea.setRangeText(text, start, end, 'end');
-    if (cursorOffset !== undefined) {
-      const pos = start + cursorOffset;
-      editArea.setSelectionRange(pos, pos);
-    }
-    saveContent();
-    syncHeight();
-    editArea.focus();
-  }
-
   /** Wrap the current selection with prefix/suffix, or insert prefix+suffix with cursor inside. */
   function wrapSelection(prefix: string, suffix: string = prefix) {
     const start = editArea.selectionStart;
@@ -88,27 +74,11 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     editArea.focus();
   }
 
-  /** Remove up to `n` leading spaces from each selected line (for dedent). */
-  function dedentLines(n: number) {
-    const val = editArea.value;
-    const start = editArea.selectionStart;
-    const end = editArea.selectionEnd;
-    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
-    const rawEnd = val.indexOf('\n', end);
-    const lineEnd = rawEnd === -1 ? val.length : rawEnd;
-    const lines = val.slice(lineStart, lineEnd).split('\n');
-    const newText = lines.map(l => l.replace(new RegExp(`^ {1,${n}}`), '')).join('\n');
-    editArea.setRangeText(newText, lineStart, lineEnd, 'preserve');
-    saveContent();
-    syncHeight();
-    editArea.focus();
-  }
-
   function promptLink() {
     const sel = editArea.value.slice(editArea.selectionStart, editArea.selectionEnd);
-    const url = window.prompt('URL:', 'https://');
+    const url = globalThis.prompt('URL:', 'https://');
     if (url == null) { editArea.focus(); return; }
-    const label = sel || window.prompt('Link text:', 'link') || 'link';
+    const label = sel || globalThis.prompt('Link text:', 'link') || 'link';
     const start = editArea.selectionStart;
     const end = editArea.selectionEnd;
     const md = `[${label}](${url})`;
@@ -119,9 +89,9 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
   }
 
   function promptImage() {
-    const url = window.prompt('Image URL:', 'https://');
+    const url = globalThis.prompt('Image URL:', 'https://');
     if (url == null) { editArea.focus(); return; }
-    const alt = window.prompt('Alt text:', '') || '';
+    const alt = globalThis.prompt('Alt text:', '') || '';
     const start = editArea.selectionStart;
     const end = editArea.selectionEnd;
     const md = `![${alt}](${url})`;

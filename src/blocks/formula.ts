@@ -10,7 +10,7 @@ import {
   onSectionSummaryUpdate, onRefreshAllSectionHeights,
   CANVAS_W, margins,
 } from '../state.ts';
-import { transformPiece, transformUnit, prettifyExpr, renderInlineMd } from '../utils/markdown.ts';
+import { transformUnit, prettifyExpr, renderInlineMd } from '../utils/markdown.ts';
 
 /** Regex that detects comparison operators in a raw expression string. */
 const COMP_RE = /[<>]=?|[!=]=/;
