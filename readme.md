@@ -24,7 +24,7 @@ Version is controlled by the `"version"` field in `deno.json`. Running `build` o
 ## Block types
 
 | Block | Description |
-|---|---|
+| --- | --- |
 | Formula | Live math evaluation with units, variables, control flow |
 | Summary | Formula block variant with green accent; surfaces key results |
 | Plot | SVG curve plot with variable x-range and optional area fill |
@@ -40,7 +40,7 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 ## User roles
 
 | Role | Access |
-|---|---|
+| --- | --- |
 | `super` | Everything — all section creation, all packs, admin |
 | `pro` | Create/edit section blocks + own purchased template packs |
 | `demo` | Same as pro, expires 30 days from trial start |
@@ -49,7 +49,7 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 ## Key source files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `src/main.ts` | Entry point — sidebar, event wiring, keyboard handling |
 | `src/state.ts` | All shared mutable state |
 | `src/types.ts` | Shared TypeScript interfaces and constants |
@@ -69,6 +69,23 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 | `src/styles/main.css` | All application styles |
 | `public/index.html` | HTML shell |
 | `supabase/schema.sql` | Complete DB schema |
+
+## Formula block unit syntax
+
+| Syntax | Effect |
+| --- | --- |
+| `x = 150 [mm]` | Declares the unit of `x` — no numeric conversion, labels the result |
+| `x = F [kN] [[lbf]]` | Converts the result to `lbf`; `x` is stored in `lbf` for downstream use |
+| `delta(x) = expr [[in]]` | Function definition — output is converted to `in` on every call |
+
+`[[targetUnit]]` performs real numeric conversion using the unit catalog in `src/utils/unit-defs.ts`. It handles:
+
+- **Simple scaling**: `200 [MPa] [[ksi]]` → `29.0 ksi`
+- **Compound units**: `F/A [N/mm^2] [[psi]]` → converts via shared SI base (Pa)
+- **Affine temperature**: `20 [C] [[F]]` → `68 °F` (offset applied correctly)
+- **Propagated units**: if `l = 12 [ft]` then `x = l^2 [[in^2]]` converts `ft²` → `in²`
+
+The plot block automatically propagates the unit of the range bound to the sweep variable, so `delta(x)` plotted from `0` to `l [ft]` evaluates with `x` in `{ft}` — keeping polynomials like `l^3 - 2·l·x² + x³` dimensionally consistent.
 
 ## Supabase setup (one-time)
 

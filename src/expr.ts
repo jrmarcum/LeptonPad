@@ -135,6 +135,8 @@ export function formatUnit(u: UnitMap): string {
 /**
  * Parse a unit expression like "mm", "mm^4", "N/mm^2", "kg·m/s^2".
  * Supports * and · as multipliers, / for division.
+ * Compound unit ids with a `baseUnits` entry (e.g. ksi → {kip:1, in:-2}) are
+ * expanded so that dimensional cancellation works correctly.
  */
 function parseUnitExpr(s: string): UnitMap {
   s = s.trim().replace(/·/g, '*');
@@ -146,13 +148,25 @@ function parseUnitExpr(s: string): UnitMap {
     for (const raw of str.split('*')) {
       const t = raw.trim();
       if (!t) continue;
+      let name: string;
+      let exp: number;
       const ci = t.indexOf('^');
       if (ci >= 0) {
-        const name = t.slice(0, ci).trim();
-        const exp = Number(t.slice(ci + 1).trim());
-        if (name) result[name] = (result[name] ?? 0) + sign * exp;
+        name = t.slice(0, ci).trim();
+        exp = Number(t.slice(ci + 1).trim());
       } else {
-        result[t] = (result[t] ?? 0) + sign;
+        name = t;
+        exp = 1;
+      }
+      if (!name) continue;
+      // Expand compound units (e.g. ksi → kip·in⁻²) so unit cancellation works.
+      const def = UNIT_LOOKUP.get(name);
+      if (def?.baseUnits) {
+        for (const [bKey, bExp] of Object.entries(def.baseUnits)) {
+          result[bKey] = (result[bKey] ?? 0) + sign * exp * bExp;
+        }
+      } else {
+        result[name] = (result[name] ?? 0) + sign * exp;
       }
     }
   }

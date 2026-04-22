@@ -17,6 +17,11 @@ export interface UnitDef {
   factor: number;   // multiply value by this to get SI base value
   offset?: number;  // add after multiplying (temperature only)
   system: UnitSystem;
+  /** Dimensional decomposition into primitive unit ids.
+   *  Only defined when 1 [unit] = 1 [product of base units] exactly so the
+   *  numeric value is unchanged by expansion.  parseUnitExpr uses this to
+   *  expand compound units (e.g. ksi → kip·in⁻²) so unit cancellation works. */
+  baseUnits?: Readonly<Record<string, number>>;
 }
 
 export interface UnitCategory {
@@ -94,8 +99,8 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
       { id: 'oz',    label: 'Ounces',            symbol: 'oz',   factor: 0.028349523125,   system: 'english' },
       { id: 'lbm',    label: 'Pounds',            symbol: 'lbm',   factor: 0.45359237,       system: 'english' },
       { id: 'slug',  label: 'Slugs',             symbol: 'slug', factor: 14.593902937206,  system: 'english' },
-      { id: 'ton_s', label: 'Tons (US short)',   symbol: 'ton',  factor: 907.18474,        system: 'english' },
-      { id: 'ton_l', label: 'Tons (long)',       symbol: 'LT',   factor: 1016.0469088,     system: 'english' },
+      { id: 'tonm_s', label: 'Tons (US short)',   symbol: 'tonm',  factor: 907.18474,        system: 'english' },
+      { id: 'tonm_l', label: 'Tons (long)',       symbol: 'LTm',   factor: 1016.0469088,     system: 'english' },
     ],
   },
 
@@ -137,50 +142,69 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
     ],
   },
 
+  // ---- Force per unit length (base: N/m) ----------------------------------------------------
+  forcePerUnitLength: {
+    id: 'forcePerUnitLength', label: 'Force per unit length', siBase: 'N/m',
+    units: [
+      { id: 'N_m',    label: 'Newtons per meter',         symbol: 'N/m',    factor: 1,                 system: 'metric'  },
+      { id: 'kN_m',   label: 'Kilonewtons per meter',     symbol: 'kN/m',   factor: 1e3,               system: 'metric'  },
+      { id: 'MN_m',   label: 'Meganewtons per meter',     symbol: 'MN/m',   factor: 1e6,               system: 'metric'  },
+      { id: 'lbf_ft',  label: 'Pounds-force per foot',    symbol: 'lbf/ft',  factor: 14.593902937206,   system: 'english' },
+      { id: 'kip_ft',  label: 'Kips per foot',            symbol: 'kip/ft',  factor: 14593.902937206,   system: 'english' },
+      { id: 'tonf_ft', label: 'Tons-force (US) per foot', symbol: 'tonf/ft', factor: 28178.345536848,    system: 'english' },
+    ],
+  },
+
   // ---- Pressure (base: Pa) ------------------------------------------------
+  // baseUnits: 1 [unit] = 1 [product-of-primitives] exactly (no numeric scaling).
+  // Pa=N/m², kPa=kN/m², MPa=N/mm², GPa=kN/mm²,
+  // psi=lbf/in², ksi=kip/in², psf=lbf/ft², ksf=kip/ft²
   pressure: {
     id: 'pressure', label: 'Pressure', siBase: 'Pa',
     units: [
-      { id: 'Pa',   label: 'Pascals',               symbol: 'Pa',   factor: 1,               system: 'metric'  },
-      { id: 'kPa',  label: 'Kilopascals',            symbol: 'kPa',  factor: 1e3,             system: 'metric'  },
-      { id: 'MPa',  label: 'Megapascals',            symbol: 'MPa',  factor: 1e6,             system: 'metric'  },
-      { id: 'GPa',  label: 'Gigapascals',            symbol: 'GPa',  factor: 1e9,             system: 'metric'  },
+      { id: 'Pa',   label: 'Pascals',               symbol: 'Pa',   factor: 1,               system: 'metric',  baseUnits: { N: 1, m: -2 }    },
+      { id: 'kPa',  label: 'Kilopascals',            symbol: 'kPa',  factor: 1e3,             system: 'metric',  baseUnits: { kN: 1, m: -2 }   },
+      { id: 'MPa',  label: 'Megapascals',            symbol: 'MPa',  factor: 1e6,             system: 'metric',  baseUnits: { N: 1, mm: -2 }   },
+      { id: 'GPa',  label: 'Gigapascals',            symbol: 'GPa',  factor: 1e9,             system: 'metric',  baseUnits: { kN: 1, mm: -2 }  },
       { id: 'bar',  label: 'Bar',                    symbol: 'bar',  factor: 1e5,             system: 'metric'  },
       { id: 'atm',  label: 'Atmospheres',            symbol: 'atm',  factor: 101325,          system: 'both'    },
       { id: 'mmHg', label: 'Millimeters of Mercury', symbol: 'mmHg', factor: 133.322387415,   system: 'both'    },
-      { id: 'psi',  label: 'Pounds per sq. in.',     symbol: 'psi',  factor: 6894.757293168,  system: 'english' },
-      { id: 'ksi',  label: 'Kips per sq. in.',       symbol: 'ksi',  factor: 6894757.293168,  system: 'english' },
-      { id: 'psf',  label: 'Pounds per sq. ft.',     symbol: 'psf',  factor: 47.88025898,     system: 'english' },
+      { id: 'psi',  label: 'Pounds per sq. in.',     symbol: 'psi',  factor: 6894.757293168,  system: 'english', baseUnits: { lbf: 1, in: -2 } },
+      { id: 'ksi',  label: 'Kips per sq. in.',       symbol: 'ksi',  factor: 6894757.293168,  system: 'english', baseUnits: { kip: 1, in: -2 } },
+      { id: 'psf',  label: 'Pounds per sq. ft.',     symbol: 'psf',  factor: 47.88025898,     system: 'english', baseUnits: { lbf: 1, ft: -2 } },
+      { id: 'ksf',  label: 'Kips per sq. ft.',       symbol: 'ksf',  factor: 47880.25898,     system: 'english', baseUnits: { kip: 1, ft: -2 } },
     ],
   },
 
   // ---- Energy / Work (base: J) --------------------------------------------
+  // J=N·m, kJ=kN·m, MJ=MN·m; ft_lbf=lbf·ft, ft_kip=kip·ft, in_lbf=lbf·in, in_kip=kip·in
   energy: {
     id: 'energy', label: 'Energy', siBase: 'J',
     units: [
-      { id: 'J',      label: 'Joules',         symbol: 'J',      factor: 1,               system: 'metric'  },
-      { id: 'kJ',     label: 'Kilojoules',     symbol: 'kJ',     factor: 1e3,             system: 'metric'  },
-      { id: 'MJ',     label: 'Megajoules',     symbol: 'MJ',     factor: 1e6,             system: 'metric'  },
+      { id: 'J',      label: 'Joules',         symbol: 'J',      factor: 1,               system: 'metric',  baseUnits: { N: 1, m: 1 }    },
+      { id: 'kJ',     label: 'Kilojoules',     symbol: 'kJ',     factor: 1e3,             system: 'metric',  baseUnits: { kN: 1, m: 1 }   },
+      { id: 'MJ',     label: 'Megajoules',     symbol: 'MJ',     factor: 1e6,             system: 'metric',  baseUnits: { MN: 1, m: 1 }   },
       { id: 'kWh',    label: 'Kilowatt-hours', symbol: 'kWh',    factor: 3.6e6,           system: 'metric'  },
       { id: 'cal',    label: 'Calories',       symbol: 'cal',    factor: 4.184,           system: 'metric'  },
       { id: 'kcal',   label: 'Kilocalories',   symbol: 'kcal',   factor: 4184,            system: 'metric'  },
       { id: 'BTU',    label: 'BTU',            symbol: 'BTU',    factor: 1055.05585262,   system: 'english' },
-      { id: 'ft_lbf', label: 'Foot-pounds',    symbol: 'ft·lbf', factor: 1.3558179483314, system: 'english' },
-      { id: 'ft_kip', label: 'Foot-kips',      symbol: 'ft·kip', factor: 1355.8179483314, system: 'english' },
-      { id: 'in_lbf', label: 'Inch-pounds',    symbol: 'in·lbf', factor: 0.1129848290276,   system: 'english' },
-      { id: 'in_kip', label: 'Inch-kips',      symbol: 'in·kip', factor: 112.9848290276,   system: 'english' },
+      { id: 'ft-lbf', label: 'Foot-pounds',    symbol: 'ft·lbf', factor: 1.3558179483314, system: 'english', baseUnits: { lbf: 1, ft: 1 } },
+      { id: 'ft-kip', label: 'Foot-kips',      symbol: 'ft·kip', factor: 1355.8179483314, system: 'english', baseUnits: { kip: 1, ft: 1 } },
+      { id: 'in-lbf', label: 'Inch-pounds',    symbol: 'in·lbf', factor: 0.1129848290276, system: 'english', baseUnits: { lbf: 1, in: 1 } },
+      { id: 'in-kip', label: 'Inch-kips',      symbol: 'in·kip', factor: 112.9848290276,  system: 'english', baseUnits: { kip: 1, in: 1 } },
     ],
   },
 
   // ---- Power (base: W) ----------------------------------------------------
+  // W=N·m/s, kW=kN·m/s, MW=MN·m/s
   power: {
     id: 'power', label: 'Power', siBase: 'W',
     units: [
-      { id: 'W', label: 'Watts', symbol: 'W', factor: 1, system: 'metric'},
-      { id: 'kW', label: 'Kilowatts', symbol: 'kW', factor: 1e3, system: 'metric'},
-      { id: 'MW', label: 'Megawatts', symbol: 'MW', factor: 1e6, system: 'metric'},
-      { id: 'hp', label: 'Horsepower', symbol: 'hp', factor: 745.69987158227, system: 'english'},
-      { id: 'BTU_hr', label: 'BTU per hour', symbol: 'BTU/hr', factor: 0.29307107017, system: 'english'},
+      { id: 'W',      label: 'Watts',        symbol: 'W',      factor: 1,               system: 'metric',  baseUnits: { N: 1, m: 1, s: -1 }  },
+      { id: 'kW',     label: 'Kilowatts',    symbol: 'kW',     factor: 1e3,             system: 'metric',  baseUnits: { kN: 1, m: 1, s: -1 } },
+      { id: 'MW',     label: 'Megawatts',    symbol: 'MW',     factor: 1e6,             system: 'metric',  baseUnits: { MN: 1, m: 1, s: -1 } },
+      { id: 'hp',     label: 'Horsepower',   symbol: 'hp',     factor: 745.69987158227, system: 'english' },
+      { id: 'BTU_hr', label: 'BTU per hour', symbol: 'BTU/hr', factor: 0.29307107017,   system: 'english' },
     ],
   },
 
@@ -188,14 +212,14 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   velocity: {
     id: 'velocity', label: 'Velocity', siBase: 'm/s',
     units: [
-      { id: 'm_s', label: 'Meters per second', symbol: 'm/s', factor: 1, system: 'metric'},
-      { id: 'm_h', label: 'Meters per hour', symbol: 'm/h', factor: 1 / 3600, system: 'metric'},
-      { id: 'km_s', label: 'Kilometers per second', symbol: 'km/s', factor: 1 / 1000, system: 'metric'},
-      { id: 'km_h', label: 'Kilometers per hour', symbol: 'km/h', factor: 1 / 3.6, system: 'metric'},
-      { id: 'ft_s', label: 'Feet per second', symbol: 'ft/s', factor: 0.3048, system: 'english'},
-      { id: 'in_s', label: 'Inches per second', symbol: 'in/s', factor: 0.0254, system: 'english'},
-      { id: 'mph', label: 'Miles per hour', symbol: 'mph', factor: 0.44704, system: 'english'},
-      { id: 'kn', label: 'Knots', symbol: 'kn', factor: 1.852 / 3.6, system: 'both'},
+      { id: 'm_s',  label: 'Meters per second',      symbol: 'm/s',  factor: 1,           system: 'metric',  baseUnits: { m: 1, s: -1 }   },
+      { id: 'm_h',  label: 'Meters per hour',        symbol: 'm/h',  factor: 1 / 3600,    system: 'metric',  baseUnits: { m: 1, hr: -1 }  },
+      { id: 'km_s', label: 'Kilometers per second',  symbol: 'km/s', factor: 1 / 1000,    system: 'metric'  },
+      { id: 'km_h', label: 'Kilometers per hour',    symbol: 'km/h', factor: 1 / 3.6,     system: 'metric',  baseUnits: { km: 1, hr: -1 } },
+      { id: 'ft_s', label: 'Feet per second',        symbol: 'ft/s', factor: 0.3048,      system: 'english', baseUnits: { ft: 1, s: -1 }  },
+      { id: 'in_s', label: 'Inches per second',      symbol: 'in/s', factor: 0.0254,      system: 'english', baseUnits: { in: 1, s: -1 }  },
+      { id: 'mph',  label: 'Miles per hour',         symbol: 'mph',  factor: 0.44704,     system: 'english', baseUnits: { mi: 1, hr: -1 } },
+      { id: 'kn',   label: 'Knots',                  symbol: 'kn',   factor: 1.852 / 3.6, system: 'both'    },
     ],
   },
 
@@ -203,11 +227,11 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   acceleration: {
     id: 'acceleration', label: 'Acceleration', siBase: 'm/s²',
     units: [
-      { id: 'm_s2',  label: 'Meters per second²',      symbol: 'm/s²',  factor: 1,        system: 'metric'  },
-      { id: 'cm_s2', label: 'Centimeters per second²', symbol: 'cm/s²', factor: 0.01,     system: 'metric'  },
-      { id: 'ft_s2', label: 'Feet per second²',        symbol: 'ft/s²', factor: 0.3048,   system: 'english' },
-      { id: 'in_s2', label: 'Inches per second²',      symbol: 'in/s²', factor: 0.0254,   system: 'english' },
-      { id: 'g',     label: 'Standard Gravity',        symbol: 'g',     factor: 9.80665,  system: 'both'    },
+      { id: 'm_s2',  label: 'Meters per second²',      symbol: 'm/s²',  factor: 1,       system: 'metric',  baseUnits: { m: 1, s: -2 }  },
+      { id: 'cm_s2', label: 'Centimeters per second²', symbol: 'cm/s²', factor: 0.01,    system: 'metric',  baseUnits: { cm: 1, s: -2 } },
+      { id: 'ft_s2', label: 'Feet per second²',        symbol: 'ft/s²', factor: 0.3048,  system: 'english', baseUnits: { ft: 1, s: -2 } },
+      { id: 'in_s2', label: 'Inches per second²',      symbol: 'in/s²', factor: 0.0254,  system: 'english', baseUnits: { in: 1, s: -2 } },
+      { id: 'g',     label: 'Standard Gravity',        symbol: 'g',     factor: 9.80665, system: 'both'    },
     ],
   },
 
@@ -228,11 +252,11 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   momentum: {
     id: 'momentum', label: 'Linear Momentum', siBase: 'kg·m/s',
     units: [
-      { id: 'kg_m_s',    label: 'Kilogram·meters/s',  symbol: 'kg·m/s',    factor: 1,                            system: 'metric'  },
-      { id: 'g_cm_s',    label: 'Gram·centimeters/s', symbol: 'g·cm/s',    factor: 1e-5,                         system: 'metric'  },
-      { id: 'lb_ft_s',   label: 'Pound·feet/s',       symbol: 'lb·ft/s',   factor: 0.45359237 * 0.3048,          system: 'english' },
-      { id: 'lb_in_s',   label: 'Pound·inches/s',     symbol: 'lb·in/s',   factor: 0.45359237 * 0.0254,          system: 'english' },
-      { id: 'slug_ft_s', label: 'Slug·feet/s',        symbol: 'slug·ft/s', factor: 14.593902937206 * 0.3048,     system: 'english' },
+      { id: 'kg-m_s',    label: 'Kilogram·meters/s',  symbol: 'kg·m/s',    factor: 1,                        system: 'metric',  baseUnits: { kg: 1, m: 1, s: -1 }    },
+      { id: 'g-cm_s',    label: 'Gram·centimeters/s', symbol: 'g·cm/s',    factor: 1e-5,                     system: 'metric',  baseUnits: { g: 1, cm: 1, s: -1 }    },
+      { id: 'lb-ft_s',   label: 'Pound·feet/s',       symbol: 'lb·ft/s',   factor: 0.45359237 * 0.3048,      system: 'english', baseUnits: { lbm: 1, ft: 1, s: -1 }  },
+      { id: 'lb-in_s',   label: 'Pound·inches/s',     symbol: 'lb·in/s',   factor: 0.45359237 * 0.0254,      system: 'english', baseUnits: { lbm: 1, in: 1, s: -1 }  },
+      { id: 'slug-ft_s', label: 'Slug·feet/s',        symbol: 'slug·ft/s', factor: 14.593902937206 * 0.3048, system: 'english', baseUnits: { slug: 1, ft: 1, s: -1 } },
     ],
   },
 
@@ -240,11 +264,11 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   angular_momentum: {
     id: 'angular_momentum', label: 'Angular Momentum', siBase: 'kg·m²/s',
     units: [
-      { id: 'kg_m2_s',    label: 'Kilogram·meters²/s', symbol: 'kg·m²/s',    factor: 1,                                    system: 'metric'  },
-      { id: 'g_cm2_s',    label: 'Gram·cm²/s',         symbol: 'g·cm²/s',    factor: 1e-7,                                 system: 'metric'  },
-      { id: 'lb_ft2_s',   label: 'Pound·feet²/s',      symbol: 'lb·ft²/s',   factor: 0.45359237 * 0.09290304,              system: 'english' },
-      { id: 'lb_in2_s',   label: 'Pound·inches²/s',    symbol: 'lb·in²/s',   factor: 0.45359237 * 6.4516e-4,               system: 'english' },
-      { id: 'slug_ft2_s', label: 'Slug·feet²/s',       symbol: 'slug·ft²/s', factor: 14.593902937206 * 0.09290304,         system: 'english' },
+      { id: 'kg-m2_s',    label: 'Kilogram·meters²/s', symbol: 'kg·m²/s',    factor: 1,                            system: 'metric',  baseUnits: { kg: 1, m: 2, s: -1 }    },
+      { id: 'g-cm2_s',    label: 'Gram·cm²/s',         symbol: 'g·cm²/s',    factor: 1e-7,                         system: 'metric',  baseUnits: { g: 1, cm: 2, s: -1 }    },
+      { id: 'lb-ft2_s',   label: 'Pound·feet²/s',      symbol: 'lb·ft²/s',   factor: 0.45359237 * 0.09290304,      system: 'english', baseUnits: { lbm: 1, ft: 2, s: -1 }  },
+      { id: 'lb-in2_s',   label: 'Pound·inches²/s',    symbol: 'lb·in²/s',   factor: 0.45359237 * 6.4516e-4,       system: 'english', baseUnits: { lbm: 1, in: 2, s: -1 }  },
+      { id: 'slug-ft2_s', label: 'Slug·feet²/s',       symbol: 'slug·ft²/s', factor: 14.593902937206 * 0.09290304, system: 'english', baseUnits: { slug: 1, ft: 2, s: -1 } },
     ],
   },
 
@@ -261,16 +285,17 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   },
 
   // ---- Torque (base: N·m) -------------------------------------------------
+  // N_mm=N·mm, N_m=N·m, kN_m=kN·m; lbf_in=lbf·in, lbf_ft=lbf·ft, kip_in=kip·in, kip_ft=kip·ft
   torque: {
     id: 'torque', label: 'Torque', siBase: 'N·m',
     units: [
-      { id: 'N_mm',   label: 'Newton·millimeters', symbol: 'N·mm',   factor: 1e-3,             system: 'metric'  },
-      { id: 'N_m',    label: 'Newton·meters',      symbol: 'N·m',    factor: 1,                system: 'metric'  },
-      { id: 'kN_m',   label: 'Kilonewton·meters',  symbol: 'kN·m',   factor: 1e3,              system: 'metric'  },
-      { id: 'lbf_in', label: 'Pound-force·inches', symbol: 'lbf·in', factor: 0.1129848290276,  system: 'english' },
-      { id: 'lbf_ft', label: 'Pound-force·feet',   symbol: 'lbf·ft', factor: 1.3558179483314,  system: 'english' },
-      { id: 'kip_in', label: 'Kip·inches',         symbol: 'kip·in', factor: 112.9848290276,   system: 'english' },
-      { id: 'kip_ft', label: 'Kip·feet',           symbol: 'kip·ft', factor: 1355.8179483314,  system: 'english' },
+      { id: 'N-mm',   label: 'Newton·millimeters', symbol: 'N·mm',   factor: 1e-3,             system: 'metric',  baseUnits: { N: 1, mm: 1 }  },
+      { id: 'N-m',    label: 'Newton·meters',      symbol: 'N·m',    factor: 1,                system: 'metric',  baseUnits: { N: 1, m: 1 }   },
+      { id: 'kN-m',   label: 'Kilonewton·meters',  symbol: 'kN·m',   factor: 1e3,              system: 'metric',  baseUnits: { kN: 1, m: 1 }  },
+      { id: 'lbf-in', label: 'Pound-force·inches', symbol: 'lbf·in', factor: 0.1129848290276,  system: 'english', baseUnits: { lbf: 1, in: 1 } },
+      { id: 'lbf-ft', label: 'Pound-force·feet',   symbol: 'lbf·ft', factor: 1.3558179483314,  system: 'english', baseUnits: { lbf: 1, ft: 1 } },
+      { id: 'kip-in', label: 'Kip·inches',         symbol: 'kip·in', factor: 112.9848290276,   system: 'english', baseUnits: { kip: 1, in: 1 } },
+      { id: 'kip-ft', label: 'Kip·feet',           symbol: 'kip·ft', factor: 1355.8179483314,  system: 'english', baseUnits: { kip: 1, ft: 1 } },
     ],
   },
 
@@ -280,13 +305,13 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   density: {
     id: 'density', label: 'Density / Specific Gravity', siBase: 'kg/m³',
     units: [
-      { id: 'kg_m3',    label: 'Kilograms/m³',         symbol: 'kg/m³',   factor: 1,               system: 'metric'  },
-      { id: 'g_cm3',    label: 'Grams/cm³',            symbol: 'g/cm³',   factor: 1000,            system: 'metric'  },
-      { id: 'kg_L',     label: 'Kilograms/liter',      symbol: 'kg/L',    factor: 1000,            system: 'metric'  },
-      { id: 'sg',       label: 'Specific Gravity (water = 1)', symbol: 'SG', factor: 1000,         system: 'both'    },
-      { id: 'lb_ft3',   label: 'Pounds/ft³',           symbol: 'lb/ft³',  factor: 16.01846337396,  system: 'english' },
-      { id: 'lb_in3',   label: 'Pounds/in³',           symbol: 'lb/in³',  factor: 27679.904710191, system: 'english' },
-      { id: 'slug_ft3', label: 'Slugs/ft³',            symbol: 'slug/ft³',factor: 515.37882,       system: 'english' },
+      { id: 'kg_m3',    label: 'Kilograms/m³',               symbol: 'kg/m³',    factor: 1,               system: 'metric',  baseUnits: { kg: 1, m: -3 }    },
+      { id: 'g_cm3',    label: 'Grams/cm³',                  symbol: 'g/cm³',    factor: 1000,            system: 'metric',  baseUnits: { g: 1, cm: -3 }    },
+      { id: 'kg_L',     label: 'Kilograms/liter',            symbol: 'kg/L',     factor: 1000,            system: 'metric'  },
+      { id: 'sg',       label: 'Specific Gravity (water = 1)', symbol: 'SG',     factor: 1000,            system: 'both'    },
+      { id: 'lb_ft3',   label: 'Pounds/ft³',                 symbol: 'lb/ft³',   factor: 16.01846337396,  system: 'english', baseUnits: { lbm: 1, ft: -3 }  },
+      { id: 'lb_in3',   label: 'Pounds/in³',                 symbol: 'lb/in³',   factor: 27679.904710191, system: 'english', baseUnits: { lbm: 1, in: -3 }  },
+      { id: 'slug_ft3', label: 'Slugs/ft³',                  symbol: 'slug/ft³', factor: 515.37882,       system: 'english', baseUnits: { slug: 1, ft: -3 } },
     ],
   },
 
@@ -308,13 +333,13 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
   mass_moi: {
     id: 'mass_moi', label: 'Mass Moment of Inertia', siBase: 'kg·m²',
     units: [
-      { id: 'kg_m2',    label: 'Kilogram·meters²',    symbol: 'kg·m²',    factor: 1,                              system: 'metric'  },
-      { id: 'g_cm2',    label: 'Gram·centimeters²',   symbol: 'g·cm²',    factor: 1e-7,                           system: 'metric'  },
-      { id: 'kg_cm2',   label: 'Kilogram·cm²',        symbol: 'kg·cm²',   factor: 1e-4,                           system: 'metric'  },
-      { id: 'lb_ft2',   label: 'Pound·feet²',         symbol: 'lb·ft²',   factor: 0.45359237 * 0.09290304,        system: 'english' },
-      { id: 'lb_in2',   label: 'Pound·inches²',       symbol: 'lb·in²',   factor: 0.45359237 * 6.4516e-4,         system: 'english' },
-      { id: 'slug_ft2', label: 'Slug·feet²',          symbol: 'slug·ft²', factor: 14.593902937206 * 0.09290304,   system: 'english' },
-      { id: 'slug_in2', label: 'Slug·inches²',        symbol: 'slug·in²', factor: 14.593902937206 * 6.4516e-4,    system: 'english' },
+      { id: 'kg-m2',    label: 'Kilogram·meters²',  symbol: 'kg·m²',    factor: 1,                            system: 'metric',  baseUnits: { kg: 1, m: 2 }    },
+      { id: 'g-cm2',    label: 'Gram·centimeters²', symbol: 'g·cm²',    factor: 1e-7,                         system: 'metric',  baseUnits: { g: 1, cm: 2 }    },
+      { id: 'kg-cm2',   label: 'Kilogram·cm²',      symbol: 'kg·cm²',   factor: 1e-4,                         system: 'metric',  baseUnits: { kg: 1, cm: 2 }   },
+      { id: 'lb-ft2',   label: 'Pound·feet²',       symbol: 'lb·ft²',   factor: 0.45359237 * 0.09290304,      system: 'english', baseUnits: { lbm: 1, ft: 2 }  },
+      { id: 'lb-in2',   label: 'Pound·inches²',     symbol: 'lb·in²',   factor: 0.45359237 * 6.4516e-4,       system: 'english', baseUnits: { lbm: 1, in: 2 }  },
+      { id: 'slug-ft2', label: 'Slug·feet²',        symbol: 'slug·ft²', factor: 14.593902937206 * 0.09290304, system: 'english', baseUnits: { slug: 1, ft: 2 } },
+      { id: 'slug-in2', label: 'Slug·inches²',      symbol: 'slug·in²', factor: 14.593902937206 * 6.4516e-4,  system: 'english', baseUnits: { slug: 1, in: 2 } },
     ],
   },
 
