@@ -87,6 +87,8 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 
 The plot block automatically propagates the unit of the range bound to the sweep variable, so `delta(x)` plotted from `0` to `l [ft]` evaluates with `x` in `{ft}` — keeping polynomials like `l^3 - 2·l·x² + x³` dimensionally consistent.
 
+Compound units (pressure, energy, power, torque, etc.) are automatically expanded into their primitive components for dimensional analysis. For example, `E = 29000 [ksi]` is tracked internally as `kip/in²` so that `E * I [in^4]` correctly cancels to `kip·in²` rather than accumulating `ksi·in⁴`. Units that expand: `psi`, `ksi`, `psf`, `ksf`, `Pa`, `kPa`, `MPa`, `GPa`, `J`, `kJ`, `MJ`, `W`, `kW`, `MW`, and the torque/velocity/acceleration/density/momentum compound ids. Note: intermediate results display the expanded form (e.g. `kip/in²` instead of `ksi`).
+
 ## Supabase setup (one-time)
 
 1. Create a project at supabase.com
