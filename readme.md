@@ -89,6 +89,10 @@ The plot block automatically propagates the unit of the range bound to the sweep
 
 Compound units (pressure, energy, power, torque, etc.) are automatically expanded into their primitive components for dimensional analysis. For example, `E = 29000 [ksi]` is tracked internally as `kip/in²` so that `E * I [in^4]` correctly cancels to `kip·in²` rather than accumulating `ksi·in⁴`. Units that expand: `psi`, `ksi`, `psf`, `ksf`, `Pa`, `kPa`, `MPa`, `GPa`, `J`, `kJ`, `MJ`, `W`, `kW`, `MW`, and the torque/velocity/acceleration/density/momentum compound ids. Note: intermediate results display the expanded form (e.g. `kip/in²` instead of `ksi`).
 
+## Section template encryption
+
+Purchased section templates are AES-256-GCM encrypted. The decryption key is derived server-side (Supabase RPC `get_pack_key`) and cached in `localStorage` for offline use. Only the ciphertext and IV are ever written to the project JSON — decrypted content is never persisted. Copying a project file does not transfer template access; the key is tied to the user's Supabase account.
+
 ## Supabase setup (one-time)
 
 1. Create a project at supabase.com
