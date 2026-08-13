@@ -50,10 +50,31 @@ affine temperature. — [`testing.md`](testing.md)
 derivation pass `deno task db:check`. What is missing is the payment flow and the pack-authoring UI
 for a super user. Today packs are created by SQL helper and unlocked with manually minted codes.
 
-Payments are a **separate vendor** from the backend — Stripe, or Paddle/Lemon Squeezy as Merchant of
-Record if international sales tax is worth outsourcing. With hosted checkout, card data never touches
-LeptonPad and PCI scope stays at SAQ-A. The integration is one webhook that verifies a signature and
-either grants a pack or mints a code, landing on the redemption path that already exists.
+### ✅ DECIDED 2026-08-13: Merchant of Record, not Stripe direct
+
+Jon's call, and the reason is tax, not fees. Selling software to consumers internationally creates
+VAT and sales-tax obligations in the buyer's jurisdiction at effectively zero threshold in the EU.
+With **Stripe direct** LeptonPad is the merchant and that liability is Jon's — registering, collecting
+and remitting, in every jurisdiction. With a **Merchant of Record** the platform is legally the
+seller and carries it. The ~2% extra buys away a compliance burden a solo engineer should not be
+carrying.
+
+**Paddle is the default choice.** Lemon Squeezy is the same model but was acquired by Stripe, and as
+of 2026 carries onboarding delays, roadmap uncertainty, and reports of effective fees approaching 9%
+with add-ons. **Stripe Managed Payments** — Stripe's own MoR product, built out of that acquisition —
+is worth re-checking when the storefront is actually built; it was still in public preview as of
+2026 and would be the natural fit if it reaches GA.
+
+Whichever wins, the integration is the same shape and small:
+
+1. Hosted checkout — **card data never touches LeptonPad**, so PCI scope stays at SAQ-A.
+2. One webhook: verify the signature, then either grant the pack or mint a code.
+3. It lands on `redeem_license_code`, which already exists and passes `db:check`.
+
+⚠️ **Sequence matters: do the Clerk production migration BEFORE the first sale.** Pack keys are
+`HMAC-SHA256(pack_secret, clerk_user_id)`, and Clerk user ids do not survive a dev → production
+move — so anything sold beforehand becomes permanently undecryptable. Verified 2026-08-13 that the
+database is still clean (0 packs, 0 codes, 0 secrets), so the migration is currently free.
 
 **5. `'table'` block type** — declared in the `Block['type']` union with no implementation. Either
 build it or remove it from the union.
