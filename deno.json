@@ -12,7 +12,7 @@
     "build:wasm": "deno run -A jsr:@jrmarcum/wasmtk modc solver/solver.ts -n dist/solver.wasm",
     "sync:version": "deno run -A scripts/sync-version.ts",
     "build": "deno task sync:version && deno task build:wasm && deno run -A build.ts",
-    "dev": "deno task sync:version && deno task build:wasm && deno run -A dev.ts",
+    "dev": "deno task sync:version && deno task build:wasm && deno run -A --env-file=.env.api dev.ts",
     "api:dev": "deno run --allow-net --allow-env --env-file=.env.api --watch api/main.ts",
     "db:check": "deno run --allow-net --allow-env --env-file=.env.api db/check.ts",
     "promote": "deno run --allow-net --allow-env --env-file=.env.api db/promote.ts",

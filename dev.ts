@@ -1,5 +1,6 @@
 import { serveDir } from 'jsr:@std/http@1/file-server';
 import { writeConfigJs } from './scripts/write-config.ts';
+import { handleApiRequest } from './api/main.ts';
 
 // Copy static assets
 await Deno.mkdir('dist', { recursive: true });
@@ -62,6 +63,15 @@ Deno.serve(
   { port: 5173, onListen: () => console.log('Dev server → http://localhost:5173') },
   async (req) => {
     const { pathname } = new URL(req.url);
+
+    // Mount the API exactly as production does, so dev and prod agree on the
+    // shape of the world. Previously dev served only static files, `/me` failed,
+    // and the sidebar showed "Offline — access not yet verified" unless you
+    // remembered to run `deno task api:dev` in a second terminal. A difference
+    // like that between dev and prod is a bug generator, not a convenience.
+    if (pathname === '/api' || pathname.startsWith('/api/')) {
+      return handleApiRequest(req, pathname.slice('/api'.length) || '/');
+    }
 
     if (pathname === '/__dev_sse') {
       // Cancel any pending shutdown — browser refreshed and reconnected
