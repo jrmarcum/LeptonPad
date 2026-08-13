@@ -59,11 +59,14 @@ and remitting, in every jurisdiction. With a **Merchant of Record** the platform
 seller and carries it. The ~2% extra buys away a compliance burden a solo engineer should not be
 carrying.
 
-**Paddle is the default choice.** Lemon Squeezy is the same model but was acquired by Stripe, and as
-of 2026 carries onboarding delays, roadmap uncertainty, and reports of effective fees approaching 9%
-with add-ons. **Stripe Managed Payments** — Stripe's own MoR product, built out of that acquisition —
-is worth re-checking when the storefront is actually built; it was still in public preview as of
-2026 and would be the natural fit if it reaches GA.
+**Vendor: Paddle.** Chosen 2026-08-13 for tax handling _and_ independence — Lemon Squeezy and Stripe
+Managed Payments are both Stripe-owned now, so betting on either means accepting whatever terms Stripe
+sets later. Paddle is the one established MoR still independent of the processor we would otherwise be
+avoiding. Lemon Squeezy additionally carries post-acquisition onboarding delays and reports of
+effective fees approaching 9% with add-ons, which erodes the reason to pay an MoR premium at all.
+
+⚠️ **Paddle vets sellers before approving an account**, and wants a reviewable product. That is a
+lead time measured in days, not minutes — apply well before launch day rather than on it.
 
 Whichever wins, the integration is the same shape and small:
 
