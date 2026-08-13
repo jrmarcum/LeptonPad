@@ -76,12 +76,35 @@ are about to publish through `serve.ts` without rebuilding.
 
 ## Deploy
 
-**Two deployables**, and they are separate:
+## ⚠️ Deno Deploy follows the newest RELEASE TAG, not the default branch
 
-| What                      | Where              | Env it reads                                                                                     |
-| ------------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
-| The browser app (`dist/`) | **Vercel**, static | `CLERK_PUBLISHABLE_KEY`, `LP_API_URL` — public values, baked into `dist/config.js` at build time |
-| The API (`api/main.ts`)   | **Deno Deploy**    | `DATABASE_URL`, `CLERK_JWT_KEY` or `CLERK_SECRET_KEY`, `ALLOWED_ORIGINS` — **secrets**           |
+**Pushing `main` does not deploy anything.** Verified 2026-08-13: `main` carried 2.2.0 while the
+newest tag was still `2.1.4`, and Deno Deploy kept serving 2.1.4 until the `2.2.0` tag existed.
+
+Releases are **git tags named `X.Y.Z`**, each with a matching branch of the same name — see `1.0.1`,
+`2.1.4`, `2.2.0`. There is **no `.github/workflows` and no `vercel.json`**; the pipeline is entirely
+Deno Deploy's GitHub integration, configured in its dashboard rather than in the repo. (Earlier notes
+here claimed "GitHub Actions → Vercel". That was inherited from the old `CLAUDE.md` and was wrong.)
+
+A git tag is not the same as a **GitHub Release** object. If the deploy is following Releases rather
+than raw tags, publishing the Release for the tag is a separate step — web UI, or `gh release create`
+once `gh` is authenticated.
+
+```bash
+git tag -a 2.2.0 -m "v2.2.0 — …" <commit>
+git branch 2.2.0 <commit>
+git push origin refs/tags/2.2.0 refs/heads/2.2.0
+```
+
+A tag and branch sharing a name makes git warn `refname is ambiguous` — that matches the existing
+convention, so disambiguate with `refs/tags/X.Y.Z` when it matters.
+
+## The two deployables
+
+| What                      | Where           | Env it reads                                                                                     |
+| ------------------------- | --------------- | ------------------------------------------------------------------------------------------------ |
+| The browser app (`dist/`) | **Deno Deploy** | `CLERK_PUBLISHABLE_KEY`, `LP_API_URL` — public values, baked into `dist/config.js` at build time |
+| The API (`api/main.ts`)   | **Deno Deploy** | `DATABASE_URL`, `CLERK_JWT_KEY` or `CLERK_SECRET_KEY`, `ALLOWED_ORIGINS` — **secrets**           |
 
 `main.ts` at the repo root exists for the Deno Deploy static path (`serveDir` over `dist/`) and is
 unrelated to `api/main.ts`.
@@ -103,4 +126,9 @@ CORS with no useful error in the app.
 4. `deno task build`.
 5. Confirm `dist/sw.js` contains the new `leptonpad-vX.Y.Z`. **If it did not change, stop** — the
    deploy will be invisible to returning users.
-6. Deploy. Verify in a browser with an existing cache, not just a hard-refresh.
+6. Confirm `dist/config.js` has the **production** `apiBaseUrl`, not `http://localhost:8000`. It is
+   generated from `.env`, so a dev value ships straight through — `dist/` is tracked and committed.
+7. Commit, then push `main`.
+8. **Tag it** — `git tag -a X.Y.Z`, matching branch, push both. Without this the deploy keeps serving
+   the previous release no matter what is on `main`.
+9. Verify in a browser with an existing cache, not just a hard-refresh.

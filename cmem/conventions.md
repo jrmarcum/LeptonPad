@@ -57,6 +57,10 @@ across dev restarts, and you debug code that is not running.
 unchanged cache name means returning users keep the old bundle. —
 [`build-and-deploy.md`](build-and-deploy.md)
 
+**Tag the release, or nothing deploys.** Deno Deploy follows the newest release TAG, not the default
+branch. Pushing `main` alone left production on 2.1.4 while `main` held 2.2.0. —
+[`build-and-deploy.md`](build-and-deploy.md)
+
 ## Math and units
 
 **`addU` stays strict.** Never coerce mismatched units to make an expression evaluate. In a
