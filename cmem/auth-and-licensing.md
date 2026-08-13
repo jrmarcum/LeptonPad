@@ -92,6 +92,39 @@ would orphan every pack already sold under the old key.
 - `accessSummary()` produces the sidebar string: "Full access (super)" / "Pro — all features" /
   "Demo trial active" / "N template pack(s)" / "Free — no packs".
 
+## ⚠️ The Clerk instance is a DEVELOPMENT instance — origins must be allowlisted
+
+Verified 2026-08-13 via `GET https://api.clerk.com/v1/instance`:
+
+```json
+{ "environment_type": "development", "allowed_origins": [...] }
+```
+
+Its registered domain is `devoted.lab-77.lcl.dev` (frontend API
+`devoted-lab-77.clerk.accounts.dev`), a local-development domain. **`allowed_origins` was `null`, and
+sign-in on the deployed site failed with "Password is incorrect."** — a credential error that says
+nothing about the real cause, which is why this cost an hour. The same password worked on localhost.
+
+Fixed by adding the production origin:
+
+```bash
+SK=$(grep '^CLERK_SECRET_KEY=' .env.api | cut -d= -f2- | tr -d '\r\n' | sed 's/^"//; s/"$//')
+curl -X PATCH -H "Authorization: Bearer $SK" -H 'Content-Type: application/json' \
+  -d '{"allowed_origins":["https://leptonpad.jrmarcum.deno.net","http://localhost:5173"]}' \
+  https://api.clerk.com/v1/instance
+```
+
+**Any new origin — a custom domain, a preview URL — must be added to this list or sign-in fails
+there with a misleading error.**
+
+💡 `.env.api` quotes its values. Deno's `--env-file` strips the quotes; a shell `cut` does not, so a
+raw `curl` with the extracted key returns `clerk_key_invalid` and looks like a bad key. Strip the
+quotes and the `\r` from CRLF.
+
+**Longer term this should become a Clerk _production_ instance** (`pk_live_`/`sk_live_`). That needs a
+domain whose DNS you control — `*.deno.net` will not work, so it waits on a custom domain. Until
+then the development instance carries Clerk's dev limits.
+
 ## Sign-up flow — Clerk uses a code, not a link
 
 `signUp()` returns `needsVerification: true` when Clerk wants the emailed **6-digit code**. The login
