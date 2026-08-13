@@ -24,12 +24,15 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
 
   const DEFAULT_W = 240;
   const DEFAULT_H = 200;
-  el.style.width  = `${block.w ?? DEFAULT_W}px`;
+  el.style.width = `${block.w ?? DEFAULT_W}px`;
   el.style.height = `${block.h ?? DEFAULT_H}px`;
 
   let data: FigureData;
-  try { data = JSON.parse(block.content || '{}') as FigureData; }
-  catch { data = { src: '', caption: '' }; }
+  try {
+    data = JSON.parse(block.content || '{}') as FigureData;
+  } catch {
+    data = { src: '', caption: '' };
+  }
 
   // ── Label header ──────────────────────────────────────────────────────────
   const header = document.createElement('div');
@@ -140,7 +143,10 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     const startX = e.clientX;
     const startW = el.offsetWidth;
     const onMove = (mv: PointerEvent) => {
-      const newW = Math.max(80, Math.round((startW + (mv.clientX - startX)) / GRID_SIZE) * GRID_SIZE);
+      const newW = Math.max(
+        80,
+        Math.round((startW + (mv.clientX - startX)) / GRID_SIZE) * GRID_SIZE,
+      );
       block.w = newW;
       el.style.width = `${newW}px`;
     };
@@ -167,7 +173,10 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     const startY = e.clientY;
     const startH = el.offsetHeight;
     const onMove = (mv: PointerEvent) => {
-      const newH = Math.max(GRID_SIZE * 3, Math.round((startH + (mv.clientY - startY)) / GRID_SIZE) * GRID_SIZE);
+      const newH = Math.max(
+        GRID_SIZE * 3,
+        Math.round((startH + (mv.clientY - startY)) / GRID_SIZE) * GRID_SIZE,
+      );
       block.h = newH;
       el.style.height = `${newH}px`;
     };

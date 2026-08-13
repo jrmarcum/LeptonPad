@@ -36,24 +36,24 @@ export type Scope = Record<string, Quantity>;
 export type FnScope = Record<string, { param: string; expr: string; targetUnit?: UnitMap }>;
 
 export interface Statement {
-  raw: string;      // original text of this statement
-  name: string;     // assigned variable name, or '' for bare expression
-  expr: string;     // right-hand side (or whole statement if bare)
+  raw: string; // original text of this statement
+  name: string; // assigned variable name, or '' for bare expression
+  expr: string; // right-hand side (or whole statement if bare)
   value: number;
-  unit: UnitMap;    // derived unit (empty = dimensionless)
+  unit: UnitMap; // derived unit (empty = dimensionless)
   error?: string;
-  isFn?: boolean;   // true when this statement defines a user function
+  isFn?: boolean; // true when this statement defines a user function
   fnParam?: string; // parameter name when isFn is true
   // Control-flow fields
   rowType?: 'if' | 'elseif' | 'else' | 'end' | 'for';
-  active?: boolean;      // whether this row's branch/body was executed
-  condValue?: number;    // for if/elseif: numeric result of condition (non-zero = true)
+  active?: boolean; // whether this row's branch/body was executed
+  condValue?: number; // for if/elseif: numeric result of condition (non-zero = true)
 }
 
 /** A single row in a formula block (JSON-serialized in block.content). */
 export interface FormulaRow {
-  e: string;   // expression or condition text
-  d?: string;  // optional description (left column)
+  e: string; // expression or condition text
+  d?: string; // optional description (left column)
   ref?: string; // optional reference (right column)
   type?: 'if' | 'elseif' | 'else' | 'end' | 'for';
 }
@@ -223,7 +223,7 @@ function applyTargetUnit(q: Quantity, targetUmap: UnitMap): Quantity {
     return { v: (base - (tgt.offset ?? 0)) / tgt.factor, u: targetUmap };
   }
   // Factor-scaling path
-  const srcF = unitMapSiFactor(q.u);   // throws if source symbol unknown
+  const srcF = unitMapSiFactor(q.u); // throws if source symbol unknown
   const tgtF = unitMapSiFactor(targetUmap); // throws if target symbol unknown
   return { v: q.v * srcF / tgtF, u: targetUmap };
 }
@@ -232,19 +232,37 @@ function applyTargetUnit(q: Quantity, targetUmap: UnitMap): Quantity {
 // Lexer
 // ---------------------------------------------------------------------------
 type TT =
-  | 'NUM' | 'ID'
-  | 'PLUS' | 'MINUS' | 'STAR' | 'SLASH' | 'CARET'
-  | 'LPAREN' | 'RPAREN' | 'COMMA'
-  | 'EQ' | 'NEQ' | 'LT' | 'GT' | 'LEQ' | 'GEQ'
+  | 'NUM'
+  | 'ID'
+  | 'PLUS'
+  | 'MINUS'
+  | 'STAR'
+  | 'SLASH'
+  | 'CARET'
+  | 'LPAREN'
+  | 'RPAREN'
+  | 'COMMA'
+  | 'EQ'
+  | 'NEQ'
+  | 'LT'
+  | 'GT'
+  | 'LEQ'
+  | 'GEQ'
   | 'EOF';
-interface Tok { t: TT; v: string; }
+interface Tok {
+  t: TT;
+  v: string;
+}
 
 function lex(src: string): Tok[] {
   const out: Tok[] = [];
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
-    if (/\s/.test(ch)) { i++; continue; }
+    if (/\s/.test(ch)) {
+      i++;
+      continue;
+    }
 
     // Number (with optional decimal and scientific notation)
     if (/\d/.test(ch) || (ch === '.' && /\d/.test(src[i + 1] ?? ''))) {
@@ -268,33 +286,67 @@ function lex(src: string): Tok[] {
     }
 
     // Comma
-    if (ch === ',') { out.push({ t: 'COMMA', v: ',' }); i++; continue; }
+    if (ch === ',') {
+      out.push({ t: 'COMMA', v: ',' });
+      i++;
+      continue;
+    }
 
     // Comparison operators
     if (ch === '=') {
-      if (src[i + 1] === '=') { out.push({ t: 'EQ', v: '==' }); i += 2; }
-      else { out.push({ t: 'EQ', v: '=' }); i++; }
+      if (src[i + 1] === '=') {
+        out.push({ t: 'EQ', v: '==' });
+        i += 2;
+      } else {
+        out.push({ t: 'EQ', v: '=' });
+        i++;
+      }
       continue;
     }
-    if (ch === '!' && src[i + 1] === '=') { out.push({ t: 'NEQ', v: '!=' }); i += 2; continue; }
+    if (ch === '!' && src[i + 1] === '=') {
+      out.push({ t: 'NEQ', v: '!=' });
+      i += 2;
+      continue;
+    }
     if (ch === '<') {
-      if (src[i + 1] === '>') { out.push({ t: 'NEQ', v: '<>' }); i += 2; }
-      else if (src[i + 1] === '=') { out.push({ t: 'LEQ', v: '<=' }); i += 2; }
-      else { out.push({ t: 'LT', v: '<' }); i++; }
+      if (src[i + 1] === '>') {
+        out.push({ t: 'NEQ', v: '<>' });
+        i += 2;
+      } else if (src[i + 1] === '=') {
+        out.push({ t: 'LEQ', v: '<=' });
+        i += 2;
+      } else {
+        out.push({ t: 'LT', v: '<' });
+        i++;
+      }
       continue;
     }
     if (ch === '>') {
-      if (src[i + 1] === '=') { out.push({ t: 'GEQ', v: '>=' }); i += 2; }
-      else { out.push({ t: 'GT', v: '>' }); i++; }
+      if (src[i + 1] === '=') {
+        out.push({ t: 'GEQ', v: '>=' });
+        i += 2;
+      } else {
+        out.push({ t: 'GT', v: '>' });
+        i++;
+      }
       continue;
     }
 
     // Single-char operators
     const ops: Record<string, TT> = {
-      '+': 'PLUS', '-': 'MINUS', '*': 'STAR', '/': 'SLASH',
-      '^': 'CARET', '(': 'LPAREN', ')': 'RPAREN',
+      '+': 'PLUS',
+      '-': 'MINUS',
+      '*': 'STAR',
+      '/': 'SLASH',
+      '^': 'CARET',
+      '(': 'LPAREN',
+      ')': 'RPAREN',
     };
-    if (ops[ch]) { out.push({ t: ops[ch], v: ch }); i++; continue; }
+    if (ops[ch]) {
+      out.push({ t: ops[ch], v: ch });
+      i++;
+      continue;
+    }
 
     throw new Error(`Unknown character: '${ch}'`);
   }
@@ -312,9 +364,15 @@ function _gamma(z: number): number {
   z -= 1;
   const g = 7;
   const c = [
-    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-    771.32342877765313, -176.61502916214059, 12.507343278686905,
-    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7,
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7,
   ];
   let x = c[0];
   for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
@@ -327,21 +385,35 @@ function _erf(x: number): number {
   const sign = x >= 0 ? 1 : -1;
   x = Math.abs(x);
   const t = 1 / (1 + 0.3275911 * x);
-  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  const y = 1 -
+    (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
+      t * Math.exp(-x * x);
   return sign * y;
 }
 
 // Functions that require dimensionless input and produce dimensionless output
 const MATH_FN: Record<string, (x: number) => number> = {
   // Basic trig
-  sin: Math.sin, cos: Math.cos, tan: Math.tan,
-  asin: Math.asin, acos: Math.acos, atan: Math.atan,
+  sin: Math.sin,
+  cos: Math.cos,
+  tan: Math.tan,
+  asin: Math.asin,
+  acos: Math.acos,
+  atan: Math.atan,
   // Hyperbolic trig
-  sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh,
-  asinh: Math.asinh, acosh: Math.acosh, atanh: Math.atanh,
+  sinh: Math.sinh,
+  cosh: Math.cosh,
+  tanh: Math.tanh,
+  asinh: Math.asinh,
+  acosh: Math.acosh,
+  atanh: Math.atanh,
   // Exponential / logarithmic
-  exp: Math.exp, expm1: Math.expm1,
-  log: Math.log, log2: Math.log2, log10: Math.log10, log1p: Math.log1p,
+  exp: Math.exp,
+  expm1: Math.expm1,
+  log: Math.log,
+  log2: Math.log2,
+  log10: Math.log10,
+  log1p: Math.log1p,
   // Angle conversion
   degrees: (x) => x * (180 / Math.PI),
   radians: (x) => x * (Math.PI / 180),
@@ -355,13 +427,18 @@ const MATH_FN: Record<string, (x: number) => number> = {
   factorial: (n) => {
     if (n < 0 || !Number.isInteger(n)) throw new Error('factorial requires a non-negative integer');
     if (n > 170) return Infinity;
-    let r = 1; for (let i = 2; i <= n; i++) r *= i; return r;
+    let r = 1;
+    for (let i = 2; i <= n; i++) r *= i;
+    return r;
   },
 };
 
 // Functions that preserve the unit of their argument
 const PRESERVE_FN: Record<string, (x: number) => number> = {
-  abs: Math.abs, floor: Math.floor, ceil: Math.ceil, round: Math.round,
+  abs: Math.abs,
+  floor: Math.floor,
+  ceil: Math.ceil,
+  round: Math.round,
   trunc: Math.trunc,
 };
 
@@ -385,8 +462,12 @@ class Parser {
   private pos = 0;
   constructor(private toks: Tok[], private scope: Scope, private fnScope: FnScope = {}) {}
 
-  peek(): Tok { return this.toks[this.pos]; }
-  eat(): Tok  { return this.toks[this.pos++]; }
+  peek(): Tok {
+    return this.toks[this.pos];
+  }
+  eat(): Tok {
+    return this.toks[this.pos++];
+  }
   need(t: TT): Tok {
     const tok = this.eat();
     if (tok.t !== t) throw new Error(`Expected ${t}, got '${tok.v}'`);
@@ -402,13 +483,26 @@ class Parser {
       let result: boolean;
       const EPS = 1e-12;
       switch (op) {
-        case 'EQ':  result = Math.abs(q.v - r.v) <= EPS * (Math.abs(q.v) + Math.abs(r.v) + 1); break;
-        case 'NEQ': result = Math.abs(q.v - r.v) >  EPS * (Math.abs(q.v) + Math.abs(r.v) + 1); break;
-        case 'LT':  result = q.v <  r.v; break;
-        case 'GT':  result = q.v >  r.v; break;
-        case 'LEQ': result = q.v <= r.v; break;
-        case 'GEQ': result = q.v >= r.v; break;
-        default: result = false;
+        case 'EQ':
+          result = Math.abs(q.v - r.v) <= EPS * (Math.abs(q.v) + Math.abs(r.v) + 1);
+          break;
+        case 'NEQ':
+          result = Math.abs(q.v - r.v) > EPS * (Math.abs(q.v) + Math.abs(r.v) + 1);
+          break;
+        case 'LT':
+          result = q.v < r.v;
+          break;
+        case 'GT':
+          result = q.v > r.v;
+          break;
+        case 'LEQ':
+          result = q.v <= r.v;
+          break;
+        case 'GEQ':
+          result = q.v >= r.v;
+          break;
+        default:
+          result = false;
       }
       return { v: result ? 1 : 0, u: {} };
     }
@@ -431,9 +525,7 @@ class Parser {
     while (this.peek().t === 'STAR' || this.peek().t === 'SLASH') {
       const op = this.eat().t;
       const r = this.power();
-      q = op === 'STAR'
-        ? { v: q.v * r.v, u: mulU(q.u, r.u) }
-        : { v: q.v / r.v, u: divU(q.u, r.u) };
+      q = op === 'STAR' ? { v: q.v * r.v, u: mulU(q.u, r.u) } : { v: q.v / r.v, u: divU(q.u, r.u) };
     }
     return q;
   }
@@ -463,7 +555,10 @@ class Parser {
   atom(): Quantity {
     const tok = this.peek();
 
-    if (tok.t === 'NUM') { this.eat(); return { v: parseFloat(tok.v), u: {} }; }
+    if (tok.t === 'NUM') {
+      this.eat();
+      return { v: parseFloat(tok.v), u: {} };
+    }
 
     if (tok.t === 'LPAREN') {
       this.eat();
@@ -507,7 +602,9 @@ class Parser {
           }
           if (MATH_FN[name]) {
             if (Object.keys(arg.u).length > 0) {
-              throw new Error(`${name}() requires dimensionless argument, got ${formatUnit(arg.u)}`);
+              throw new Error(
+                `${name}() requires dimensionless argument, got ${formatUnit(arg.u)}`,
+              );
             }
             return { v: MATH_FN[name](arg.v), u: {} };
           }
@@ -525,7 +622,7 @@ class Parser {
           const [a, b] = args;
           // Logical: and(a,b) or(a,b) xor(a,b)
           if (name === 'and') return { v: (a.v !== 0 && b.v !== 0) ? 1 : 0, u: {} };
-          if (name === 'or')  return { v: (a.v !== 0 || b.v !== 0) ? 1 : 0, u: {} };
+          if (name === 'or') return { v: (a.v !== 0 || b.v !== 0) ? 1 : 0, u: {} };
           if (name === 'xor') return { v: ((a.v !== 0) !== (b.v !== 0)) ? 1 : 0, u: {} };
           if (name === 'min') return { v: Math.min(a.v, b.v), u: addU(a.u, b.u) };
           if (name === 'max') return { v: Math.max(a.v, b.v), u: addU(a.u, b.u) };
@@ -537,7 +634,9 @@ class Parser {
           }
           if (name === 'mod') return { v: ((a.v % b.v) + b.v) % b.v, u: {} };
           if (name === 'pow') {
-            if (Object.keys(b.u).length > 0) throw new Error('pow() exponent must be dimensionless');
+            if (Object.keys(b.u).length > 0) {
+              throw new Error('pow() exponent must be dimensionless');
+            }
             return { v: Math.pow(a.v, b.v), u: powU(a.u, b.v) };
           }
           if (name === 'hypot') {
@@ -568,7 +667,7 @@ class Parser {
               throw new Error('perm(n,k) requires non-negative integers with k ≤ n');
             }
             let r = 1;
-            for (let i = 0; i < k; i++) r *= (n - i);
+            for (let i = 0; i < k; i++) r *= n - i;
             return { v: r, u: {} };
           }
         }
@@ -658,7 +757,15 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     if (fnDefMatch) {
       const [, fnName, param, fnExpr] = fnDefMatch;
       fnScope[fnName] = { param, expr: fnExpr.trim(), ...(targetUnit && { targetUnit }) };
-      results.push({ raw: s, name: fnName, expr: fnExpr.trim(), value: NaN, unit: {}, isFn: true, fnParam: param });
+      results.push({
+        raw: s,
+        name: fnName,
+        expr: fnExpr.trim(),
+        value: NaN,
+        unit: {},
+        isFn: true,
+        fnParam: param,
+      });
       continue;
     }
 
@@ -688,7 +795,14 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
       if (targetUnit !== undefined) q = applyTargetUnit(q, targetUnit);
       results.push({ raw: s, name: '', expr: stmt, value: q.v, unit: q.u });
     } catch (e) {
-      results.push({ raw: s, name: '', expr: stmt, value: NaN, unit: {}, error: (e as Error).message });
+      results.push({
+        raw: s,
+        name: '',
+        expr: stmt,
+        value: NaN,
+        unit: {},
+        error: (e as Error).message,
+      });
     }
   }
 
@@ -700,7 +814,10 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
 // ---------------------------------------------------------------------------
 
 // Internal AST node types
-interface StmtNode { kind: 'stmt'; rowIdx: number }
+interface StmtNode {
+  kind: 'stmt';
+  rowIdx: number;
+}
 interface IfNode {
   kind: 'if';
   rowIdx: number;
@@ -823,10 +940,8 @@ function parseForHeader(
   const startExpr = lhs.slice(eqIdx + 1).trim();
 
   const startVal = evalExpr(startExpr, scope, fnScope).v;
-  const endVal   = evalExpr(endExpr,   scope, fnScope).v;
-  const stepVal  = stepExpr
-    ? evalExpr(stepExpr, scope, fnScope).v
-    : (endVal >= startVal ? 1 : -1);
+  const endVal = evalExpr(endExpr, scope, fnScope).v;
+  const stepVal = stepExpr ? evalExpr(stepExpr, scope, fnScope).v : (endVal >= startVal ? 1 : -1);
 
   if (stepVal === 0) throw new Error('for loop step cannot be zero');
   return { varName, startVal, endVal, stepVal };
@@ -847,7 +962,12 @@ function execNodes(
       const row = rows[node.rowIdx];
       if (!active || !row.e.trim()) {
         results[node.rowIdx] = {
-          raw: row.e, name: '', expr: row.e, value: NaN, unit: {}, active,
+          raw: row.e,
+          name: '',
+          expr: row.e,
+          value: NaN,
+          unit: {},
+          active,
         };
         continue;
       }
@@ -857,7 +977,6 @@ function execNodes(
         ...(stmts[0] ?? { raw: row.e, name: '', expr: row.e, value: NaN, unit: {} }),
         active: true,
       };
-
     } else if (node.kind === 'if') {
       let branchTaken = false;
       for (const branch of node.branches) {
@@ -872,9 +991,15 @@ function execNodes(
         }
         const taken = active && !branchTaken && condVal !== 0 && !condError;
         results[branch.condRowIdx] = {
-          raw: branch.cond, name: '', expr: branch.cond, value: condVal, unit: {},
+          raw: branch.cond,
+          name: '',
+          expr: branch.cond,
+          value: condVal,
+          unit: {},
           rowType: branch.condRowIdx === node.rowIdx ? 'if' : 'elseif',
-          active, condValue: condVal, error: condError,
+          active,
+          condValue: condVal,
+          error: condError,
         };
         execNodes(branch.body, rows, scope, fnScope, results, taken);
         if (taken) branchTaken = true;
@@ -882,18 +1007,28 @@ function execNodes(
       if (node.elseRowIdx !== null) {
         const elseTaken = active && !branchTaken;
         results[node.elseRowIdx] = {
-          raw: 'else', name: '', expr: '', value: NaN, unit: {},
-          rowType: 'else', active, condValue: elseTaken ? 1 : 0,
+          raw: 'else',
+          name: '',
+          expr: '',
+          value: NaN,
+          unit: {},
+          rowType: 'else',
+          active,
+          condValue: elseTaken ? 1 : 0,
         };
         execNodes(node.elseBody!, rows, scope, fnScope, results, elseTaken);
       }
       if (node.endRowIdx !== null) {
         results[node.endRowIdx] = {
-          raw: 'end', name: '', expr: '', value: NaN, unit: {},
-          rowType: 'end', active,
+          raw: 'end',
+          name: '',
+          expr: '',
+          value: NaN,
+          unit: {},
+          rowType: 'end',
+          active,
         };
       }
-
     } else if (node.kind === 'for') {
       const row = rows[node.rowIdx];
       let iterCount = 0;
@@ -924,13 +1059,24 @@ function execNodes(
       }
 
       results[node.rowIdx] = {
-        raw: row.e, name: '', expr: row.e, value: iterCount, unit: {},
-        rowType: 'for', active, error: forError,
+        raw: row.e,
+        name: '',
+        expr: row.e,
+        value: iterCount,
+        unit: {},
+        rowType: 'for',
+        active,
+        error: forError,
       };
       if (node.endRowIdx !== null) {
         results[node.endRowIdx] = {
-          raw: 'end', name: '', expr: '', value: NaN, unit: {},
-          rowType: 'end', active,
+          raw: 'end',
+          name: '',
+          expr: '',
+          value: NaN,
+          unit: {},
+          rowType: 'end',
+          active,
         };
       }
     }
@@ -948,7 +1094,12 @@ export function evalFormulaRows(
   fnScope: FnScope = {},
 ): Statement[] {
   const results: Statement[] = rows.map((r) => ({
-    raw: r.e, name: '', expr: r.e, value: NaN, unit: {}, active: false,
+    raw: r.e,
+    name: '',
+    expr: r.e,
+    value: NaN,
+    unit: {},
+    active: false,
   }));
   if (rows.length === 0) return results;
   const { nodes } = parseRowsToAST(rows, 0, []);

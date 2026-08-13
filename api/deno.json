@@ -1,0 +1,23 @@
+{
+  "name": "leptonpad-api",
+  "version": "1.0.0",
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env --watch main.ts",
+    "check": "deno fmt && deno lint"
+  },
+  "imports": {
+    "@neon/serverless": "jsr:@neon/serverless@^1",
+    "@clerk/backend": "npm:@clerk/backend@^3"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": { "tags": ["recommended"] }
+  }
+}

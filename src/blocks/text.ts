@@ -22,7 +22,8 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
 
   const editArea = document.createElement('textarea');
   editArea.className = 'md-edit';
-  editArea.placeholder = 'Markdown text…\n\n# Heading\n**bold**  *italic*  `code`\n- list item\n  - sub-item\n- [ ] task\n> blockquote\n[link](url)  ![alt](url)\n$a = x^2$\n$$E = mc^2$$';
+  editArea.placeholder =
+    'Markdown text…\n\n# Heading\n**bold**  *italic*  `code`\n- list item\n  - sub-item\n- [ ] task\n> blockquote\n[link](url)  ![alt](url)\n$a = x^2$\n$$E = mc^2$$';
   editArea.spellcheck = true;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     const rawEnd = val.indexOf('\n', end);
     const lineEnd = rawEnd === -1 ? val.length : rawEnd;
     const lines = val.slice(lineStart, lineEnd).split('\n');
-    const newText = lines.map(l => prefix + l).join('\n');
+    const newText = lines.map((l) => prefix + l).join('\n');
     editArea.setRangeText(newText, lineStart, lineEnd, 'end');
     // Place cursor right after the prefix on the first line
     const cursorPos = lineStart + prefix.length;
@@ -77,7 +78,10 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
   function promptLink() {
     const sel = editArea.value.slice(editArea.selectionStart, editArea.selectionEnd);
     const url = globalThis.prompt('URL:', 'https://');
-    if (url == null) { editArea.focus(); return; }
+    if (url == null) {
+      editArea.focus();
+      return;
+    }
     const label = sel || globalThis.prompt('Link text:', 'link') || 'link';
     const start = editArea.selectionStart;
     const end = editArea.selectionEnd;
@@ -90,7 +94,10 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
 
   function promptImage() {
     const url = globalThis.prompt('Image URL:', 'https://');
-    if (url == null) { editArea.focus(); return; }
+    if (url == null) {
+      editArea.focus();
+      return;
+    }
     const alt = globalThis.prompt('Alt text:', '') || '';
     const start = editArea.selectionStart;
     const end = editArea.selectionEnd;
@@ -106,39 +113,43 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
   type BtnDef = { label: string; title: string; action: () => void } | 'sep';
 
   const buttons: BtnDef[] = [
-    { label: 'B',   title: 'Bold',          action: () => wrapSelection('**') },
-    { label: 'I',   title: 'Italic',        action: () => wrapSelection('*') },
-    { label: '`',   title: 'Inline code',   action: () => wrapSelection('`') },
+    { label: 'B', title: 'Bold', action: () => wrapSelection('**') },
+    { label: 'I', title: 'Italic', action: () => wrapSelection('*') },
+    { label: '`', title: 'Inline code', action: () => wrapSelection('`') },
     'sep',
-    { label: 'H1',  title: 'Heading 1',     action: () => prefixLines('# ') },
-    { label: 'H2',  title: 'Heading 2',     action: () => prefixLines('## ') },
+    { label: 'H1', title: 'Heading 1', action: () => prefixLines('# ') },
+    { label: 'H2', title: 'Heading 2', action: () => prefixLines('## ') },
     'sep',
-    { label: '•',   title: 'Bullet list',   action: () => prefixLines('- ') },
-    { label: '1.',  title: 'Numbered list', action: () => prefixLines('1. ') },
-    { label: '☑',   title: 'Task list',     action: () => prefixLines('- [ ] ') },
+    { label: '•', title: 'Bullet list', action: () => prefixLines('- ') },
+    { label: '1.', title: 'Numbered list', action: () => prefixLines('1. ') },
+    { label: '☑', title: 'Task list', action: () => prefixLines('- [ ] ') },
     'sep',
-    { label: '❝',   title: 'Blockquote',    action: () => prefixLines('> ') },
+    { label: '❝', title: 'Blockquote', action: () => prefixLines('> ') },
     'sep',
-    { label: '🔗',  title: 'Insert link',   action: promptLink },
-    { label: 'img', title: 'Insert image',  action: promptImage },
+    { label: '🔗', title: 'Insert link', action: promptLink },
+    { label: 'img', title: 'Insert image', action: promptImage },
     'sep',
-    { label: '$',   title: 'Inline math',   action: () => wrapSelection('$') },
-    { label: '$$',  title: 'Block math',    action: () => {
-      const sel = editArea.value.slice(editArea.selectionStart, editArea.selectionEnd);
-      if (sel) {
-        wrapSelection('$$\n', '\n$$');
-      } else {
-        const start = editArea.selectionStart;
-        const ins = '$$\n\n$$';
-        editArea.setRangeText(ins, start, start, 'end');
-        // Place cursor on the blank line between the $$
-        const pos = start + 3;
-        editArea.setSelectionRange(pos, pos);
-        saveContent();
-        syncHeight();
-        editArea.focus();
-      }
-    }},
+    { label: '$', title: 'Inline math', action: () => wrapSelection('$') },
+    {
+      label: '$$',
+      title: 'Block math',
+      action: () => {
+        const sel = editArea.value.slice(editArea.selectionStart, editArea.selectionEnd);
+        if (sel) {
+          wrapSelection('$$\n', '\n$$');
+        } else {
+          const start = editArea.selectionStart;
+          const ins = '$$\n\n$$';
+          editArea.setRangeText(ins, start, start, 'end');
+          // Place cursor on the blank line between the $$
+          const pos = start + 3;
+          editArea.setSelectionRange(pos, pos);
+          saveContent();
+          syncHeight();
+          editArea.focus();
+        }
+      },
+    },
   ];
 
   for (const def of buttons) {
@@ -170,7 +181,7 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
 
     // Wire task-list checkboxes: clicking toggles [ ]/[x] in the source and re-renders.
     // Must stop propagation on 'click' to prevent viewDiv's click → enterEdit() from firing.
-    viewDiv.querySelectorAll<HTMLInputElement>('input[data-task-line]').forEach(cb => {
+    viewDiv.querySelectorAll<HTMLInputElement>('input[data-task-line]').forEach((cb) => {
       cb.addEventListener('click', (e) => e.stopPropagation());
       cb.addEventListener('change', () => {
         const idx = parseInt(cb.dataset.taskLine!);
@@ -205,7 +216,10 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     syncHeight();
   });
 
-  editArea.addEventListener('blur', () => { saveContent(); showView(); });
+  editArea.addEventListener('blur', () => {
+    saveContent();
+    showView();
+  });
 
   editArea.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || (e.key === 'Enter' && e.altKey)) {
@@ -238,15 +252,24 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
       }
       if (!newPrefix) {
         const bulletM = lineText.match(/^(\s*)([-*+])\s+/);
-        if (bulletM) { newPrefix = `${bulletM[1]}${bulletM[2]} `; prefixLen = bulletM[0].length; }
+        if (bulletM) {
+          newPrefix = `${bulletM[1]}${bulletM[2]} `;
+          prefixLen = bulletM[0].length;
+        }
       }
       if (!newPrefix) {
         const numM = lineText.match(/^(\s*)(\d+)\.\s+/);
-        if (numM) { newPrefix = `${numM[1]}${parseInt(numM[2]) + 1}. `; prefixLen = numM[0].length; }
+        if (numM) {
+          newPrefix = `${numM[1]}${parseInt(numM[2]) + 1}. `;
+          prefixLen = numM[0].length;
+        }
       }
       if (!newPrefix) {
         const letM = lineText.match(/^(\s*)([a-zA-Z])\.\s+/);
-        if (letM) { newPrefix = `${letM[1]}${nextLetter(letM[2])}. `; prefixLen = letM[0].length; }
+        if (letM) {
+          newPrefix = `${letM[1]}${nextLetter(letM[2])}. `;
+          prefixLen = letM[0].length;
+        }
       }
 
       if (newPrefix !== null) {
@@ -289,16 +312,16 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
           if (!e.shiftKey) {
             // Indent: add 2 spaces and switch numbered↔lettered
             newIndent = curIndent + '  ';
-            if (/^\d+\.$/.test(marker))        newMarker = 'a.'; // numbered → lettered
+            if (/^\d+\.$/.test(marker)) newMarker = 'a.'; // numbered → lettered
             else if (/^[a-zA-Z]\.$/.test(marker)) newMarker = '1.'; // lettered → numbered
-            else                                newMarker = marker; // bullet unchanged
+            else newMarker = marker; // bullet unchanged
           } else {
             // Dedent: remove 2 spaces and reverse the switch
             if (curIndent.length < 2) return; // already at root
             newIndent = curIndent.slice(2);
-            if (/^[a-zA-Z]\.$/.test(marker))  newMarker = '1.'; // lettered → numbered
-            else if (/^\d+\.$/.test(marker))   newMarker = 'a.'; // numbered → lettered
-            else                               newMarker = marker; // bullet unchanged
+            if (/^[a-zA-Z]\.$/.test(marker)) newMarker = '1.'; // lettered → numbered
+            else if (/^\d+\.$/.test(marker)) newMarker = 'a.'; // numbered → lettered
+            else newMarker = marker; // bullet unchanged
           }
 
           const newLine = `${newIndent}${newMarker} ${taskPart}${content}`;

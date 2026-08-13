@@ -2,15 +2,29 @@
 // Formula block — editable rows with live evaluation, control-flow, and units
 // ---------------------------------------------------------------------------
 
-import { evalExpr, evalFormulaRows, formatUnit, type Scope, type FnScope, type FormulaRow } from '../expr.ts';
+import {
+  evalExpr,
+  evalFormulaRows,
+  type FnScope,
+  formatUnit,
+  type FormulaRow,
+  type Scope,
+} from '../expr.ts';
 import { type Block } from '../types.ts';
 import {
-  state, canvas, globalScope, globalFnScope,
-  childToSection, sectionSummaryVarNames, sectionSummaryComparisons,
-  onSectionSummaryUpdate, onRefreshAllSectionHeights,
-  CANVAS_W, margins,
+  canvas,
+  CANVAS_W,
+  childToSection,
+  globalFnScope,
+  globalScope,
+  margins,
+  onRefreshAllSectionHeights,
+  onSectionSummaryUpdate,
+  sectionSummaryComparisons,
+  sectionSummaryVarNames,
+  state,
 } from '../state.ts';
-import { transformUnit, prettifyExpr, renderInlineMd } from '../utils/markdown.ts';
+import { prettifyExpr, renderInlineMd, transformUnit } from '../utils/markdown.ts';
 
 /** Regex that detects comparison operators in a raw expression string. */
 const COMP_RE = /[<>]=?|[!=]=/;
@@ -66,7 +80,10 @@ function insertLineBreak(): void {
   range.deleteContents();
   const br = document.createElement('br');
   range.insertNode(br);
-  if (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && br.nextSibling.textContent === '')) {
+  if (
+    !br.nextSibling ||
+    (br.nextSibling.nodeType === Node.TEXT_NODE && br.nextSibling.textContent === '')
+  ) {
     const sentinel = document.createElement('br');
     br.after(sentinel);
     range.setStartBefore(sentinel);
@@ -127,38 +144,71 @@ export function applyEvalResults(
   // deno-lint-ignore no-explicit-any
   stmts.forEach((stmt: any, i: number) => {
     const rowEl = rowEls[i];
-    if (rowEl) rowEl.classList.toggle('formula-row--inactive', stmt.active === false && !stmt.rowType);
+    if (rowEl) {
+      rowEl.classList.toggle('formula-row--inactive', stmt.active === false && !stmt.rowType);
+    }
 
     const r = formulaEl.querySelector<HTMLElement>(`[data-result="${i}"]`);
     if (!r) return;
 
     if (stmt.rowType === 'if' || stmt.rowType === 'elseif') {
       const taken = (stmt.condValue ?? 0) !== 0 && !stmt.error;
-      if (stmt.error) { r.textContent = 'err'; r.title = stmt.error; r.className = 'formula-result formula-error'; }
-      else { r.textContent = taken ? '▶ true' : '▷ false'; r.title = ''; r.className = `formula-result ${taken ? 'formula-cond-true' : 'formula-cond-false'}`; }
+      if (stmt.error) {
+        r.textContent = 'err';
+        r.title = stmt.error;
+        r.className = 'formula-result formula-error';
+      } else {
+        r.textContent = taken ? '▶ true' : '▷ false';
+        r.title = '';
+        r.className = `formula-result ${taken ? 'formula-cond-true' : 'formula-cond-false'}`;
+      }
       return;
     }
     if (stmt.rowType === 'else') {
       const taken = (stmt.condValue ?? 0) !== 0;
-      r.textContent = taken ? '▶' : '▷'; r.title = '';
+      r.textContent = taken ? '▶' : '▷';
+      r.title = '';
       r.className = `formula-result ${taken ? 'formula-cond-true' : 'formula-cond-false'}`;
       return;
     }
-    if (stmt.rowType === 'end') { r.textContent = ''; r.title = ''; r.className = 'formula-result'; return; }
-    if (stmt.rowType === 'for') {
-      if (stmt.error) { r.textContent = 'err'; r.title = stmt.error; r.className = 'formula-result formula-error'; }
-      else { r.textContent = `${stmt.value}×`; r.title = `${stmt.value} iteration${stmt.value !== 1 ? 's' : ''}`; r.className = 'formula-result formula-loop-count'; }
+    if (stmt.rowType === 'end') {
+      r.textContent = '';
+      r.title = '';
+      r.className = 'formula-result';
       return;
     }
-    if (!stmt.active) { r.textContent = '—'; r.title = 'inactive branch'; r.className = 'formula-result formula-inactive'; return; }
+    if (stmt.rowType === 'for') {
+      if (stmt.error) {
+        r.textContent = 'err';
+        r.title = stmt.error;
+        r.className = 'formula-result formula-error';
+      } else {
+        r.textContent = `${stmt.value}×`;
+        r.title = `${stmt.value} iteration${stmt.value !== 1 ? 's' : ''}`;
+        r.className = 'formula-result formula-loop-count';
+      }
+      return;
+    }
+    if (!stmt.active) {
+      r.textContent = '—';
+      r.title = 'inactive branch';
+      r.className = 'formula-result formula-inactive';
+      return;
+    }
     if (stmt.isFn) {
-      r.textContent = 'fn'; r.title = `${stmt.name}(${stmt.fnParam}) — user-defined function`; r.className = 'formula-result formula-fn';
+      r.textContent = 'fn';
+      r.title = `${stmt.name}(${stmt.fnParam}) — user-defined function`;
+      r.className = 'formula-result formula-fn';
     } else if (stmt.error) {
-      r.textContent = 'err'; r.title = stmt.error; r.className = 'formula-result formula-error';
+      r.textContent = 'err';
+      r.title = stmt.error;
+      r.className = 'formula-result formula-error';
     } else {
       const unitStr = formatUnit(stmt.unit);
-      r.innerHTML = fmtNum(stmt.value) + (unitStr ? ` <span class="result-unit">${transformUnit(unitStr)}</span>` : '');
-      r.title = ''; r.className = 'formula-result';
+      r.innerHTML = fmtNum(stmt.value) +
+        (unitStr ? ` <span class="result-unit">${transformUnit(unitStr)}</span>` : '');
+      r.title = '';
+      r.className = 'formula-result';
     }
   });
 }
@@ -202,11 +252,11 @@ export function reEvalAllFormulas() {
       const content = el.querySelector<HTMLElement>('.section-content');
       const childFormulaEls = content
         ? Array.from(content.querySelectorAll<HTMLElement>('.formula-block'))
-            .filter((cel) => childToSection.get(cel.id) === el.id)
-            .sort((a, b) => {
-              const dy = parseInt(a.style.top) - parseInt(b.style.top);
-              return dy !== 0 ? dy : parseInt(a.style.left) - parseInt(b.style.left);
-            })
+          .filter((cel) => childToSection.get(cel.id) === el.id)
+          .sort((a, b) => {
+            const dy = parseInt(a.style.top) - parseInt(b.style.top);
+            return dy !== 0 ? dy : parseInt(a.style.left) - parseInt(b.style.left);
+          })
         : [];
 
       const summaryVars = new Set<string>();
@@ -215,7 +265,10 @@ export function reEvalAllFormulas() {
       for (const cel of childFormulaEls) {
         const cBlock = state.blocks.find((b) => b.id === cel.id);
         if (!cBlock) continue;
-        const rows = parseFormulaRows(cBlock.content).map((r) => ({ ...r, e: expandDotNotation(r.e) }));
+        const rows = parseFormulaRows(cBlock.content).map((r) => ({
+          ...r,
+          e: expandDotNotation(r.e),
+        }));
         const stmts = evalFormulaRows(rows, sectionScope, sectionFnScope);
         applyEvalResults(cel, stmts);
         if (cBlock.type === 'summary') {
@@ -251,7 +304,10 @@ export function reEvalAllFormulas() {
       // Use callback to avoid circular dependency with section.ts
       onSectionSummaryUpdate?.(el, block);
     } else {
-      const rows = parseFormulaRows(block.content).map((r) => ({ ...r, e: expandDotNotation(r.e) }));
+      const rows = parseFormulaRows(block.content).map((r) => ({
+        ...r,
+        e: expandDotNotation(r.e),
+      }));
       const stmts = evalFormulaRows(rows, globalScope, globalFnScope);
       applyEvalResults(el, stmts);
     }
@@ -282,7 +338,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
   labelEl.contentEditable = 'true';
   labelEl.textContent = block.label ?? 'Formula';
   labelEl.dataset.placeholder = 'Label…';
-  labelEl.addEventListener('blur', () => { block.label = labelEl.textContent ?? ''; });
+  labelEl.addEventListener('blur', () => {
+    block.label = labelEl.textContent ?? '';
+  });
   el.appendChild(labelEl);
 
   const divider = document.createElement('hr');
@@ -298,14 +356,14 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
   function updateHasAnyDesc() {
     const arr = parseFormulaRows(block.content);
     const anyDesc = arr.some((r) => !!r.d);
-    rowsEl.classList.toggle('has-any-desc',     anyDesc);
+    rowsEl.classList.toggle('has-any-desc', anyDesc);
     rowsEl.classList.toggle('has-any-row-desc', anyDesc);
   }
 
   function updateHasAnyRef() {
     const arr = parseFormulaRows(block.content);
     const anyRef = arr.some((r) => !!r.ref);
-    rowsEl.classList.toggle('has-any-ref',     anyRef);
+    rowsEl.classList.toggle('has-any-ref', anyRef);
     rowsEl.classList.toggle('has-any-row-ref', anyRef);
   }
 
@@ -317,21 +375,30 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         if (r.dataset.rowType) obj.type = r.dataset.rowType as FormulaRow['type'];
         if (r.dataset.ref) obj.ref = r.dataset.ref;
         return obj;
-      })
+      }),
     );
     reEvalAllFormulas();
     updateHasAnyDesc();
     updateHasAnyRef();
   }
 
-  function findBranchInsertPoint(arr: FormulaRow[], ifIdx: number): { insertIdx: number; hasElse: boolean } {
+  function findBranchInsertPoint(
+    arr: FormulaRow[],
+    ifIdx: number,
+  ): { insertIdx: number; hasElse: boolean } {
     let depth = 1;
     let hasElse = false;
     for (let j = ifIdx + 1; j < arr.length; j++) {
       const t = arr[j].type;
       if (t === 'if' || t === 'for') depth++;
-      if (t === 'end') { depth--; if (depth === 0) return { insertIdx: j, hasElse }; }
-      if (t === 'else' && depth === 1) { hasElse = true; return { insertIdx: j, hasElse }; }
+      if (t === 'end') {
+        depth--;
+        if (depth === 0) return { insertIdx: j, hasElse };
+      }
+      if (t === 'else' && depth === 1) {
+        hasElse = true;
+        return { insertIdx: j, hasElse };
+      }
     }
     return { insertIdx: arr.length, hasElse };
   }
@@ -353,7 +420,10 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     for (let j = blockIdx + 1; j < arr.length; j++) {
       const t = arr[j].type;
       if (t === 'if' || t === 'for') depth++;
-      if (t === 'end') { depth--; if (depth === 0) return j; }
+      if (t === 'end') {
+        depth--;
+        if (depth === 0) return j;
+      }
     }
     return arr.length - 1;
   }
@@ -363,7 +433,10 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     for (let j = branchIdx + 1; j < arr.length; j++) {
       const t = arr[j].type;
       if (t === 'if' || t === 'for') depth++;
-      if (t === 'end') { if (depth === 0) return j; depth--; }
+      if (t === 'end') {
+        if (depth === 0) return j;
+        depth--;
+      }
       if ((t === 'elseif' || t === 'else') && depth === 0) return j;
     }
     return arr.length;
@@ -458,11 +531,11 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       if (isCtrl) row.classList.add('formula-row--control');
       if (isBodyOnly) row.classList.add('formula-row--no-expr');
       if (rowType) row.dataset.rowType = rowType;
-      row.dataset.raw  = stmt;
+      row.dataset.raw = stmt;
       row.dataset.desc = desc ?? '';
-      row.dataset.ref  = ref ?? '';
+      row.dataset.ref = ref ?? '';
       if (desc) row.classList.add('has-desc');
-      if (ref)  row.classList.add('has-ref');
+      if (ref) row.classList.add('has-ref');
 
       const d = depths[i] ?? 0;
       row.style.setProperty('--depth', String(d));
@@ -474,7 +547,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
 
         if (isBodyOnly) {
           badge.tabIndex = 0;
-          badge.addEventListener('focus', () => { lastFocusedRowIdx = i; });
+          badge.addEventListener('focus', () => {
+            lastFocusedRowIdx = i;
+          });
           badge.addEventListener('keydown', (ev: KeyboardEvent) => {
             if (!ev.ctrlKey || ev.key !== '-' || ev.shiftKey || ev.altKey) return;
             ev.preventDefault();
@@ -487,7 +562,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
             block.content = JSON.stringify(arr);
             rebuildRows();
             reEvalAllFormulas();
-            const cells = rowsEl.querySelectorAll<HTMLElement>('.formula-cell:not([style*="display: none"])');
+            const cells = rowsEl.querySelectorAll<HTMLElement>(
+              '.formula-cell:not([style*="display: none"])',
+            );
             (cells[Math.min(refocusIdx, cells.length - 1)] as HTMLElement | undefined)?.focus();
           });
         }
@@ -515,7 +592,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           globalThis.getSelection()?.removeAllRanges();
           globalThis.getSelection()?.addRange(range);
         });
-        descCell.addEventListener('input', () => { row.dataset.desc = serializeEditable(descCell); });
+        descCell.addEventListener('input', () => {
+          row.dataset.desc = serializeEditable(descCell);
+        });
         descCell.addEventListener('blur', () => {
           row.dataset.desc = serializeEditable(descCell);
           if (row.dataset.desc) row.classList.add('has-desc');
@@ -525,8 +604,14 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           renderDesc();
         });
         descCell.addEventListener('keydown', (ev: KeyboardEvent) => {
-          if (ev.key === 'Tab' && !ev.shiftKey) { ev.preventDefault(); cell.focus(); }
-          if (ev.key === 'Enter') { ev.preventDefault(); insertLineBreak(); }
+          if (ev.key === 'Tab' && !ev.shiftKey) {
+            ev.preventDefault();
+            cell.focus();
+          }
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            insertLineBreak();
+          }
         });
         renderDesc();
 
@@ -584,11 +669,16 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
 
         cell.addEventListener('keydown', (e: KeyboardEvent) => {
           const k = e.key;
-          if (k === 'Enter' && e.altKey && !e.ctrlKey) { e.preventDefault(); return; }
+          if (k === 'Enter' && e.altKey && !e.ctrlKey) {
+            e.preventDefault();
+            return;
+          }
           if (!e.ctrlKey) return;
-          if (k !== 'Enter' && k !== '-' && k.toLowerCase() !== 'z' &&
-              k.toLowerCase() !== 'i' && k.toLowerCase() !== 'l' &&
-              k.toLowerCase() !== 'e') return;
+          if (
+            k !== 'Enter' && k !== '-' && k.toLowerCase() !== 'z' &&
+            k.toLowerCase() !== 'i' && k.toLowerCase() !== 'l' &&
+            k.toLowerCase() !== 'e'
+          ) return;
           e.preventDefault();
           e.stopPropagation();
 
@@ -600,7 +690,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           const refocus = (targetIdx: number) => {
             rebuildRows();
             reEvalAllFormulas();
-            const newCells = rowsEl.querySelectorAll<HTMLElement>('.formula-cell:not([style*="display: none"])');
+            const newCells = rowsEl.querySelectorAll<HTMLElement>(
+              '.formula-cell:not([style*="display: none"])',
+            );
             newCells[Math.max(0, Math.min(targetIdx, newCells.length - 1))]?.focus();
           };
 
@@ -625,22 +717,22 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
             block.content = JSON.stringify(arr);
             refocus(restoreIdx);
           } else if (k.toLowerCase() === 'i' && !e.altKey && !e.shiftKey) {
-            arr.splice(idx + 1, 0,
-              { e: '', d: '', type: 'if' },
-              { e: '', d: '' },
-              { e: '', d: '', type: 'end' },
-            );
+            arr.splice(idx + 1, 0, { e: '', d: '', type: 'if' }, { e: '', d: '' }, {
+              e: '',
+              d: '',
+              type: 'end',
+            });
             block.content = JSON.stringify(arr);
             rebuildRows();
             reEvalAllFormulas();
             const allCells = Array.from(rowsEl.querySelectorAll<HTMLElement>('.formula-cell'));
             allCells[idx + 2]?.focus();
           } else if (k.toLowerCase() === 'l' && !e.altKey && !e.shiftKey) {
-            arr.splice(idx + 1, 0,
-              { e: 'i = 1 to n', d: '', type: 'for' },
-              { e: '', d: '' },
-              { e: '', d: '', type: 'end' },
-            );
+            arr.splice(idx + 1, 0, { e: 'i = 1 to n', d: '', type: 'for' }, { e: '', d: '' }, {
+              e: '',
+              d: '',
+              type: 'end',
+            });
             block.content = JSON.stringify(arr);
             rebuildRows();
             reEvalAllFormulas();
@@ -651,15 +743,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
             const { insertIdx, hasElse } = findBranchInsertPoint(arr, ownerIdx);
             if (insertIdx < 0 || hasElse) return;
             if (e.shiftKey) {
-              arr.splice(insertIdx, 0,
-                { e: '', d: '', type: 'else' },
-                { e: '', d: '' },
-              );
+              arr.splice(insertIdx, 0, { e: '', d: '', type: 'else' }, { e: '', d: '' });
             } else {
-              arr.splice(insertIdx, 0,
-                { e: '', d: '', type: 'elseif' },
-                { e: '', d: '' },
-              );
+              arr.splice(insertIdx, 0, { e: '', d: '', type: 'elseif' }, { e: '', d: '' });
             }
             block.content = JSON.stringify(arr);
             rebuildRows();
@@ -710,7 +796,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           globalThis.getSelection()?.removeAllRanges();
           globalThis.getSelection()?.addRange(range);
         });
-        refCell.addEventListener('input', () => { row.dataset.ref = serializeEditable(refCell); });
+        refCell.addEventListener('input', () => {
+          row.dataset.ref = serializeEditable(refCell);
+        });
         refCell.addEventListener('blur', () => {
           row.dataset.ref = serializeEditable(refCell);
           if (row.dataset.ref) row.classList.add('has-ref');
@@ -719,8 +807,14 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           updateHasAnyRef();
         });
         refCell.addEventListener('keydown', (ev: KeyboardEvent) => {
-          if (ev.key === 'Tab' && ev.shiftKey) { ev.preventDefault(); cell.focus(); }
-          if (ev.key === 'Enter') { ev.preventDefault(); insertLineBreak(); }
+          if (ev.key === 'Tab' && ev.shiftKey) {
+            ev.preventDefault();
+            cell.focus();
+          }
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            insertLineBreak();
+          }
         });
 
         refWrap.appendChild(refCell);
@@ -732,7 +826,7 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         const group = document.createElement('div');
         group.className = 'formula-block-group';
         if (desc) group.classList.add('has-group-desc');
-        if (ref)  group.classList.add('has-group-ref');
+        if (ref) group.classList.add('has-group-ref');
 
         const groupDescWrap = document.createElement('div');
         groupDescWrap.className = 'formula-desc-wrap';
@@ -753,18 +847,31 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           globalThis.getSelection()?.removeAllRanges();
           globalThis.getSelection()?.addRange(range);
         });
-        groupDescCell.addEventListener('input', () => { row.dataset.desc = serializeEditable(groupDescCell); });
+        groupDescCell.addEventListener('input', () => {
+          row.dataset.desc = serializeEditable(groupDescCell);
+        });
         groupDescCell.addEventListener('blur', () => {
           row.dataset.desc = serializeEditable(groupDescCell);
-          if (row.dataset.desc) { row.classList.add('has-desc'); group.classList.add('has-group-desc'); }
-          else { row.classList.remove('has-desc'); group.classList.remove('has-group-desc'); }
+          if (row.dataset.desc) {
+            row.classList.add('has-desc');
+            group.classList.add('has-group-desc');
+          } else {
+            row.classList.remove('has-desc');
+            group.classList.remove('has-group-desc');
+          }
           syncContent();
           updateHasAnyDesc();
           renderGroupDesc();
         });
         groupDescCell.addEventListener('keydown', (ev: KeyboardEvent) => {
-          if (ev.key === 'Tab' && !ev.shiftKey) { ev.preventDefault(); cell.focus(); }
-          if (ev.key === 'Enter') { ev.preventDefault(); insertLineBreak(); }
+          if (ev.key === 'Tab' && !ev.shiftKey) {
+            ev.preventDefault();
+            cell.focus();
+          }
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            insertLineBreak();
+          }
         });
         renderGroupDesc();
         groupDescWrap.appendChild(groupDescCell);
@@ -789,17 +896,30 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           globalThis.getSelection()?.removeAllRanges();
           globalThis.getSelection()?.addRange(range);
         });
-        groupRefCell.addEventListener('input', () => { row.dataset.ref = serializeEditable(groupRefCell); });
+        groupRefCell.addEventListener('input', () => {
+          row.dataset.ref = serializeEditable(groupRefCell);
+        });
         groupRefCell.addEventListener('blur', () => {
           row.dataset.ref = serializeEditable(groupRefCell);
-          if (row.dataset.ref) { row.classList.add('has-ref'); group.classList.add('has-group-ref'); }
-          else { row.classList.remove('has-ref'); group.classList.remove('has-group-ref'); }
+          if (row.dataset.ref) {
+            row.classList.add('has-ref');
+            group.classList.add('has-group-ref');
+          } else {
+            row.classList.remove('has-ref');
+            group.classList.remove('has-group-ref');
+          }
           syncContent();
           updateHasAnyRef();
         });
         groupRefCell.addEventListener('keydown', (ev: KeyboardEvent) => {
-          if (ev.key === 'Tab' && ev.shiftKey) { ev.preventDefault(); cell.focus(); }
-          if (ev.key === 'Enter') { ev.preventDefault(); insertLineBreak(); }
+          if (ev.key === 'Tab' && ev.shiftKey) {
+            ev.preventDefault();
+            cell.focus();
+          }
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            insertLineBreak();
+          }
         });
         groupRefWrap.appendChild(groupRefCell);
         group.appendChild(groupRefWrap);
@@ -826,7 +946,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
   const ctxRefocus = (idx: number) => {
     rebuildRows();
     reEvalAllFormulas();
-    const cells = rowsEl.querySelectorAll<HTMLElement>('.formula-cell:not([style*="display: none"])');
+    const cells = rowsEl.querySelectorAll<HTMLElement>(
+      '.formula-cell:not([style*="display: none"])',
+    );
     (cells[Math.max(0, Math.min(idx, cells.length - 1))] as HTMLElement | undefined)?.focus();
   };
 
@@ -861,11 +983,11 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     insertIfAfter: (rowEl: HTMLElement | null) => {
       const arr = parseFormulaRows(block.content);
       const idx = rowEl ? getRowIdx(rowEl) : arr.length - 1;
-      arr.splice(idx + 1, 0,
-        { e: '', d: '', type: 'if' },
-        { e: '', d: '' },
-        { e: '', d: '', type: 'end' },
-      );
+      arr.splice(idx + 1, 0, { e: '', d: '', type: 'if' }, { e: '', d: '' }, {
+        e: '',
+        d: '',
+        type: 'end',
+      });
       block.content = JSON.stringify(arr);
       ctxRefocus(idx + 2);
     },
@@ -873,11 +995,11 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     insertForAfter: (rowEl: HTMLElement | null) => {
       const arr = parseFormulaRows(block.content);
       const idx = rowEl ? getRowIdx(rowEl) : arr.length - 1;
-      arr.splice(idx + 1, 0,
-        { e: 'i = 1 to n', d: '', type: 'for' },
-        { e: '', d: '' },
-        { e: '', d: '', type: 'end' },
-      );
+      arr.splice(idx + 1, 0, { e: 'i = 1 to n', d: '', type: 'for' }, { e: '', d: '' }, {
+        e: '',
+        d: '',
+        type: 'end',
+      });
       block.content = JSON.stringify(arr);
       ctxRefocus(idx + 1);
     },
@@ -891,10 +1013,7 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       if (ownerIdx < 0) return;
       const { insertIdx, hasElse } = findBranchInsertPoint(arr, ownerIdx);
       if (hasElse) return;
-      arr.splice(insertIdx, 0,
-        { e: '', d: '', type: 'elseif' },
-        { e: '', d: '' },
-      );
+      arr.splice(insertIdx, 0, { e: '', d: '', type: 'elseif' }, { e: '', d: '' });
       block.content = JSON.stringify(arr);
       ctxRefocus(insertIdx);
     },
@@ -908,10 +1027,7 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       if (ownerIdx < 0) return;
       const { insertIdx, hasElse } = findBranchInsertPoint(arr, ownerIdx);
       if (hasElse) return;
-      arr.splice(insertIdx, 0,
-        { e: '', d: '', type: 'else' },
-        { e: '', d: '' },
-      );
+      arr.splice(insertIdx, 0, { e: '', d: '', type: 'else' }, { e: '', d: '' });
       block.content = JSON.stringify(arr);
       ctxRefocus(insertIdx + 1);
     },
@@ -935,11 +1051,22 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       let descCell: HTMLElement | null;
       if (rt === 'if' || rt === 'for') {
         const group = rowEl.closest<HTMLElement>('.formula-block-group');
-        descCell = group?.querySelector<HTMLElement>(':scope > .formula-desc-wrap .formula-desc-cell') ?? null;
-        if (descCell) { rowEl.classList.add('has-desc'); group?.classList.add('has-group-desc'); rowsEl.classList.add('has-any-desc'); rowsEl.classList.add('has-any-row-desc'); }
+        descCell =
+          group?.querySelector<HTMLElement>(':scope > .formula-desc-wrap .formula-desc-cell') ??
+            null;
+        if (descCell) {
+          rowEl.classList.add('has-desc');
+          group?.classList.add('has-group-desc');
+          rowsEl.classList.add('has-any-desc');
+          rowsEl.classList.add('has-any-row-desc');
+        }
       } else {
         descCell = rowEl.querySelector<HTMLElement>('.formula-desc-cell');
-        if (descCell) { rowEl.classList.add('has-desc'); rowsEl.classList.add('has-any-row-desc'); rowsEl.classList.add('has-any-desc'); }
+        if (descCell) {
+          rowEl.classList.add('has-desc');
+          rowsEl.classList.add('has-any-row-desc');
+          rowsEl.classList.add('has-any-desc');
+        }
       }
       if (!descCell) return;
       descCell.focus();
@@ -953,11 +1080,21 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       let refCell: HTMLElement | null;
       if (rt === 'if' || rt === 'for') {
         const group = rowEl.closest<HTMLElement>('.formula-block-group');
-        refCell = group?.querySelector<HTMLElement>(':scope > .formula-ref-wrap .formula-ref-cell') ?? null;
-        if (refCell) { rowEl.classList.add('has-ref'); group?.classList.add('has-group-ref'); rowsEl.classList.add('has-any-ref'); rowsEl.classList.add('has-any-row-ref'); }
+        refCell =
+          group?.querySelector<HTMLElement>(':scope > .formula-ref-wrap .formula-ref-cell') ?? null;
+        if (refCell) {
+          rowEl.classList.add('has-ref');
+          group?.classList.add('has-group-ref');
+          rowsEl.classList.add('has-any-ref');
+          rowsEl.classList.add('has-any-row-ref');
+        }
       } else {
         refCell = rowEl.querySelector<HTMLElement>('.formula-ref-cell');
-        if (refCell) { rowEl.classList.add('has-ref'); rowsEl.classList.add('has-any-row-ref'); rowsEl.classList.add('has-any-ref'); }
+        if (refCell) {
+          rowEl.classList.add('has-ref');
+          rowsEl.classList.add('has-any-row-ref');
+          rowsEl.classList.add('has-any-ref');
+        }
       }
       if (!refCell) return;
       refCell.focus();

@@ -1,36 +1,106 @@
 import init from 'solver';
-import { initAuth, login, logout, signup, currentUser, currentRole, roleLabel, onAuthChange, canCreateSection } from './auth.ts';
-import { showRedeemCodeDialog, accessSummary } from './license.ts';
-import { type PageSizeKey, GRID_SIZE, PX_PER_IN, PAGE_SIZES } from './types.ts';
-import { pxToUnit, unitToPx, clamp } from './utils/units.ts';
+import {
+  accessUnverified,
+  canCreateSection,
+  currentRole,
+  currentUser,
+  entitlementsStale,
+  initAuth,
+  lastSyncedLabel,
+  login,
+  logout,
+  onAuthChange,
+  refreshEntitlements,
+  roleLabel,
+  signup,
+  verifyEmailCode,
+} from './auth.ts';
+import { accessSummary, showRedeemCodeDialog } from './license.ts';
+import { GRID_SIZE, PAGE_SIZES, type PageSizeKey, PX_PER_IN } from './types.ts';
+import { clamp, pxToUnit, unitToPx } from './utils/units.ts';
 import { isDark } from './utils/theme.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
-import { refreshAllSectionHeights, refreshSectionHeight, updateSectionSummary, reparentToSection, sectionAtPoint } from './blocks/pro/section.ts';
-import { Canvas } from './canvas.ts';
-import { hideCursor, selectBlock, addToSelection, clearSelection, deleteBlock, shiftBlocksVertical, syncPageSeparators, syncTitleBlocks, updatePageCount, placeBlock, resolveOverlapsRight, moveGridCursor, renderBlock, dropBlock } from './dnd.ts';
-import { importToolsFromFile, newProject, newFromTemplate, loadProject, saveProject } from './persistence.ts';
 import {
-  type Block, type CustomModule,
-  CANVAS_W, PAGE_H, numPages, CANVAS_H, marginUnit, margins, titleBlockEnabled, pageNumberingEnabled,
-  setCANVAS_W, setPAGE_H, setCANVAS_H, setMarginUnit, setTitleBlockEnabled, setPageNumberingEnabled,
-  state, deletionStack,
-  customModules, saveCustomModules, setCustomModules,
-  setFileHandle,
-  canvas, setCanvas,
-  selectedEl, setSelectedEl, selectedEls,
-  multiDragState, setMultiDragState,
-  bandState, setBandState,
-  skipNextCanvasClick, setSkipNextCanvasClick,
-  bandEl, setBandEl,
+  refreshAllSectionHeights,
+  refreshSectionHeight,
+  reparentToSection,
+  sectionAtPoint,
+  updateSectionSummary,
+} from './blocks/pro/section.ts';
+import { Canvas } from './canvas.ts';
+import {
+  addToSelection,
+  clearSelection,
+  deleteBlock,
+  dropBlock,
+  hideCursor,
+  moveGridCursor,
+  placeBlock,
+  renderBlock,
+  resolveOverlapsRight,
+  selectBlock,
+  shiftBlocksVertical,
+  syncPageSeparators,
+  syncTitleBlocks,
+  updatePageCount,
+} from './dnd.ts';
+import {
+  importToolsFromFile,
+  loadProject,
+  newFromTemplate,
+  newProject,
+  saveProject,
+} from './persistence.ts';
+import {
+  bandEl,
+  bandState,
+  type Block,
+  canvas,
+  CANVAS_H,
+  CANVAS_W,
+  type CustomModule,
+  customModules,
+  deletionStack,
   gridCursor,
-  setOnSectionSummaryUpdate, setOnRefreshAllSectionHeights,
-  setOnSelectBlock, setOnMoveGridCursor,
-  setOnUpdatePageCount, setOnSyncPageSeparators, setOnClearSelection,
-  setOnAddToSelection, setOnRefreshCustomModulesList, setOnAppendCustomModuleToSidebar,
+  margins,
+  marginUnit,
+  multiDragState,
+  numPages,
+  PAGE_H,
+  pageNumberingEnabled,
+  saveCustomModules,
+  selectedEl,
+  selectedEls,
+  setBandEl,
+  setBandState,
+  setCanvas,
+  setCANVAS_H,
+  setCANVAS_W,
+  setCustomModules,
+  setFileHandle,
+  setMarginUnit,
+  setMultiDragState,
+  setOnAddToSelection,
+  setOnAppendCustomModuleToSidebar,
   setOnAuthStateChange,
+  setOnClearSelection,
+  setOnMoveGridCursor,
+  setOnRefreshAllSectionHeights,
+  setOnRefreshCustomModulesList,
+  setOnSectionSummaryUpdate,
+  setOnSelectBlock,
+  setOnSyncPageSeparators,
+  setOnUpdatePageCount,
+  setPAGE_H,
+  setPageNumberingEnabled,
+  setSelectedEl,
+  setSkipNextCanvasClick,
+  setTitleBlockEnabled,
+  skipNextCanvasClick,
+  state,
+  titleBlockEnabled,
   titleBlockH,
 } from './state.ts';
-
 
 // --- Sidebar ---
 
@@ -40,16 +110,22 @@ const MODULES: {
   icon: string;
   type: Block['type'];
   sectionOnly?: boolean;
-  requiresPro?: boolean;  // section creation is a pro+ feature
+  requiresPro?: boolean; // section creation is a pro+ feature
 }[] = [
-  { id: 'formula',    name: 'Formula Block',      icon: '\u03a3',        type: 'formula'              },
-  { id: 'summary',    name: 'Summary Block',      icon: '\u03a3\u0332',  type: 'summary', sectionOnly: true },
-  { id: 'section',    name: 'Section',            icon: '\u29c5',        type: 'section', requiresPro: true },
-  { id: 'beam-def',   name: 'Beam Deflection',    icon: '\u{1F4CF}',     type: 'math'                 },
-  { id: 'sect-prop',  name: 'Section Properties', icon: '\u{1F3D7}',     type: 'math'                 },
-  { id: 'plot',       name: 'Plot',               icon: '\u{1F4C8}',     type: 'plot'                 },
-  { id: 'figure',     name: 'Figure',             icon: '\u{1F5BC}',     type: 'figure'               },
-  { id: 'text',       name: 'Text Block',         icon: '\u{1F4DD}',     type: 'text'                 },
+  { id: 'formula', name: 'Formula Block', icon: '\u03a3', type: 'formula' },
+  {
+    id: 'summary',
+    name: 'Summary Block',
+    icon: '\u03a3\u0332',
+    type: 'summary',
+    sectionOnly: true,
+  },
+  { id: 'section', name: 'Section', icon: '\u29c5', type: 'section', requiresPro: true },
+  { id: 'beam-def', name: 'Beam Deflection', icon: '\u{1F4CF}', type: 'math' },
+  { id: 'sect-prop', name: 'Section Properties', icon: '\u{1F3D7}', type: 'math' },
+  { id: 'plot', name: 'Plot', icon: '\u{1F4C8}', type: 'plot' },
+  { id: 'figure', name: 'Figure', icon: '\u{1F5BC}', type: 'figure' },
+  { id: 'text', name: 'Text Block', icon: '\u{1F4DD}', type: 'text' },
 ];
 
 function renderCustomModuleItem(mod: CustomModule): HTMLElement {
@@ -112,25 +188,35 @@ function showLoginModal(): Promise<void> {
 
     const mkInput = (type: string, placeholder: string) => {
       const inp = document.createElement('input');
-      inp.type        = type;
+      inp.type = type;
       inp.placeholder = placeholder;
       inp.style.cssText = 'width:100%;margin:0.3rem 0;padding:0.45rem 0.6rem;' +
-                          'font-size:0.95rem;border:1px solid var(--border);' +
-                          'border-radius:4px;background:var(--bg-input,#fff);color:var(--text);box-sizing:border-box;';
+        'font-size:0.95rem;border:1px solid var(--border);' +
+        'border-radius:4px;background:var(--bg-input,#fff);color:var(--text);box-sizing:border-box;';
       return inp;
     };
 
     const emailInp = mkInput('email', 'Email address');
-    const passInp  = mkInput('password', 'Password');
+    const passInp = mkInput('password', 'Password');
     dialog.appendChild(emailInp);
     dialog.appendChild(passInp);
+
+    // Shown only after a sign-up that needs the emailed confirmation code.
+    const codeInp = mkInput('text', 'Confirmation code from your email');
+    codeInp.style.display = 'none';
+    codeInp.autocomplete = 'one-time-code';
+    dialog.appendChild(codeInp);
+
+    // True once a code has been sent and we're waiting for the user to enter it.
+    let awaitingCode = false;
 
     const errorEl = document.createElement('p');
     errorEl.style.cssText = 'color:#e55;font-size:0.8rem;min-height:1rem;margin:0.2rem 0;';
     dialog.appendChild(errorEl);
 
     const successEl = document.createElement('p');
-    successEl.style.cssText = 'color:#3a3;font-size:0.8rem;min-height:1rem;margin:0.2rem 0;display:none;';
+    successEl.style.cssText =
+      'color:#3a3;font-size:0.8rem;min-height:1rem;margin:0.2rem 0;display:none;';
     dialog.appendChild(successEl);
 
     const btns = document.createElement('div');
@@ -139,56 +225,91 @@ function showLoginModal(): Promise<void> {
     btns.style.gap = '0.4rem';
 
     const submitBtn = document.createElement('button');
-    submitBtn.className   = 'import-confirm-btn';
+    submitBtn.className = 'import-confirm-btn';
     submitBtn.textContent = 'Sign In';
 
     const toggleBtn = document.createElement('button');
     toggleBtn.textContent = 'Create account instead';
-    toggleBtn.style.cssText = 'background:none;border:none;color:var(--link,#4a9);cursor:pointer;font-size:0.85rem;padding:0;';
+    toggleBtn.style.cssText =
+      'background:none;border:none;color:var(--link,#4a9);cursor:pointer;font-size:0.85rem;padding:0;';
     toggleBtn.addEventListener('click', () => {
       isSignup = !isSignup;
-      submitBtn.textContent  = isSignup ? 'Create Account' : 'Sign In';
-      title.textContent      = isSignup ? 'Create LeptonPad Account' : 'Sign in to LeptonPad';
-      toggleBtn.textContent  = isSignup ? 'Back to sign in' : 'Create account instead';
-      errorEl.textContent    = '';
+      submitBtn.textContent = isSignup ? 'Create Account' : 'Sign In';
+      title.textContent = isSignup ? 'Create LeptonPad Account' : 'Sign in to LeptonPad';
+      toggleBtn.textContent = isSignup ? 'Back to sign in' : 'Create account instead';
+      errorEl.textContent = '';
       successEl.style.display = 'none';
     });
 
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(); });
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      resolve();
+    });
 
     submitBtn.addEventListener('click', async () => {
-      const email    = emailInp.value.trim();
+      const email = emailInp.value.trim();
       const password = passInp.value;
       errorEl.textContent = '';
       successEl.style.display = 'none';
+
+      // Step 2 of sign-up: the account exists, we're confirming the address.
+      if (awaitingCode) {
+        const code = codeInp.value.trim();
+        if (!code) {
+          errorEl.textContent = 'Enter the code from your email.';
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Confirming…';
+
+        const { error } = await verifyEmailCode(code);
+        if (error) {
+          errorEl.textContent = error;
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Confirm Email';
+          return;
+        }
+
+        overlay.remove();
+        resolve();
+        return;
+      }
 
       if (!email || !password) {
         errorEl.textContent = 'Email and password are required.';
         return;
       }
 
-      submitBtn.disabled    = true;
+      submitBtn.disabled = true;
       submitBtn.textContent = isSignup ? 'Creating…' : 'Signing in…';
 
       const fn = isSignup ? signup : login;
-      const { error } = await fn(email, password);
+      const { error, needsVerification } = await fn(email, password) as {
+        error: string | null;
+        needsVerification?: boolean;
+      };
 
       if (error) {
-        errorEl.textContent   = error;
-        submitBtn.disabled    = false;
+        errorEl.textContent = error;
+        submitBtn.disabled = false;
         submitBtn.textContent = isSignup ? 'Create Account' : 'Sign In';
-      } else if (isSignup) {
-        successEl.textContent   = 'Account created — check your email to confirm, then sign in.';
+      } else if (isSignup && needsVerification) {
+        // Switch the modal into confirm-the-code mode.
+        awaitingCode = true;
+        successEl.textContent = 'Account created — enter the code we emailed you.';
         successEl.style.display = '';
-        submitBtn.disabled      = false;
-        submitBtn.textContent   = 'Create Account';
-        isSignup = false;
-        title.textContent     = 'Sign in to LeptonPad';
-        submitBtn.textContent = 'Sign In';
-        toggleBtn.textContent = 'Create account instead';
+        emailInp.style.display = 'none';
+        passInp.style.display = 'none';
+        codeInp.style.display = '';
+        codeInp.focus();
+        toggleBtn.style.display = 'none';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirm Email';
       } else {
+        // Signed in — either a normal login, or a sign-up with no verification step.
         overlay.remove();
         resolve();
       }
@@ -201,11 +322,21 @@ function showLoginModal(): Promise<void> {
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
 
-    [emailInp, passInp].forEach((inp) => inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter')  submitBtn.click();
-      if (e.key === 'Escape') { overlay.remove(); resolve(); }
-    }));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(); } });
+    [emailInp, passInp, codeInp].forEach((inp) =>
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitBtn.click();
+        if (e.key === 'Escape') {
+          overlay.remove();
+          resolve();
+        }
+      })
+    );
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve();
+      }
+    });
     setTimeout(() => emailInp.focus(), 50);
   });
 }
@@ -220,12 +351,14 @@ function renderAuthPanel(container: HTMLElement) {
 
   const panel = document.createElement('div');
   panel.className = 'auth-panel';
-  panel.style.cssText = 'padding:0.4rem 0.5rem 0.5rem;border-bottom:1px solid var(--border);margin-bottom:0.4rem;';
+  panel.style.cssText =
+    'padding:0.4rem 0.5rem 0.5rem;border-bottom:1px solid var(--border);margin-bottom:0.4rem;';
 
   if (currentUser) {
     // Signed-in state
     const emailEl = document.createElement('div');
-    emailEl.style.cssText = 'font-size:0.75rem;color:var(--muted,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    emailEl.style.cssText =
+      'font-size:0.75rem;color:var(--muted,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     emailEl.textContent = currentUser.email ?? '';
     panel.appendChild(emailEl);
 
@@ -234,11 +367,24 @@ function renderAuthPanel(container: HTMLElement) {
 
     const roleBadge = document.createElement('span');
     const roleColors: Record<string, string> = {
-      super: '#7c3aed', pro: '#0284c7', demo: '#d97706', free: '#6b7280',
+      super: '#7c3aed',
+      pro: '#0284c7',
+      demo: '#d97706',
+      free: '#6b7280',
     };
+    // When the entitlement sync failed we are showing cached (or unknown) access.
+    // Mark it visually instead of presenting stale data as current — see auth.ts.
+    const badgeColor = accessUnverified() ? '#6b7280' : (roleColors[currentRole] ?? '#6b7280');
     roleBadge.style.cssText = `font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;` +
-      `background:${roleColors[currentRole] ?? '#6b7280'};color:#fff;font-weight:600;`;
-    roleBadge.textContent = roleLabel();
+      `background:${badgeColor};color:#fff;font-weight:600;` +
+      (entitlementsStale ? 'opacity:0.65;' : '');
+    roleBadge.textContent = accessUnverified() ? 'Unverified' : roleLabel();
+    if (entitlementsStale) {
+      const when = lastSyncedLabel();
+      roleBadge.title = when
+        ? `Could not reach the server — showing access cached ${when}.`
+        : 'Could not reach the server — your access has not been verified yet.';
+    }
     roleRow.appendChild(roleBadge);
 
     const accessEl = document.createElement('span');
@@ -251,7 +397,7 @@ function renderAuthPanel(container: HTMLElement) {
     btnRow.style.cssText = 'display:flex;gap:0.35rem;';
 
     const redeemBtn = document.createElement('button');
-    redeemBtn.className   = 'view-toggle';
+    redeemBtn.className = 'view-toggle';
     redeemBtn.textContent = 'Redeem Code';
     redeemBtn.style.cssText = 'font-size:0.75rem;padding:0.2rem 0.5rem;flex:1;';
     redeemBtn.addEventListener('click', async () => {
@@ -266,7 +412,7 @@ function renderAuthPanel(container: HTMLElement) {
     });
 
     const signOutBtn = document.createElement('button');
-    signOutBtn.className   = 'view-toggle';
+    signOutBtn.className = 'view-toggle';
     signOutBtn.textContent = 'Sign Out';
     signOutBtn.style.cssText = 'font-size:0.75rem;padding:0.2rem 0.5rem;';
     signOutBtn.addEventListener('click', async () => {
@@ -286,7 +432,7 @@ function renderAuthPanel(container: HTMLElement) {
     panel.appendChild(msgEl);
 
     const signInBtn = document.createElement('button');
-    signInBtn.className   = 'view-toggle';
+    signInBtn.className = 'view-toggle';
     signInBtn.textContent = 'Sign In / Create Account';
     signInBtn.style.cssText = 'width:100%;font-size:0.8rem;';
     signInBtn.addEventListener('click', async () => {
@@ -324,21 +470,42 @@ function _showProRequiredDialog() {
   dialog.className = 'import-modal';
   dialog.style.maxWidth = '320px';
 
+  // If the entitlement sync failed we do NOT know this user lacks Pro — telling
+  // someone who already pays to go buy a subscription is the worst reading of a
+  // network error. Say what actually happened and offer to retry.
+  const blocked = entitlementsStale;
+
   const title = document.createElement('h3');
-  title.textContent = 'Pro Feature';
+  title.textContent = blocked ? "Couldn't verify your account" : 'Pro Feature';
   dialog.appendChild(title);
 
   const msg = document.createElement('p');
-  msg.textContent = 'Creating Section blocks requires a Pro subscription or active Demo trial. ' +
-    'Sign in and redeem a license code to unlock.';
+  msg.textContent = blocked
+    ? 'Creating Section blocks needs Pro or an active Demo trial, and we could not reach the ' +
+      'server to check yours. Your existing sheets are unaffected. Try again once you are back ' +
+      'online.'
+    : 'Creating Section blocks requires a Pro subscription or active Demo trial. ' +
+      'Sign in and redeem a license code to unlock.';
   msg.style.fontSize = '0.9rem';
   dialog.appendChild(msg);
 
   const btns = document.createElement('div');
   btns.className = 'import-modal-btns';
 
+  if (blocked) {
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = 'Retry';
+    retryBtn.addEventListener('click', async () => {
+      retryBtn.disabled = true;
+      retryBtn.textContent = 'Checking…';
+      await refreshEntitlements();
+      overlay.remove();
+    });
+    btns.appendChild(retryBtn);
+  }
+
   const closeBtn = document.createElement('button');
-  closeBtn.className   = 'import-confirm-btn';
+  closeBtn.className = 'import-confirm-btn';
   closeBtn.textContent = 'OK';
   closeBtn.addEventListener('click', () => overlay.remove());
   btns.appendChild(closeBtn);
@@ -346,7 +513,9 @@ function _showProRequiredDialog() {
   dialog.appendChild(btns);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
 }
 
 function renderSidebar() {
@@ -401,12 +570,12 @@ function renderSidebar() {
   // Restore px values after so screen layout is unaffected.
   globalThis.addEventListener('beforeprint', () => {
     if (!canvas) return;
-    canvas.domElement.style.width  = `${CANVAS_W / PX_PER_IN}in`;
+    canvas.domElement.style.width = `${CANVAS_W / PX_PER_IN}in`;
     canvas.domElement.style.height = `${CANVAS_H / PX_PER_IN}in`;
   });
   globalThis.addEventListener('afterprint', () => {
     if (!canvas) return;
-    canvas.domElement.style.width  = `${CANVAS_W}px`;
+    canvas.domElement.style.width = `${CANVAS_W}px`;
     canvas.domElement.style.height = `${CANVAS_H}px`;
   });
 
@@ -588,10 +757,10 @@ function renderSidebar() {
   const marginGrid = document.createElement('div');
   marginGrid.className = 'margin-inputs';
   const marginDefs: { id: string; label: string; side: keyof typeof margins }[] = [
-    { id: 'margin-top',    label: 'Top',    side: 'top'    },
-    { id: 'margin-right',  label: 'Right',  side: 'right'  },
+    { id: 'margin-top', label: 'Top', side: 'top' },
+    { id: 'margin-right', label: 'Right', side: 'right' },
     { id: 'margin-bottom', label: 'Bottom', side: 'bottom' },
-    { id: 'margin-left',   label: 'Left',   side: 'left'   },
+    { id: 'margin-left', label: 'Left', side: 'left' },
   ];
   for (const def of marginDefs) {
     const wrap = document.createElement('label');
@@ -661,7 +830,6 @@ function renderSidebar() {
   customModules.forEach((mod) => customList.appendChild(renderCustomModuleItem(mod)));
 }
 
-
 async function start() {
   try {
     await init();
@@ -721,20 +889,20 @@ async function start() {
     // Mouse: starts immediately. Touch: requires a 500ms long-hold (prevents
     // conflicting with quick taps that move the grid cursor).
     const BAND_LONG_PRESS_MS = 500;
-    const BAND_CANCEL_PX     = 10;
+    const BAND_CANCEL_PX = 10;
     canvas.domElement.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       if ((e.target as HTMLElement).closest('.block')) return;
-      const rect   = canvas.domElement.getBoundingClientRect();
+      const rect = canvas.domElement.getBoundingClientRect();
       const startX = e.clientX - rect.left;
       const startY = e.clientY - rect.top;
 
       const startBand = () => {
         const bs = { startX, startY, moved: false };
         setBandState(bs);
-        bandEl.style.left   = `${startX}px`;
-        bandEl.style.top    = `${startY}px`;
-        bandEl.style.width  = '0';
+        bandEl.style.left = `${startX}px`;
+        bandEl.style.top = `${startY}px`;
+        bandEl.style.width = '0';
         bandEl.style.height = '0';
         bandEl.classList.add('active');
       };
@@ -761,12 +929,12 @@ async function start() {
           clearTimeout(lpTimer);
           lpTimer = null;
         }
-        canvas.domElement.removeEventListener('pointermove',   cancelBandLp);
-        canvas.domElement.removeEventListener('pointerup',     cancelBandLp);
+        canvas.domElement.removeEventListener('pointermove', cancelBandLp);
+        canvas.domElement.removeEventListener('pointerup', cancelBandLp);
         canvas.domElement.removeEventListener('pointercancel', cancelBandLp);
       };
-      canvas.domElement.addEventListener('pointermove',   cancelBandLp);
-      canvas.domElement.addEventListener('pointerup',     cancelBandLp);
+      canvas.domElement.addEventListener('pointermove', cancelBandLp);
+      canvas.domElement.addEventListener('pointerup', cancelBandLp);
       canvas.domElement.addEventListener('pointercancel', cancelBandLp);
     });
 
@@ -780,23 +948,28 @@ async function start() {
           const tbH = titleBlockH();
           const dragTopMin = margins.top + tbH;
           const sectionContent = el.parentElement?.classList.contains('section-content')
-            ? el.parentElement as HTMLElement : null;
+            ? el.parentElement as HTMLElement
+            : null;
           if (sectionContent) {
             // Child block — clamp within its parent section's content area
             const maxLeft = Math.max(0, sectionContent.offsetWidth - el.offsetWidth);
-            const maxTop  = Math.max(0, sectionContent.offsetHeight - el.offsetHeight);
+            const maxTop = Math.max(0, sectionContent.offsetHeight - el.offsetHeight);
             const newLeft = clamp(orig.left + dx, 0, maxLeft);
-            const newTop  = clamp(orig.top  + dy, 0, maxTop);
+            const newTop = clamp(orig.top + dy, 0, maxTop);
             el.style.left = `${newLeft}px`;
-            el.style.top  = `${newTop}px`;
+            el.style.top = `${newTop}px`;
             el.style.maxWidth = `${sectionContent.offsetWidth - newLeft}px`;
           } else if (blk?.type === 'section') {
             // Full-width blocks: X locked, vertical drag only
             el.style.top = `${clamp(orig.top + dy, dragTopMin, CANVAS_H + PAGE_H)}px`;
           } else {
-            const dragLeft = clamp(orig.left + dx, margins.left, CANVAS_W - margins.right - el.offsetWidth);
+            const dragLeft = clamp(
+              orig.left + dx,
+              margins.left,
+              CANVAS_W - margins.right - el.offsetWidth,
+            );
             el.style.left = `${dragLeft}px`;
-            el.style.top  = `${clamp(orig.top  + dy, dragTopMin, CANVAS_H + PAGE_H)}px`;
+            el.style.top = `${clamp(orig.top + dy, dragTopMin, CANVAS_H + PAGE_H)}px`;
             el.style.maxWidth = `${CANVAS_W - margins.right - dragLeft}px`;
           }
         }
@@ -809,9 +982,9 @@ async function start() {
         const y = Math.min(bandState.startY, cy);
         const w = Math.abs(cx - bandState.startX);
         const h = Math.abs(cy - bandState.startY);
-        bandEl.style.left   = `${x}px`;
-        bandEl.style.top    = `${y}px`;
-        bandEl.style.width  = `${w}px`;
+        bandEl.style.left = `${x}px`;
+        bandEl.style.top = `${y}px`;
+        bandEl.style.width = `${w}px`;
         bandEl.style.height = `${h}px`;
         if (w > 4 || h > 4) bandState.moved = true;
       }
@@ -820,7 +993,7 @@ async function start() {
     // Margin-relative snap helpers — keep blocks on the same grid the crosshair uses
     const mSnapX = (absX: number) => margins.left + canvas.snap(absX - margins.left);
     const mSnapY = (absY: number) => {
-      const pi   = Math.max(0, Math.floor(absY / PAGE_H));
+      const pi = Math.max(0, Math.floor(absY / PAGE_H));
       const orig = pi * PAGE_H + margins.top;
       return orig + canvas.snap(absY - orig);
     };
@@ -831,29 +1004,34 @@ async function start() {
           const block = state.blocks.find((b) => b.id === el.id);
           if (!block || block.type === 'section') {
             // Full-width blocks: snap vertically only
-            const snappedTop = clamp(mSnapY(parseInt(el.style.top)), margins.top + titleBlockH(), CANVAS_H + PAGE_H);
+            const snappedTop = clamp(
+              mSnapY(parseInt(el.style.top)),
+              margins.top + titleBlockH(),
+              CANVAS_H + PAGE_H,
+            );
             placeBlock(el, margins.left, snappedTop);
             continue;
           }
           const snapContent = el.parentElement?.classList.contains('section-content')
-            ? el.parentElement as HTMLElement : null;
+            ? el.parentElement as HTMLElement
+            : null;
           const snapSectionEl = snapContent?.parentElement as HTMLElement | null;
 
           if (snapContent && snapSectionEl) {
             // Block is inside a section — always keep it there, snap within section bounds
             const maxLeft = Math.max(0, snapContent.offsetWidth - el.offsetWidth);
-            const maxTop  = Math.max(0, snapContent.offsetHeight - el.offsetHeight);
+            const maxTop = Math.max(0, snapContent.offsetHeight - el.offsetHeight);
             // Convert section-relative coords to canvas coords, apply margin-aligned snap, convert back
-            const canvasRect2  = canvas.domElement.getBoundingClientRect();
-            const contentRect  = snapContent.getBoundingClientRect();
-            const contentLeft  = Math.round(contentRect.left - canvasRect2.left);
-            const contentTop   = Math.round(contentRect.top  - canvasRect2.top);
+            const canvasRect2 = canvas.domElement.getBoundingClientRect();
+            const contentRect = snapContent.getBoundingClientRect();
+            const contentLeft = Math.round(contentRect.left - canvasRect2.left);
+            const contentTop = Math.round(contentRect.top - canvasRect2.top);
             const rawLeft = parseInt(el.style.left);
-            const rawTop  = parseInt(el.style.top);
+            const rawTop = parseInt(el.style.top);
             const snappedLeft = clamp(mSnapX(contentLeft + rawLeft) - contentLeft, 0, maxLeft);
-            const snappedTop  = clamp(mSnapY(contentTop  + rawTop)  - contentTop,  0, maxTop);
+            const snappedTop = clamp(mSnapY(contentTop + rawTop) - contentTop, 0, maxTop);
             el.style.left = `${snappedLeft}px`;
-            el.style.top  = `${snappedTop}px`;
+            el.style.top = `${snappedTop}px`;
             el.style.maxWidth = `${snapContent.offsetWidth - snappedLeft}px`;
             block.x = snappedLeft;
             block.y = snappedTop;
@@ -869,8 +1047,16 @@ async function start() {
               reparentToSection(el, targetSection);
             } else {
               // Normal canvas block — snap as usual
-              const snappedLeft = clamp(mSnapX(parseInt(el.style.left)), margins.left, CANVAS_W - margins.right - el.offsetWidth);
-              const snappedTop  = clamp(mSnapY(parseInt(el.style.top)),  margins.top,  CANVAS_H + PAGE_H);
+              const snappedLeft = clamp(
+                mSnapX(parseInt(el.style.left)),
+                margins.left,
+                CANVAS_W - margins.right - el.offsetWidth,
+              );
+              const snappedTop = clamp(
+                mSnapY(parseInt(el.style.top)),
+                margins.top,
+                CANVAS_H + PAGE_H,
+              );
               placeBlock(el, snappedLeft, snappedTop);
             }
           }
@@ -918,14 +1104,16 @@ async function start() {
       }
       // Alt+Enter: blur active field, move cursor to first grid intersection right of block
       if (e.key === 'Enter' && e.altKey && !e.ctrlKey) {
-        const blockEl = selectedEl ?? (document.activeElement as HTMLElement)?.closest<HTMLElement>('.block');
+        const blockEl = selectedEl ??
+          (document.activeElement as HTMLElement)?.closest<HTMLElement>('.block');
         if (!blockEl) return;
         e.preventDefault();
         (document.activeElement as HTMLElement)?.blur();
         clearSelection();
         blockEl.classList.remove('selected');
         const blockRight = parseInt(blockEl.style.left) + blockEl.offsetWidth;
-        const exitX = margins.left + (Math.floor((blockRight - margins.left) / GRID_SIZE) + 1) * GRID_SIZE;
+        const exitX = margins.left +
+          (Math.floor((blockRight - margins.left) / GRID_SIZE) + 1) * GRID_SIZE;
         const exitY = parseInt(blockEl.style.top);
         moveGridCursor(exitX, exitY);
         return;
@@ -939,8 +1127,10 @@ async function start() {
           return;
         }
         const delta: Record<string, [number, number]> = {
-          ArrowLeft: [-GRID_SIZE, 0], ArrowRight: [GRID_SIZE, 0],
-          ArrowUp: [0, -GRID_SIZE], ArrowDown: [0, GRID_SIZE],
+          ArrowLeft: [-GRID_SIZE, 0],
+          ArrowRight: [GRID_SIZE, 0],
+          ArrowUp: [0, -GRID_SIZE],
+          ArrowDown: [0, GRID_SIZE],
         };
         const d = delta[e.key];
         if (d) {
@@ -948,26 +1138,36 @@ async function start() {
           let movedIsChild = false;
           for (const el of selectedEls) {
             const sc = el.parentElement?.classList.contains('section-content')
-              ? el.parentElement as HTMLElement : null;
+              ? el.parentElement as HTMLElement
+              : null;
             if (sc) {
               movedIsChild = true;
               const maxLeft = Math.max(0, sc.offsetWidth - el.offsetWidth);
-              const maxTop  = Math.max(0, sc.offsetHeight - el.offsetHeight);
+              const maxTop = Math.max(0, sc.offsetHeight - el.offsetHeight);
               const newLeft = clamp(parseInt(el.style.left) + d[0], 0, maxLeft);
-              const newTop  = clamp(parseInt(el.style.top)  + d[1], 0, maxTop);
+              const newTop = clamp(parseInt(el.style.top) + d[1], 0, maxTop);
               el.style.left = `${newLeft}px`;
-              el.style.top  = `${newTop}px`;
+              el.style.top = `${newTop}px`;
               el.style.maxWidth = `${sc.offsetWidth - newLeft}px`;
               const blk = state.blocks.find((b) => b.id === el.id);
-              if (blk) { blk.x = newLeft; blk.y = newTop; }
+              if (blk) {
+                blk.x = newLeft;
+                blk.y = newTop;
+              }
               refreshSectionHeight(sc.parentElement as HTMLElement);
             } else {
-              const newLeft = clamp(parseInt(el.style.left) + d[0], margins.left, CANVAS_W - margins.right - el.offsetWidth);
-              const newTop  = clamp(parseInt(el.style.top)  + d[1], margins.top,  CANVAS_H + PAGE_H);
+              const newLeft = clamp(
+                parseInt(el.style.left) + d[0],
+                margins.left,
+                CANVAS_W - margins.right - el.offsetWidth,
+              );
+              const newTop = clamp(parseInt(el.style.top) + d[1], margins.top, CANVAS_H + PAGE_H);
               placeBlock(el, newLeft, newTop);
             }
           }
-          if (e.key === 'ArrowRight' && selectedEl && !movedIsChild) resolveOverlapsRight(selectedEl);
+          if (e.key === 'ArrowRight' && selectedEl && !movedIsChild) {
+            resolveOverlapsRight(selectedEl);
+          }
           updatePageCount();
           return;
         }
@@ -990,8 +1190,10 @@ async function start() {
       }
 
       const delta: Record<string, [number, number]> = {
-        ArrowLeft: [-GRID_SIZE, 0], ArrowRight: [GRID_SIZE, 0],
-        ArrowUp: [0, -GRID_SIZE], ArrowDown: [0, GRID_SIZE],
+        ArrowLeft: [-GRID_SIZE, 0],
+        ArrowRight: [GRID_SIZE, 0],
+        ArrowUp: [0, -GRID_SIZE],
+        ArrowDown: [0, GRID_SIZE],
       };
       const d = delta[e.key];
       if (!d) return;
@@ -1013,8 +1215,10 @@ async function start() {
     // Grid darkness slider
     document.getElementById('grid-opacity')!.addEventListener('input', (e) => {
       const a = parseFloat((e.target as HTMLInputElement).value);
-      canvas.domElement.style.setProperty('--grid-line',
-        isDark() ? `rgba(212, 212, 216, ${a})` : `rgba(55, 65, 81, ${a})`);
+      canvas.domElement.style.setProperty(
+        '--grid-line',
+        isDark() ? `rgba(212, 212, 216, ${a})` : `rgba(55, 65, 81, ${a})`,
+      );
     });
 
     // Page size dropdown
@@ -1024,18 +1228,18 @@ async function start() {
       setCANVAS_W(size.w);
       setPAGE_H(size.h);
       setCANVAS_H(numPages * PAGE_H);
-      canvas.domElement.style.width  = `${size.w}px`;
+      canvas.domElement.style.width = `${size.w}px`;
       canvas.domElement.style.height = `${CANVAS_H}px`;
-      syncPageSeparators();   // rebuild guides/separators with new PAGE_H
-      updatePageCount();      // may further adjust numPages based on block positions
+      syncPageSeparators(); // rebuild guides/separators with new PAGE_H
+      updatePageCount(); // may further adjust numPages based on block positions
     });
 
     // Unit toggle (mm ↔ in)
     const marginSides: { id: string; side: keyof typeof margins }[] = [
-      { id: 'margin-top',    side: 'top'    },
-      { id: 'margin-right',  side: 'right'  },
+      { id: 'margin-top', side: 'top' },
+      { id: 'margin-right', side: 'right' },
       { id: 'margin-bottom', side: 'bottom' },
-      { id: 'margin-left',   side: 'left'   },
+      { id: 'margin-left', side: 'left' },
     ];
     const refreshMarginInputs = () => {
       for (const { id, side } of marginSides) {
@@ -1064,7 +1268,10 @@ async function start() {
     // Click canvas: move grid cursor; deselect if bare canvas clicked
     canvas.domElement.addEventListener('click', (e) => {
       // Skip if this click immediately followed a rubber-band selection
-      if (skipNextCanvasClick) { setSkipNextCanvasClick(false); return; }
+      if (skipNextCanvasClick) {
+        setSkipNextCanvasClick(false);
+        return;
+      }
       // Clicks inside a block are handled by the block — don't move the cursor
       if ((e.target as HTMLElement).closest('.block')) return;
       const rect = canvas.domElement.getBoundingClientRect();
@@ -1080,7 +1287,12 @@ async function start() {
         _showProRequiredDialog();
         return;
       }
-      dropBlock(el.dataset.moduleType as Block['type'], el.dataset.moduleId ?? '', gridCursor.x, gridCursor.y);
+      dropBlock(
+        el.dataset.moduleType as Block['type'],
+        el.dataset.moduleId ?? '',
+        gridCursor.x,
+        gridCursor.y,
+      );
     });
 
     // Sidebar drag → canvas drop
@@ -1120,38 +1332,54 @@ async function start() {
     ctxFormulaHeader.textContent = 'Formula row';
     ctxFormulaGroup.appendChild(ctxFormulaHeader);
 
-    const ctxAddRowBtn    = document.createElement('button');
-    const ctxAddIfBtn     = document.createElement('button');
+    const ctxAddRowBtn = document.createElement('button');
+    const ctxAddIfBtn = document.createElement('button');
     const ctxAddElseifBtn = document.createElement('button');
-    const ctxAddElseBtn   = document.createElement('button');
-    const ctxAddForBtn    = document.createElement('button');
-    const ctxAddDescBtn   = document.createElement('button');
-    const ctxAddRefBtn    = document.createElement('button');
+    const ctxAddElseBtn = document.createElement('button');
+    const ctxAddForBtn = document.createElement('button');
+    const ctxAddDescBtn = document.createElement('button');
+    const ctxAddRefBtn = document.createElement('button');
     const ctxDelBranchBtn = document.createElement('button');
-    const ctxDelRowBtn    = document.createElement('button');
+    const ctxDelRowBtn = document.createElement('button');
 
-    ctxAddRowBtn.className    = 'ctx-neutral-btn';  ctxAddRowBtn.textContent    = '+ row';
-    ctxAddIfBtn.className     = 'ctx-neutral-btn';  ctxAddIfBtn.textContent     = '+ if';
-    ctxAddElseifBtn.className = 'ctx-neutral-btn';  ctxAddElseifBtn.textContent = '+ elseif';
-    ctxAddElseBtn.className   = 'ctx-neutral-btn';  ctxAddElseBtn.textContent   = '+ else';
-    ctxAddForBtn.className    = 'ctx-neutral-btn';  ctxAddForBtn.textContent    = '+ for';
-    ctxAddDescBtn.className   = 'ctx-neutral-btn';  ctxAddDescBtn.textContent   = '+ description';
-    ctxAddRefBtn.className    = 'ctx-neutral-btn';  ctxAddRefBtn.textContent    = '+ reference';
+    ctxAddRowBtn.className = 'ctx-neutral-btn';
+    ctxAddRowBtn.textContent = '+ row';
+    ctxAddIfBtn.className = 'ctx-neutral-btn';
+    ctxAddIfBtn.textContent = '+ if';
+    ctxAddElseifBtn.className = 'ctx-neutral-btn';
+    ctxAddElseifBtn.textContent = '+ elseif';
+    ctxAddElseBtn.className = 'ctx-neutral-btn';
+    ctxAddElseBtn.textContent = '+ else';
+    ctxAddForBtn.className = 'ctx-neutral-btn';
+    ctxAddForBtn.textContent = '+ for';
+    ctxAddDescBtn.className = 'ctx-neutral-btn';
+    ctxAddDescBtn.textContent = '+ description';
+    ctxAddRefBtn.className = 'ctx-neutral-btn';
+    ctxAddRefBtn.textContent = '+ reference';
     ctxDelBranchBtn.textContent = '× branch';
-    ctxDelRowBtn.textContent    = '× delete row';
+    ctxDelRowBtn.textContent = '× delete row';
 
-    ctxAddRowBtn.title    = 'Insert blank row after this row (Ctrl+Enter)';
-    ctxAddIfBtn.title     = 'Insert if/end block after this row (Ctrl+I)';
+    ctxAddRowBtn.title = 'Insert blank row after this row (Ctrl+Enter)';
+    ctxAddIfBtn.title = 'Insert if/end block after this row (Ctrl+I)';
     ctxAddElseifBtn.title = 'Add elseif branch to enclosing if (Ctrl+E)';
-    ctxAddElseBtn.title   = 'Add else branch to enclosing if (Ctrl+Shift+E)';
-    ctxAddForBtn.title    = 'Insert for/end block after this row (Ctrl+L)';
-    ctxAddDescBtn.title   = 'Add a text description to this row (left column)';
-    ctxAddRefBtn.title    = 'Add a reference annotation to this row (right column)';
+    ctxAddElseBtn.title = 'Add else branch to enclosing if (Ctrl+Shift+E)';
+    ctxAddForBtn.title = 'Insert for/end block after this row (Ctrl+L)';
+    ctxAddDescBtn.title = 'Add a text description to this row (left column)';
+    ctxAddRefBtn.title = 'Add a reference annotation to this row (right column)';
     ctxDelBranchBtn.title = 'Delete this branch (elseif/else/for) and its body (Ctrl+-)';
-    ctxDelRowBtn.title    = 'Delete this row or block (Ctrl+-)';
+    ctxDelRowBtn.title = 'Delete this row or block (Ctrl+-)';
 
-    [ctxAddRowBtn, ctxAddIfBtn, ctxAddElseifBtn, ctxAddElseBtn, ctxAddForBtn,
-     ctxAddDescBtn, ctxAddRefBtn, ctxDelBranchBtn, ctxDelRowBtn].forEach((b) => ctxFormulaGroup.appendChild(b));
+    [
+      ctxAddRowBtn,
+      ctxAddIfBtn,
+      ctxAddElseifBtn,
+      ctxAddElseBtn,
+      ctxAddForBtn,
+      ctxAddDescBtn,
+      ctxAddRefBtn,
+      ctxDelBranchBtn,
+      ctxDelRowBtn,
+    ].forEach((b) => ctxFormulaGroup.appendChild(b));
 
     const ctxFormulaSep = document.createElement('hr');
     ctxFormulaSep.className = 'ctx-sep';
@@ -1232,19 +1460,24 @@ async function start() {
 
     // Formula action button handlers — delegate to ctxFormulaActions captured at menu-open time
     ctxAddRowBtn.addEventListener('click', () => {
-      ctxFormulaActions?.insertRowAfter(ctxFormulaRowEl); hideCtxMenu();
+      ctxFormulaActions?.insertRowAfter(ctxFormulaRowEl);
+      hideCtxMenu();
     });
     ctxAddIfBtn.addEventListener('click', () => {
-      ctxFormulaActions?.insertIfAfter(ctxFormulaRowEl); hideCtxMenu();
+      ctxFormulaActions?.insertIfAfter(ctxFormulaRowEl);
+      hideCtxMenu();
     });
     ctxAddElseifBtn.addEventListener('click', () => {
-      ctxFormulaActions?.insertElseifFor(ctxFormulaRowEl); hideCtxMenu();
+      ctxFormulaActions?.insertElseifFor(ctxFormulaRowEl);
+      hideCtxMenu();
     });
     ctxAddElseBtn.addEventListener('click', () => {
-      ctxFormulaActions?.insertElseFor(ctxFormulaRowEl); hideCtxMenu();
+      ctxFormulaActions?.insertElseFor(ctxFormulaRowEl);
+      hideCtxMenu();
     });
     ctxAddForBtn.addEventListener('click', () => {
-      ctxFormulaActions?.insertForAfter(ctxFormulaRowEl); hideCtxMenu();
+      ctxFormulaActions?.insertForAfter(ctxFormulaRowEl);
+      hideCtxMenu();
     });
     ctxAddDescBtn.addEventListener('click', () => {
       if (ctxFormulaRowEl) ctxFormulaActions?.addDescription(ctxFormulaRowEl);
@@ -1263,8 +1496,12 @@ async function start() {
       hideCtxMenu();
     });
 
-    document.addEventListener('mousedown', (e) => { if (!ctxMenu.contains(e.target as Node)) hideCtxMenu(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCtxMenu(); });
+    document.addEventListener('mousedown', (e) => {
+      if (!ctxMenu.contains(e.target as Node)) hideCtxMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideCtxMenu();
+    });
 
     document.addEventListener('contextmenu', (e) => {
       const target = (e.target as HTMLElement).closest<HTMLElement>('.block');
@@ -1279,31 +1516,36 @@ async function start() {
 
       // ── Formula-row context detection ──────────────────────────────────
       const rowsEl = (e.target as HTMLElement).closest<HTMLElement>('.formula-rows');
-      const rowEl  = (e.target as HTMLElement).closest<HTMLElement>('.formula-row');
+      const rowEl = (e.target as HTMLElement).closest<HTMLElement>('.formula-row');
       // deno-lint-ignore no-explicit-any
       const actions = rowsEl ? (rowsEl as any)._formulaCtxActions : null;
 
       if (actions) {
-        ctxFormulaRowEl  = rowEl;
+        ctxFormulaRowEl = rowEl;
         ctxFormulaActions = actions;
         const { rowType, hasIf, hasElse, canDelBranch } = actions.getRowState(rowEl);
         const isRegular = actions.isRegularRow(rowEl);
-        const hasDesc   = actions.hasDescription(rowEl);
-        const hasRef    = actions.hasReference(rowEl);
+        const hasDesc = actions.hasDescription(rowEl);
+        const hasRef = actions.hasReference(rowEl);
 
         // Show/hide add-branch items based on context
         ctxAddElseifBtn.style.display = hasIf ? '' : 'none';
-        ctxAddElseBtn.style.display   = hasIf ? '' : 'none';
-        ctxAddElseifBtn.disabled      = hasElse;
-        ctxAddElseBtn.disabled        = hasElse;
-        ctxAddElseifBtn.title = hasElse ? '+ elseif (else branch already exists)' : 'Add elseif branch to enclosing if (Ctrl+E)';
-        ctxAddElseBtn.title   = hasElse ? '+ else (else branch already exists)'   : 'Add else branch to enclosing if (Ctrl+Shift+E)';
+        ctxAddElseBtn.style.display = hasIf ? '' : 'none';
+        ctxAddElseifBtn.disabled = hasElse;
+        ctxAddElseBtn.disabled = hasElse;
+        ctxAddElseifBtn.title = hasElse
+          ? '+ elseif (else branch already exists)'
+          : 'Add elseif branch to enclosing if (Ctrl+E)';
+        ctxAddElseBtn.title = hasElse
+          ? '+ else (else branch already exists)'
+          : 'Add else branch to enclosing if (Ctrl+Shift+E)';
 
         // + description/reference: regular rows outside groups, and if/for block headers
         const isInsideGroup = !!rowEl?.closest('.formula-block-group');
-        const canHaveDescRef = (isRegular && !isInsideGroup) || rowType === 'if' || rowType === 'for';
+        const canHaveDescRef = (isRegular && !isInsideGroup) || rowType === 'if' ||
+          rowType === 'for';
         ctxAddDescBtn.style.display = (canHaveDescRef && !hasDesc) ? '' : 'none';
-        ctxAddRefBtn.style.display  = (canHaveDescRef && !hasRef)  ? '' : 'none';
+        ctxAddRefBtn.style.display = (canHaveDescRef && !hasRef) ? '' : 'none';
 
         // × branch: only on elseif / else / for rows
         ctxDelBranchBtn.style.display = canDelBranch ? '' : 'none';
@@ -1313,12 +1555,12 @@ async function start() {
         ctxDelRowBtn.title = `Delete this row${typeLabel} (Ctrl+-)`;
 
         ctxFormulaGroup.style.display = '';
-        ctxFormulaSep.style.display   = '';
+        ctxFormulaSep.style.display = '';
       } else {
-        ctxFormulaRowEl   = null;
+        ctxFormulaRowEl = null;
         ctxFormulaActions = null;
         ctxFormulaGroup.style.display = 'none';
-        ctxFormulaSep.style.display   = 'none';
+        ctxFormulaSep.style.display = 'none';
       }
 
       ctxMenu.style.left = `${e.clientX}px`;

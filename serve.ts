@@ -29,7 +29,11 @@ Deno.serve(
       });
 
       return new Response(
-        new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: ok\n\n')); } }),
+        new ReadableStream({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('data: ok\n\n'));
+          },
+        }),
         { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } },
       );
     }

@@ -1,26 +1,10 @@
 import { serveDir } from 'jsr:@std/http@1/file-server';
+import { writeConfigJs } from './scripts/write-config.ts';
 
 // Copy static assets
 await Deno.mkdir('dist', { recursive: true });
 
 const { version } = JSON.parse(await Deno.readTextFile('deno.json')) as { version: string };
-
-// Generate config.js from .env (falls back to placeholders)
-async function writeConfigJs() {
-  let url = 'https://your-project-id.supabase.co';
-  let key = 'your-public-anon-key';
-  try {
-    const env = await Deno.readTextFile('.env');
-    for (const line of env.split('\n')) {
-      const [k, ...rest] = line.split('=');
-      const v = rest.join('=').trim();
-      if (k.trim() === 'SUPABASE_URL')      url = v;
-      if (k.trim() === 'SUPABASE_ANON_KEY') key = v;
-    }
-  } catch { /* no .env — use placeholders */ }
-  const js = `globalThis.__LP_CONFIG__ = {\n  supabaseUrl:     '${url}',\n  supabaseAnonKey: '${key}',\n  version:         '${version}',\n};\n`;
-  await Deno.writeTextFile('dist/config.js', js);
-}
 
 await Promise.all([
   Deno.copyFile('src/styles/main.css', 'dist/main.css'),
@@ -28,7 +12,7 @@ await Promise.all([
   Deno.copyFile('public/index.html', 'dist/index.html'),
   Deno.copyFile('public/LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
   Deno.copyFile('public/sample_project.json', 'dist/sample_project.json'),
-  writeConfigJs(),
+  writeConfigJs(version),
 ]);
 
 // Dev service worker: clears all caches + network-only (no stale cache blocking fresh HTML)
@@ -90,13 +74,19 @@ Deno.serve(
       req.signal.addEventListener('abort', () => {
         closeTimer = setTimeout(() => {
           console.log('\nBrowser closed — stopping dev server.');
-          try { bundler.kill(); } catch { /* already gone */ }
+          try {
+            bundler.kill();
+          } catch { /* already gone */ }
           Deno.exit(0);
         }, 5000);
       });
 
       return new Response(
-        new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: ok\n\n')); } }),
+        new ReadableStream({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('data: ok\n\n'));
+          },
+        }),
         { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } },
       );
     }

@@ -6,25 +6,28 @@
 //   • A role upgrade  (grants_role = 'pro' | 'demo')  — year-based by default
 //   • A section pack  (grants_pack_id = <pack slug>)
 //
-// All validation lives in the Supabase RPC `redeem_license_code`.
-// This module handles only the client-side UI and the RPC call.
+// All validation lives server-side — the client only collects the code and
+// shows whatever the server says. This module is UI plus one call.
 // ---------------------------------------------------------------------------
 
-import { supabase, currentUser, currentRole, ownedPackIds } from './auth.ts';
+import {
+  accessUnverified,
+  currentRole,
+  currentUser,
+  entitlementsStale,
+  lastSyncedLabel,
+  ownedPackIds,
+  redeemCode,
+  refreshEntitlements,
+} from './auth.ts';
+import type { RedeemResult } from './backend.ts';
 
-export interface RedeemResult {
-  success: boolean;
-  message: string;
-  /** Set when a role was upgraded. */
-  role?: string;
-  /** Set when a pack was unlocked. */
-  packId?: string;
-}
+export type { RedeemResult };
 
 /**
  * Redeem a license code for the currently signed-in user.
- * After a successful redemption the caller should call initAuth() or
- * refresh the sidebar to reflect the new role / pack.
+ * On success the caller's role and pack list are refreshed before returning,
+ * so the sidebar can re-render immediately.
  */
 export async function redeemLicenseCode(rawCode: string): Promise<RedeemResult> {
   if (!currentUser) {
@@ -37,15 +40,9 @@ export async function redeemLicenseCode(rawCode: string): Promise<RedeemResult> 
   }
 
   try {
-    const { data, error } = await supabase.rpc('redeem_license_code', { p_code: code });
-    if (error) return { success: false, message: error.message };
-
-    return {
-      success: data?.success ?? false,
-      message: data?.message ?? 'Unknown response.',
-      role:    data?.role    ?? undefined,
-      packId:  data?.pack_id ?? undefined,
-    };
+    const result = await redeemCode(code);
+    if (result.success) await refreshEntitlements();
+    return result;
   } catch (e) {
     return { success: false, message: (e as Error).message ?? 'Network error.' };
   }
@@ -73,14 +70,14 @@ export function showRedeemCodeDialog(): Promise<RedeemResult | null> {
     dialog.appendChild(sub);
 
     const input = document.createElement('input');
-    input.type        = 'text';
+    input.type = 'text';
     input.placeholder = 'XXXX-XXXX-XXXX-XXXX';
-    input.className   = 'license-code-input';
-    input.maxLength   = 24;
+    input.className = 'license-code-input';
+    input.maxLength = 24;
     input.style.cssText = 'width:100%;margin:0.75rem 0 0.25rem;padding:0.5rem 0.6rem;' +
-                          'font-size:1rem;letter-spacing:0.1em;text-transform:uppercase;' +
-                          'border:1px solid var(--border);border-radius:4px;' +
-                          'background:var(--bg-input,#fff);color:var(--text);';
+      'font-size:1rem;letter-spacing:0.1em;text-transform:uppercase;' +
+      'border:1px solid var(--border);border-radius:4px;' +
+      'background:var(--bg-input,#fff);color:var(--text);';
     dialog.appendChild(input);
 
     const errorEl = document.createElement('p');
@@ -92,16 +89,19 @@ export function showRedeemCodeDialog(): Promise<RedeemResult | null> {
 
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(null); });
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      resolve(null);
+    });
     btns.appendChild(cancelBtn);
 
     const redeemBtn = document.createElement('button');
-    redeemBtn.className   = 'import-confirm-btn';
+    redeemBtn.className = 'import-confirm-btn';
     redeemBtn.textContent = 'Redeem';
     redeemBtn.addEventListener('click', async () => {
-      redeemBtn.disabled  = true;
+      redeemBtn.disabled = true;
       redeemBtn.textContent = 'Checking…';
-      errorEl.textContent   = '';
+      errorEl.textContent = '';
 
       const result = await redeemLicenseCode(input.value);
 
@@ -109,8 +109,8 @@ export function showRedeemCodeDialog(): Promise<RedeemResult | null> {
         overlay.remove();
         resolve(result);
       } else {
-        errorEl.textContent   = result.message;
-        redeemBtn.disabled    = false;
+        errorEl.textContent = result.message;
+        redeemBtn.disabled = false;
         redeemBtn.textContent = 'Redeem';
         input.focus();
       }
@@ -124,11 +124,17 @@ export function showRedeemCodeDialog(): Promise<RedeemResult | null> {
     // Allow Enter to submit
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') redeemBtn.click();
-      if (e.key === 'Escape') { overlay.remove(); resolve(null); }
+      if (e.key === 'Escape') {
+        overlay.remove();
+        resolve(null);
+      }
     });
 
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) { overlay.remove(); resolve(null); }
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(null);
+      }
     });
 
     setTimeout(() => input.focus(), 50);
@@ -140,9 +146,22 @@ export function showRedeemCodeDialog(): Promise<RedeemResult | null> {
  * Used in the sidebar info panel.
  */
 export function accessSummary(): string {
-  if (currentRole === 'super') return 'Full access (super)';
-  if (currentRole === 'pro')   return 'Pro — all features';
-  if (currentRole === 'demo')  return 'Demo trial active';
-  if (ownedPackIds.size > 0)   return `${ownedPackIds.size} template pack(s)`;
-  return 'Free — no packs';
+  // Never reached the server, so we genuinely do not know what this user has.
+  // Saying "Free — no packs" here would be asserting a fact we do not have.
+  if (accessUnverified()) return 'Offline — access not yet verified';
+
+  const base = currentRole === 'super'
+    ? 'Full access (super)'
+    : currentRole === 'pro'
+    ? 'Pro — all features'
+    : currentRole === 'demo'
+    ? 'Demo trial active'
+    : ownedPackIds.size > 0
+    ? `${ownedPackIds.size} template pack(s)`
+    : 'Free — no packs';
+
+  if (!entitlementsStale) return base;
+
+  const when = lastSyncedLabel();
+  return when ? `${base} · offline, synced ${when}` : `${base} · offline`;
 }

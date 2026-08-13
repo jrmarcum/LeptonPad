@@ -2,4 +2,6 @@ target/
 version_history/
 dist/
 .env
-CLAUDE.md
+.env.*
+!.env.example
+!.env.api.example

@@ -4,25 +4,44 @@
 // ---------------------------------------------------------------------------
 
 const GREEK_TABLE: [RegExp, string][] = [
-  [/\bepsilon\b/g, 'ε'], [/\bEpsilon\b/g, 'ε'],
-  [/\blambda\b/g,  'λ'], [/\bLambda\b/g,  'Λ'],
-  [/\balpha\b/g,   'α'], [/\bAlpha\b/g,   'α'],
-  [/\btheta\b/g,   'θ'], [/\bTheta\b/g,   'Θ'],
-  [/\bdelta\b/g,   'δ'], [/\bDelta\b/g,   'Δ'],
-  [/\bgamma\b/g,   'γ'], [/\bGamma\b/g,   'Γ'],
-  [/\bomega\b/g,   'ω'], [/\bOmega\b/g,   'Ω'],
-  [/\bsigma\b/g,   'σ'], [/\bSigma\b/g,   'Σ'],
-  [/\bbeta\b/g,    'β'], [/\bBeta\b/g,    'Β'],
-  [/\bphi\b/g,     'φ'], [/\bPhi\b/g,     'Φ'],
-  [/\bpsi\b/g,     'ψ'], [/\bPsi\b/g,     'Ψ'],
-  [/\bchi\b/g,     'χ'], [/\bChi\b/g,     'Χ'],
-  [/\bxi\b/g,      'ξ'], [/\bXi\b/g,      'Ξ'],
-  [/\beta\b/g,     'η'], [/\bEta\b/g,     'Η'],
-  [/\bmu\b/g,      'μ'], [/\bMu\b/g,      'Μ'],
-  [/\bnu\b/g,      'ν'], [/\bNu\b/g,      'Ν'],
-  [/\brho\b/g,     'ρ'], [/\bRho\b/g,     'Ρ'],
-  [/\btau\b/g,     'τ'], [/\bTau\b/g,     'Τ'],
-  [/\bpi\b/g,      'π'], [/\bPi\b/g,      'Π'],
+  [/\bepsilon\b/g, 'ε'],
+  [/\bEpsilon\b/g, 'ε'],
+  [/\blambda\b/g, 'λ'],
+  [/\bLambda\b/g, 'Λ'],
+  [/\balpha\b/g, 'α'],
+  [/\bAlpha\b/g, 'α'],
+  [/\btheta\b/g, 'θ'],
+  [/\bTheta\b/g, 'Θ'],
+  [/\bdelta\b/g, 'δ'],
+  [/\bDelta\b/g, 'Δ'],
+  [/\bgamma\b/g, 'γ'],
+  [/\bGamma\b/g, 'Γ'],
+  [/\bomega\b/g, 'ω'],
+  [/\bOmega\b/g, 'Ω'],
+  [/\bsigma\b/g, 'σ'],
+  [/\bSigma\b/g, 'Σ'],
+  [/\bbeta\b/g, 'β'],
+  [/\bBeta\b/g, 'Β'],
+  [/\bphi\b/g, 'φ'],
+  [/\bPhi\b/g, 'Φ'],
+  [/\bpsi\b/g, 'ψ'],
+  [/\bPsi\b/g, 'Ψ'],
+  [/\bchi\b/g, 'χ'],
+  [/\bChi\b/g, 'Χ'],
+  [/\bxi\b/g, 'ξ'],
+  [/\bXi\b/g, 'Ξ'],
+  [/\beta\b/g, 'η'],
+  [/\bEta\b/g, 'Η'],
+  [/\bmu\b/g, 'μ'],
+  [/\bMu\b/g, 'Μ'],
+  [/\bnu\b/g, 'ν'],
+  [/\bNu\b/g, 'Ν'],
+  [/\brho\b/g, 'ρ'],
+  [/\bRho\b/g, 'Ρ'],
+  [/\btau\b/g, 'τ'],
+  [/\bTau\b/g, 'Τ'],
+  [/\bpi\b/g, 'π'],
+  [/\bPi\b/g, 'Π'],
 ];
 
 /** Reject javascript: URLs to prevent XSS. */
@@ -49,7 +68,10 @@ export function stripOuter(s: string): string {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
     if (s[i] === '(') depth++;
-    else if (s[i] === ')') { depth--; if (depth === 0 && i < s.length - 1) return s; }
+    else if (s[i] === ')') {
+      depth--;
+      if (depth === 0 && i < s.length - 1) return s;
+    }
   }
   return s.slice(1, -1).trim();
 }
@@ -150,7 +172,9 @@ export function renderExpr(raw: string): string {
     if (mulIdx < 0) {
       // Simple denominator — show as stacked fraction.
       const den = stripOuter(denStr);
-      return `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(den)}</span></span>`;
+      return `<span class="frac"><span>${renderExpr(num)}</span><span>${
+        renderExpr(den)
+      }</span></span>`;
     }
 
     // Denominator has a top-level *: split at the first * so that `P/2 * x` renders
@@ -158,7 +182,9 @@ export function renderExpr(raw: string): string {
     const pureDen = stripOuter(denStr.slice(0, mulIdx).trim());
     if (pureDen) {
       const trailing = denStr.slice(mulIdx + 1).trim();
-      const fracHtml = `<span class="frac"><span>${renderExpr(num)}</span><span>${renderExpr(pureDen)}</span></span>`;
+      const fracHtml = `<span class="frac"><span>${renderExpr(num)}</span><span>${
+        renderExpr(pureDen)
+      }</span></span>`;
       return fracHtml + (trailing ? ' · ' + renderExpr(trailing) : '');
     }
   }
@@ -205,7 +231,9 @@ export function prettifyExpr(src: string): string {
   const targetMatch = raw.match(/\[\[([^\]]+)\]\]\s*$/);
   const afterTarget = targetMatch ? raw.slice(0, targetMatch.index!).trim() : raw;
   if (targetMatch) {
-    targetUnitHtml = ` <span class="fp-unit fp-unit-target">→ ${transformUnit(targetMatch[1])}</span>`;
+    targetUnitHtml = ` <span class="fp-unit fp-unit-target">→ ${
+      transformUnit(targetMatch[1])
+    }</span>`;
   }
 
   let unitHtml = '';
@@ -225,8 +253,8 @@ export function prettifyExpr(src: string): string {
     rhsRaw = body.slice(eqIdx + 1).trim();
     // Plain identifier → compact transformPiece; complex LHS (e.g. f(x)) → renderExpr.
     // Either way rhsRaw is always the part after '=', so the LHS can never end up inside a fraction.
-    lhsHtml = (/^[A-Za-z_]\w*$/.test(lhs) ? transformPiece(lhs) : renderExpr(lhs))
-      + ' <span class="fp-eq">=</span> ';
+    lhsHtml = (/^[A-Za-z_]\w*$/.test(lhs) ? transformPiece(lhs) : renderExpr(lhs)) +
+      ' <span class="fp-eq">=</span> ';
   }
 
   const rhsHtml = renderExpr(rhsRaw);
@@ -247,10 +275,15 @@ export function renderInlineMd(src: string): string {
       return `\x00${spans.length - 1}\x00`;
     })
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, href) => {
-      spans.push(`<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`);
+      spans.push(
+        `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`,
+      );
       return `\x00${spans.length - 1}\x00`;
     })
-    .replace(/`([^`]+)`/g, (_, c) => { spans.push(`<code>${esc(c)}</code>`); return `\x00${spans.length - 1}\x00`; })
+    .replace(/`([^`]+)`/g, (_, c) => {
+      spans.push(`<code>${esc(c)}</code>`);
+      return `\x00${spans.length - 1}\x00`;
+    })
     .replace(/\$([^$\n]+?)\$/g, (_, m) => {
       const html = prettifyExpr(m);
       spans.push(`<span class="md-math">${html || esc(m)}</span>`);
@@ -269,10 +302,12 @@ export function renderInlineMd(src: string): string {
 /** Parse a tag at the end of an equation line.
  *  Syntax: #label  |  #label:display  |  #:display  (label optional when display given)
  *  Returns { label, display } where either may be null. */
-function parseEqTag(line: string): { label: string | null; display: string | null; exprEnd: number } {
+function parseEqTag(
+  line: string,
+): { label: string | null; display: string | null; exprEnd: number } {
   const m = line.match(/#([\w-]*)(?::([\w. +-]+))?\s*$/);
   if (!m) return { label: null, display: null, exprEnd: line.length };
-  const label   = m[1] || null;
+  const label = m[1] || null;
   const display = m[2]?.trim() || null;
   return { label, display, exprEnd: m.index! };
 }
@@ -284,7 +319,10 @@ function collectEqLabels(src: string): Map<string, string> {
   let inMath = false;
   for (const line of src.split('\n')) {
     const isSingle = /^\$\$.+\$\$\s*$/.test(line);
-    if (!isSingle && line.trim() === '$$') { inMath = !inMath; continue; }
+    if (!isSingle && line.trim() === '$$') {
+      inMath = !inMath;
+      continue;
+    }
     if (!isSingle && !inMath) continue;
     const raw = isSingle ? line.replace(/^\$\$/, '').replace(/\$\$$/, '') : line;
     if (!raw.trim()) continue;
@@ -313,7 +351,9 @@ export function renderMarkdown(src: string): string {
     const numCell = `<span class="eq-num">[eq ${esc(displayStr)}]</span>`;
     const html = prettifyExpr(expr);
     const idAttr = label ? ` id="eq-${esc(label)}"` : '';
-    return `<div class="eq-row"><span></span><span class="md-math"${idAttr}>${html || esc(expr)}</span>${numCell}</div>`;
+    return `<div class="eq-row"><span></span><span class="md-math"${idAttr}>${
+      html || esc(expr)
+    }</span>${numCell}</div>`;
   }
 
   // Inline renderer: images, links, code, math, eq-refs, bold/italic
@@ -333,7 +373,11 @@ export function renderMarkdown(src: string): string {
         return `\x00${spans.length - 1}\x00`;
       })
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, href) => {
-        spans.push(`<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`);
+        spans.push(
+          `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener noreferrer">${
+            esc(text)
+          }</a>`,
+        );
         return `\x00${spans.length - 1}\x00`;
       })
       .replace(/`([^`]+)`/g, (_, c) => {
@@ -377,7 +421,7 @@ export function renderMarkdown(src: string): string {
 
   function flushBq() {
     if (!bqLines.length) return;
-    out.push(`<blockquote>${bqLines.map(l => `<p>${inline(l)}</p>`).join('\n')}</blockquote>`);
+    out.push(`<blockquote>${bqLines.map((l) => `<p>${inline(l)}</p>`).join('\n')}</blockquote>`);
     bqLines.length = 0;
   }
 
@@ -388,7 +432,9 @@ export function renderMarkdown(src: string): string {
     }
   }
 
-  function closeAllLists() { closeListsToIndent(-1); }
+  function closeAllLists() {
+    closeListsToIndent(-1);
+  }
 
   function flushAll() {
     flushPara();
@@ -400,8 +446,11 @@ export function renderMarkdown(src: string): string {
     lineIdx++;
     // ── Code fence ────────────────────────────────────────────────────────────
     if (!inMath && line.startsWith('```')) {
-      if (inPre) { out.push('</code></pre>'); inPre = false; preLang = ''; }
-      else {
+      if (inPre) {
+        out.push('</code></pre>');
+        inPre = false;
+        preLang = '';
+      } else {
         flushAll();
         preLang = line.slice(3).trim();
         out.push(`<pre><code${preLang ? ` class="lang-${esc(preLang)}"` : ''}>`);
@@ -409,7 +458,10 @@ export function renderMarkdown(src: string): string {
       }
       continue;
     }
-    if (inPre) { out.push(esc(line)); continue; }
+    if (inPre) {
+      out.push(esc(line));
+      continue;
+    }
 
     // ── Block math $$...$$ ────────────────────────────────────────────────────
     // Single-line: $$expr$$
@@ -422,7 +474,7 @@ export function renderMarkdown(src: string): string {
     // Multi-line: $$ on its own line toggles block-math mode
     if (line.trim() === '$$') {
       if (inMath) {
-        const rows = mathLines.filter(l => l.trim()).map(eqRow).join('');
+        const rows = mathLines.filter((l) => l.trim()).map(eqRow).join('');
         out.push(`<div class="md-math-block">${rows}</div>`);
         mathLines.length = 0;
         inMath = false;
@@ -432,7 +484,10 @@ export function renderMarkdown(src: string): string {
       }
       continue;
     }
-    if (inMath) { mathLines.push(line); continue; }
+    if (inMath) {
+      mathLines.push(line);
+      continue;
+    }
 
     // ── Blockquote ────────────────────────────────────────────────────────────
     if (line.startsWith('> ') || line === '>') {
@@ -448,14 +503,16 @@ export function renderMarkdown(src: string): string {
     // ── Heading ───────────────────────────────────────────────────────────────
     const hm = line.match(/^(#{1,4})\s+(.+)$/);
     if (hm) {
-      flushPara(); closeAllLists();
+      flushPara();
+      closeAllLists();
       out.push(`<h${hm[1].length}>${inline(hm[2])}</h${hm[1].length}>`);
       continue;
     }
 
     // ── Horizontal rule ───────────────────────────────────────────────────────
     if (/^[-*=_]{3,}\s*$/.test(line)) {
-      flushPara(); closeAllLists();
+      flushPara();
+      closeAllLists();
       out.push('<hr>');
       continue;
     }
@@ -469,10 +526,19 @@ export function renderMarkdown(src: string): string {
       const content = listMatch[3];
       let listType: 'ul' | 'ol';
       let listTag: string;
-      if (/^[-*+]$/.test(marker))       { listType = 'ul'; listTag = '<ul>'; }
-      else if (/^\d+\.$/.test(marker))  { listType = 'ol'; listTag = '<ol>'; }
-      else if (/^[a-z]\.$/.test(marker)){ listType = 'ol'; listTag = '<ol type="a">'; }
-      else                               { listType = 'ol'; listTag = '<ol type="A">'; }
+      if (/^[-*+]$/.test(marker)) {
+        listType = 'ul';
+        listTag = '<ul>';
+      } else if (/^\d+\.$/.test(marker)) {
+        listType = 'ol';
+        listTag = '<ol>';
+      } else if (/^[a-z]\.$/.test(marker)) {
+        listType = 'ol';
+        listTag = '<ol type="a">';
+      } else {
+        listType = 'ol';
+        listTag = '<ol type="A">';
+      }
 
       // Close lists deeper than current indent
       closeListsToIndent(indent + 1);
@@ -494,7 +560,11 @@ export function renderMarkdown(src: string): string {
       const taskMatch = listType === 'ul' && content.match(/^\[([ xX])\]\s+(.*)$/);
       if (taskMatch) {
         const checked = taskMatch[1].toLowerCase() === 'x';
-        out.push(`<li class="task-item"><input type="checkbox" data-task-line="${lineIdx}"${checked ? ' checked' : ''}> ${inline(taskMatch[2])}</li>`);
+        out.push(
+          `<li class="task-item"><input type="checkbox" data-task-line="${lineIdx}"${
+            checked ? ' checked' : ''
+          }> ${inline(taskMatch[2])}</li>`,
+        );
       } else {
         out.push(`<li>${inline(content)}</li>`);
       }
@@ -517,7 +587,7 @@ export function renderMarkdown(src: string): string {
   flushBq();
   // Close unclosed block math
   if (inMath) {
-    const rows = mathLines.filter(l => l.trim()).map(eqRow).join('');
+    const rows = mathLines.filter((l) => l.trim()).map(eqRow).join('');
     out.push(`<div class="md-math-block">${rows}</div>`);
   }
   if (inPre) out.push('</code></pre>');

@@ -6,11 +6,19 @@ import { evalExpr as _evalExpr } from '../../expr.ts';
 import { formatUnit } from '../../expr.ts';
 import { type Block, GRID_SIZE } from '../../types.ts';
 import {
-  state, canvas, CANVAS_W, CANVAS_H, margins,
+  canvas,
+  CANVAS_H,
+  CANVAS_W,
+  childToSection,
   globalScope,
-  sectionSummaryVarNames, sectionSummaryComparisons,
-  childToSection, selectedEls, setMultiDragState,
-  onSelectBlock, onMoveGridCursor,
+  margins,
+  onMoveGridCursor,
+  onSelectBlock,
+  sectionSummaryComparisons,
+  sectionSummaryVarNames,
+  selectedEls,
+  setMultiDragState,
+  state,
 } from '../../state.ts';
 import { clamp } from '../../utils/units.ts';
 import { fmtNum } from '../formula.ts';
@@ -24,11 +32,15 @@ import { canCreateSection, hasPack } from '../../auth.ts';
 /** Shift all top-level (non-child) blocks — including other sections — whose
  *  top edge is at or below prevBottom by deltaY pixels.  Called whenever a
  *  section's rendered height changes so content below doesn't overlap. */
-export function shiftBlocksBelowSection(sectionEl: HTMLElement, prevBottom: number, deltaY: number) {
+export function shiftBlocksBelowSection(
+  sectionEl: HTMLElement,
+  prevBottom: number,
+  deltaY: number,
+) {
   if (!canvas || Math.abs(deltaY) < 1) return;
   for (const block of state.blocks) {
-    if (block.id === sectionEl.id) continue;     // don't move the section itself
-    if (childToSection.has(block.id)) continue;  // don't move blocks inside sections
+    if (block.id === sectionEl.id) continue; // don't move the section itself
+    if (childToSection.has(block.id)) continue; // don't move blocks inside sections
     const blockEl = canvas.domElement.querySelector<HTMLElement>(`#${block.id}`);
     if (!blockEl) continue;
     const blockTop = parseInt(blockEl.style.top || '0');
@@ -51,7 +63,7 @@ export function refreshSectionHeight(sectionEl: HTMLElement) {
 
   // Capture height before any change (forces layout if needed)
   const prevTop = parseInt(sectionEl.style.top || '0');
-  const prevH   = sectionEl.offsetHeight;
+  const prevH = sectionEl.offsetHeight;
 
   let maxBottom = 60;
   content.querySelectorAll<HTMLElement>('.block').forEach((child) => {
@@ -60,9 +72,10 @@ export function refreshSectionHeight(sectionEl: HTMLElement) {
   });
 
   const block = state.blocks.find((blk) => blk.id === sectionEl.id);
-  const headerH = (sectionEl.querySelector<HTMLElement>('.section-header')?.offsetHeight  ?? GRID_SIZE)
-                + (sectionEl.querySelector<HTMLElement>('.section-summary')?.offsetHeight  ?? GRID_SIZE)
-                + (sectionEl.querySelector<HTMLElement>('.section-resize-handle')?.offsetHeight ?? 8);
+  const headerH =
+    (sectionEl.querySelector<HTMLElement>('.section-header')?.offsetHeight ?? GRID_SIZE) +
+    (sectionEl.querySelector<HTMLElement>('.section-summary')?.offsetHeight ?? GRID_SIZE) +
+    (sectionEl.querySelector<HTMLElement>('.section-resize-handle')?.offsetHeight ?? 8);
   if (block?.h) {
     const contentCapacity = block.h - headerH - 2; // content area inside border-box height
     if (maxBottom > contentCapacity) {
@@ -79,7 +92,7 @@ export function refreshSectionHeight(sectionEl: HTMLElement) {
 
   // Reading offsetHeight after setting minHeight forces a synchronous reflow,
   // giving us the true new height in the same call stack.
-  const newH   = sectionEl.offsetHeight;
+  const newH = sectionEl.offsetHeight;
   const deltaY = newH - prevH;
   if (Math.abs(deltaY) > 1) shiftBlocksBelowSection(sectionEl, prevTop + prevH, deltaY);
 }
@@ -98,11 +111,11 @@ export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
   const summaryVars = sectionSummaryVarNames.get(sectionEl.id);
   const entries = summaryVars && summaryVars.size > 0
     ? [...summaryVars].map((k) => {
-        const v = globalScope[prefix + k] ?? globalScope[k];
-        if (!v) return null;
-        const unit = formatUnit(v.u);
-        return `${k} = ${fmtNum(v.v)}${unit ? ' ' + unit : ''}`;
-      }).filter(Boolean) as string[]
+      const v = globalScope[prefix + k] ?? globalScope[k];
+      if (!v) return null;
+      const unit = formatUnit(v.u);
+      return `${k} = ${fmtNum(v.v)}${unit ? ' ' + unit : ''}`;
+    }).filter(Boolean) as string[]
     : [];
 
   const comparisons = sectionSummaryComparisons.get(sectionEl.id) ?? [];
@@ -137,18 +150,21 @@ export function reparentToSection(childEl: HTMLElement, sectionEl: HTMLElement) 
   const content = sectionEl.querySelector<HTMLElement>('.section-content');
   if (!content) return;
   const sectionBlock = state.blocks.find((b) => b.id === sectionEl.id);
-  const childBlock   = state.blocks.find((b) => b.id === childEl.id);
+  const childBlock = state.blocks.find((b) => b.id === childEl.id);
   if (!sectionBlock || !childBlock) return;
 
   // Convert canvas-absolute coords to section-content-relative coords
   const contentRect = content.getBoundingClientRect();
-  const childRect   = childEl.getBoundingClientRect();
-  const relLeft = Math.max(0, Math.round((childRect.left - contentRect.left) / GRID_SIZE) * GRID_SIZE);
-  const relTop  = Math.max(0, Math.round((childRect.top  - contentRect.top)  / GRID_SIZE) * GRID_SIZE);
+  const childRect = childEl.getBoundingClientRect();
+  const relLeft = Math.max(
+    0,
+    Math.round((childRect.left - contentRect.left) / GRID_SIZE) * GRID_SIZE,
+  );
+  const relTop = Math.max(0, Math.round((childRect.top - contentRect.top) / GRID_SIZE) * GRID_SIZE);
 
   content.appendChild(childEl);
   childEl.style.left = `${relLeft}px`;
-  childEl.style.top  = `${relTop}px`;
+  childEl.style.top = `${relTop}px`;
   childEl.style.maxWidth = '';
 
   childBlock.x = relLeft;
@@ -167,24 +183,26 @@ export function unparentFromSection(childEl: HTMLElement, sectionEl: HTMLElement
   if (!childBlock) return;
 
   // Convert section-relative coords back to canvas-absolute
-  const contentRect  = content.getBoundingClientRect();
-  const canvasRect   = canvas.domElement.getBoundingClientRect();
+  const contentRect = content.getBoundingClientRect();
+  const canvasRect = canvas.domElement.getBoundingClientRect();
   const absLeft = clamp(
     Math.round((contentRect.left - canvasRect.left + childBlock.x) / GRID_SIZE) * GRID_SIZE,
-    margins.left, CANVAS_W - margins.right,
+    margins.left,
+    CANVAS_W - margins.right,
   );
   const absTop = clamp(
     Math.round((contentRect.top - canvasRect.top + childBlock.y) / GRID_SIZE) * GRID_SIZE,
-    margins.top, CANVAS_H,
+    margins.top,
+    CANVAS_H,
   );
 
   canvas.domElement.appendChild(childEl);
   childEl.style.left = `${absLeft}px`;
-  childEl.style.top  = `${absTop}px`;
+  childEl.style.top = `${absTop}px`;
   childEl.style.maxWidth = `${CANVAS_W - margins.right - absLeft}px`;
 
   childBlock.x = absLeft - margins.left;
-  childBlock.y = absTop  - margins.top;
+  childBlock.y = absTop - margins.top;
   delete childBlock.parentSectionId;
   childToSection.delete(childBlock.id);
 
@@ -197,11 +215,13 @@ export function sectionAtPoint(cx: number, cy: number): HTMLElement | null {
   for (const el of canvas.domElement.querySelectorAll<HTMLElement>('.section-block')) {
     const content = el.querySelector<HTMLElement>('.section-content');
     if (!content || content.classList.contains('collapsed')) continue;
-    const elLeft    = parseInt(el.style.left || '0');
-    const elTop     = parseInt(el.style.top  || '0');
+    const elLeft = parseInt(el.style.left || '0');
+    const elTop = parseInt(el.style.top || '0');
     const contentTop = elTop + content.offsetTop;
-    if (cx >= elLeft && cx <= elLeft + el.offsetWidth &&
-        cy >= contentTop && cy <= contentTop + content.offsetHeight) return el;
+    if (
+      cx >= elLeft && cx <= elLeft + el.offsetWidth &&
+      cy >= contentTop && cy <= contentTop + content.offsetHeight
+    ) return el;
   }
   return null;
 }
@@ -220,8 +240,8 @@ export function nextSectionColor(): string {
 export function nextSectionName(): string {
   const existing = new Set(
     state.blocks
-      .filter(b => b.type === 'section' && b.sectionName)
-      .map(b => b.sectionName!)
+      .filter((b) => b.type === 'section' && b.sectionName)
+      .map((b) => b.sectionName!),
   );
   let i = 1;
   while (existing.has(`section${i}`)) i++;
@@ -232,11 +252,11 @@ export function nextSectionName(): string {
 export function sanitizeSectionName(raw: string): string {
   return raw
     .trim()
-    .replace(/[\s\-]+/g, '_')          // spaces/hyphens → underscore
-    .replace(/[^A-Za-z0-9_]/g, '')     // strip remaining invalid chars
-    .replace(/__+/g, '_')              // collapse double-underscore (namespace separator)
-    .replace(/^[0-9_]+/, '')           // strip leading digits / underscores
-    .replace(/_+$/, '');               // strip trailing underscores
+    .replace(/[\s\-]+/g, '_') // spaces/hyphens → underscore
+    .replace(/[^A-Za-z0-9_]/g, '') // strip remaining invalid chars
+    .replace(/__+/g, '_') // collapse double-underscore (namespace separator)
+    .replace(/^[0-9_]+/, '') // strip leading digits / underscores
+    .replace(/_+$/, ''); // strip trailing underscores
 }
 
 // ---------------------------------------------------------------------------
@@ -249,16 +269,16 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
   if (!block.packId && !canCreateSection()) {
     el.classList.add('section-block', 'section-locked');
     el.style.cssText += 'display:flex;align-items:center;justify-content:center;' +
-                        'min-height:60px;background:#f3f4f6;border:2px dashed #cbd5e1;' +
-                        'border-radius:4px;color:#94a3b8;font-size:0.8rem;';
+      'min-height:60px;background:#f3f4f6;border:2px dashed #cbd5e1;' +
+      'border-radius:4px;color:#94a3b8;font-size:0.8rem;';
     el.textContent = '[Pro required to create sections]';
     return;
   }
   if (block.packId && !hasPack(block.packId) && !block.encrypted) {
     el.classList.add('section-block', 'section-locked');
     el.style.cssText += 'display:flex;align-items:center;justify-content:center;' +
-                        'min-height:60px;background:#fef3c7;border:2px dashed #fbbf24;' +
-                        'border-radius:4px;color:#92400e;font-size:0.8rem;';
+      'min-height:60px;background:#fef3c7;border:2px dashed #fbbf24;' +
+      'border-radius:4px;color:#92400e;font-size:0.8rem;';
     el.textContent = `[Pack "${block.packId}" not owned]`;
     return;
   }
@@ -286,16 +306,20 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     // Let the browser handle focus/caret placement naturally
   });
   title.addEventListener('blur', () => {
-    const candidate = sanitizeSectionName(title.textContent ?? '') || block.sectionName || nextSectionName();
+    const candidate = sanitizeSectionName(title.textContent ?? '') || block.sectionName ||
+      nextSectionName();
     const isDuplicate = state.blocks.some(
-      b => b.type === 'section' && b.id !== block.id && b.sectionName === candidate
+      (b) => b.type === 'section' && b.id !== block.id && b.sectionName === candidate,
     );
     if (isDuplicate) {
       // Flash the title red and revert to the current name
       title.style.color = '#ef4444';
       title.style.outline = '1px solid #ef4444';
       title.textContent = block.sectionName ?? candidate;
-      setTimeout(() => { title.style.color = ''; title.style.outline = ''; }, 1500);
+      setTimeout(() => {
+        title.style.color = '';
+        title.style.outline = '';
+      }, 1500);
     } else {
       title.textContent = candidate;
       block.sectionName = candidate;
@@ -303,7 +327,10 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     }
   });
   title.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') { ev.preventDefault(); title.blur(); }
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      title.blur();
+    }
   });
 
   header.appendChild(toggle);
@@ -339,8 +366,8 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
       el.style.minHeight = '0';
       resizeHandle.style.display = 'none';
     } else {
-      el.style.minHeight = '';   // restore CSS default (80px)
-      el.style.height    = '';   // let refreshSectionHeight auto-size from content
+      el.style.minHeight = ''; // restore CSS default (80px)
+      el.style.height = ''; // let refreshSectionHeight auto-size from content
       resizeHandle.style.display = '';
       updateSectionSummary(el, block);
     }
@@ -364,17 +391,18 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     ev.preventDefault();
     resizeHandle.setPointerCapture(ev.pointerId);
     resizeHandle.classList.add('handle-active');
-    const startY      = ev.clientY;
-    const startH      = el.offsetHeight;
+    const startY = ev.clientY;
+    const startH = el.offsetHeight;
     const startBottom = parseInt(el.style.top || '0') + startH;
     document.body.style.cursor = 'ns-resize';
     const onMove = (mv: PointerEvent) => {
       const newH = Math.max(80, startH + (mv.clientY - startY));
       block.h = newH;
       el.style.height = `${newH}px`;
-      const headerH = (el.querySelector<HTMLElement>('.section-header')?.offsetHeight ?? GRID_SIZE)
-                    + (el.querySelector<HTMLElement>('.section-summary')?.offsetHeight ?? GRID_SIZE)
-                    + (el.querySelector<HTMLElement>('.section-resize-handle')?.offsetHeight ?? 8);
+      const headerH =
+        (el.querySelector<HTMLElement>('.section-header')?.offsetHeight ?? GRID_SIZE) +
+        (el.querySelector<HTMLElement>('.section-summary')?.offsetHeight ?? GRID_SIZE) +
+        (el.querySelector<HTMLElement>('.section-resize-handle')?.offsetHeight ?? 8);
       // border-box: el.offsetHeight includes 2px borders, so content area = newH - 2 - headerH
       content.style.minHeight = `${Math.max(GRID_SIZE * 2, newH - headerH - 2)}px`;
     };

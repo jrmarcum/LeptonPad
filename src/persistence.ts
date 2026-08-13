@@ -3,17 +3,39 @@
 // ---------------------------------------------------------------------------
 
 import { type Block, type TitleBlockData } from './types.ts';
-import { hasPack, getPackKey } from './auth.ts';
+import { getPackKey, hasPack } from './auth.ts';
 import { decryptTemplate } from './crypto.ts';
 import {
-  state, canvas,
-  setTitleBlockEnabled, setPageNumberingEnabled, setFileHandle, fileHandle,
-  customModules, setCustomModules, saveCustomModules,
-  globalScope, globalFnScope, deletionStack, childToSection,
-  PAGE_H, CANVAS_H, setNumPages, setCANVAS_H, margins, titleBlockH,
-  onRefreshCustomModulesList, onAppendCustomModuleToSidebar,
+  canvas,
+  CANVAS_H,
+  childToSection,
+  customModules,
+  deletionStack,
+  fileHandle,
+  globalFnScope,
+  globalScope,
+  margins,
+  onAppendCustomModuleToSidebar,
+  onRefreshCustomModulesList,
+  PAGE_H,
+  saveCustomModules,
+  setCANVAS_H,
+  setCustomModules,
+  setFileHandle,
+  setNumPages,
+  setPageNumberingEnabled,
+  setTitleBlockEnabled,
+  state,
+  titleBlockH,
 } from './state.ts';
-import { syncPageSeparators, syncTitleBlocks, updatePageCount, moveGridCursor, clearSelection, renderBlock } from './dnd.ts';
+import {
+  clearSelection,
+  moveGridCursor,
+  renderBlock,
+  syncPageSeparators,
+  syncTitleBlocks,
+  updatePageCount,
+} from './dnd.ts';
 import { refreshSectionHeight } from './blocks/pro/section.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
 
@@ -74,7 +96,9 @@ export function showImportToolsDialog(tools: import('./types.ts').CustomModule[]
   const selectAllBtn = document.createElement('button');
   selectAllBtn.textContent = 'Select All';
   selectAllBtn.addEventListener('click', () => {
-    checkboxes.forEach(({ cb }) => { if (!cb.disabled) cb.checked = true; });
+    checkboxes.forEach(({ cb }) => {
+      if (!cb.disabled) cb.checked = true;
+    });
   });
   btnRow.appendChild(selectAllBtn);
 
@@ -87,9 +111,14 @@ export function showImportToolsDialog(tools: import('./types.ts').CustomModule[]
   importBtn.className = 'import-confirm-btn';
   importBtn.textContent = 'Import Selected';
   importBtn.addEventListener('click', () => {
-    const selected = checkboxes.filter(({ cb }) => cb.checked && !cb.disabled).map(({ mod }) => mod);
+    const selected = checkboxes.filter(({ cb }) => cb.checked && !cb.disabled).map(({ mod }) =>
+      mod
+    );
     for (const mod of selected) {
-      const newMod: import('./types.ts').CustomModule = { ...mod, id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+      const newMod: import('./types.ts').CustomModule = {
+        ...mod,
+        id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      };
       customModules.push(newMod);
       onAppendCustomModuleToSidebar?.(newMod);
     }
@@ -102,7 +131,9 @@ export function showImportToolsDialog(tools: import('./types.ts').CustomModule[]
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +162,9 @@ export async function importToolsFromFile() {
       const proj = JSON.parse(text) as Record<string, unknown>;
       const tools = proj.custom_tools as import('./types.ts').CustomModule[] | undefined;
       if (!tools || !Array.isArray(tools) || tools.length === 0) {
-        alert('No custom tools found in this project file.\n\nMake sure the file was saved after creating custom tools in it.');
+        alert(
+          'No custom tools found in this project file.\n\nMake sure the file was saved after creating custom tools in it.',
+        );
         return;
       }
       showImportToolsDialog(tools);
@@ -147,7 +180,9 @@ export async function importToolsFromFile() {
           const proj = JSON.parse(text) as Record<string, unknown>;
           const tools = proj.custom_tools as import('./types.ts').CustomModule[] | undefined;
           if (!tools || !Array.isArray(tools) || tools.length === 0) {
-            alert('No custom tools found in this project file.\n\nMake sure the file was saved after creating custom tools in it.');
+            alert(
+              'No custom tools found in this project file.\n\nMake sure the file was saved after creating custom tools in it.',
+            );
             return;
           }
           showImportToolsDialog(tools);
@@ -189,15 +224,24 @@ export function showSavePromptDialog(): Promise<'save' | 'discard' | 'cancel'> {
     const saveBtn = document.createElement('button');
     saveBtn.className = 'import-confirm-btn';
     saveBtn.textContent = 'Save';
-    saveBtn.addEventListener('click', () => { overlay.remove(); resolve('save'); });
+    saveBtn.addEventListener('click', () => {
+      overlay.remove();
+      resolve('save');
+    });
 
     const discardBtn = document.createElement('button');
     discardBtn.textContent = "Don't Save";
-    discardBtn.addEventListener('click', () => { overlay.remove(); resolve('discard'); });
+    discardBtn.addEventListener('click', () => {
+      overlay.remove();
+      resolve('discard');
+    });
 
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', () => { overlay.remove(); resolve('cancel'); });
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      resolve('cancel');
+    });
 
     btns.appendChild(saveBtn);
     btns.appendChild(discardBtn);
@@ -266,7 +310,9 @@ export async function newFromTemplate() {
         types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
       });
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') alert('Failed to open template: ' + (e as Error).message);
+      if ((e as Error).name !== 'AbortError') {
+        alert('Failed to open template: ' + (e as Error).message);
+      }
       return;
     }
     // deno-lint-ignore no-explicit-any
@@ -313,7 +359,10 @@ export function loadProject(proj: Record<string, unknown>) {
       pnCheckbox.checked = false;
       pnCheckbox.disabled = true;
       const pnLabel = pnCheckbox.parentElement as HTMLElement | null;
-      if (pnLabel) { pnLabel.style.opacity = '0.4'; pnLabel.style.pointerEvents = 'none'; }
+      if (pnLabel) {
+        pnLabel.style.opacity = '0.4';
+        pnLabel.style.pointerEvents = 'none';
+      }
     }
     setPageNumberingEnabled(false);
   } else {
@@ -324,7 +373,10 @@ export function loadProject(proj: Record<string, unknown>) {
     if (pnCheckbox) {
       pnCheckbox.disabled = false;
       const pnLabel = pnCheckbox.parentElement as HTMLElement | null;
-      if (pnLabel) { pnLabel.style.opacity = '1'; pnLabel.style.pointerEvents = ''; }
+      if (pnLabel) {
+        pnLabel.style.opacity = '1';
+        pnLabel.style.pointerEvents = '';
+      }
     }
   }
 
@@ -336,7 +388,9 @@ export function loadProject(proj: Record<string, unknown>) {
     const rawType = raw.type as string;
     if (rawType === 'title-block') {
       if (!state.titleBlock && raw.content) {
-        try { state.titleBlock = JSON.parse(raw.content as string); } catch { /* ignore */ }
+        try {
+          state.titleBlock = JSON.parse(raw.content as string);
+        } catch { /* ignore */ }
       }
       continue;
     }
@@ -347,21 +401,21 @@ export function loadProject(proj: Record<string, unknown>) {
     const block: Block = {
       id: (raw.id as string) ?? `block-${Date.now()}`,
       type,
-      subtype:         raw.subtype         as string  | undefined,
-      x:               (raw.x as number)   ?? 0,
-      y:               (raw.y as number)   ?? 0,
-      w:               raw.w               as number  | undefined,
-      content:         (raw.content as string) ?? '',
-      label:           raw.label           as string  | undefined,
-      sectionName:     raw.sectionName     as string  | undefined,
-      collapsed:       raw.collapsed       as boolean | undefined,
-      sectionColor:    raw.sectionColor    as string  | undefined,
-      parentSectionId: raw.parentSectionId as string  | undefined,
-      h:               raw.h               as number  | undefined,
-      packId:          raw.packId          as string  | undefined,
-      encrypted:       raw.encrypted       as boolean | undefined,
-      encIv:           raw.encIv           as string  | undefined,
-      encContent:      raw.encContent      as string  | undefined,
+      subtype: raw.subtype as string | undefined,
+      x: (raw.x as number) ?? 0,
+      y: (raw.y as number) ?? 0,
+      w: raw.w as number | undefined,
+      content: (raw.content as string) ?? '',
+      label: raw.label as string | undefined,
+      sectionName: raw.sectionName as string | undefined,
+      collapsed: raw.collapsed as boolean | undefined,
+      sectionColor: raw.sectionColor as string | undefined,
+      parentSectionId: raw.parentSectionId as string | undefined,
+      h: raw.h as number | undefined,
+      packId: raw.packId as string | undefined,
+      encrypted: raw.encrypted as boolean | undefined,
+      encIv: raw.encIv as string | undefined,
+      encContent: raw.encContent as string | undefined,
     };
 
     // Decrypt purchased template section blocks if the user owns the pack
@@ -405,7 +459,7 @@ export function loadProject(proj: Record<string, unknown>) {
     if (!childEl) continue;
     content.appendChild(childEl);
     childEl.style.left = `${block.x}px`;
-    childEl.style.top  = `${block.y}px`;
+    childEl.style.top = `${block.y}px`;
     childEl.style.maxWidth = '';
     childToSection.set(block.id, block.parentSectionId);
     refreshSectionHeight(sectionEl!);
@@ -428,20 +482,20 @@ export function loadProject(proj: Record<string, unknown>) {
 export function serializeProject(): string {
   const blocks = state.blocks.map((b) => {
     const out: Record<string, unknown> = { id: b.id, type: b.type, x: b.x, y: b.y };
-    if (b.subtype)         out.subtype         = b.subtype;
-    if (b.label)           out.label           = b.label;
-    if (b.w)               out.w               = b.w;
-    if (b.sectionName)     out.sectionName     = b.sectionName;
-    if (b.collapsed)       out.collapsed       = b.collapsed;
-    if (b.sectionColor)    out.sectionColor    = b.sectionColor;
+    if (b.subtype) out.subtype = b.subtype;
+    if (b.label) out.label = b.label;
+    if (b.w) out.w = b.w;
+    if (b.sectionName) out.sectionName = b.sectionName;
+    if (b.collapsed) out.collapsed = b.collapsed;
+    if (b.sectionColor) out.sectionColor = b.sectionColor;
     if (b.parentSectionId) out.parentSectionId = b.parentSectionId;
-    if (b.h)               out.h               = b.h;
+    if (b.h) out.h = b.h;
 
     if (b.packId && b.encIv && b.encContent) {
       // Purchased template block — always save the ciphertext, NEVER the plaintext
-      out.packId     = b.packId;
-      out.encrypted  = true;
-      out.encIv      = b.encIv;
+      out.packId = b.packId;
+      out.encrypted = true;
+      out.encIv = b.encIv;
       out.encContent = b.encContent;
       // content intentionally omitted
     } else {
@@ -466,15 +520,17 @@ export function serializeProject(): string {
 
 export async function saveProject(saveAs = false) {
   // deno-lint-ignore no-explicit-any
-  const hasPicker = typeof (window as any).showSaveFilePicker === 'function';
+  const hasPicker = typeof (globalThis as any).showSaveFilePicker === 'function';
   if (hasPicker) {
     try {
       if (!fileHandle || saveAs) {
-        // deno-lint-ignore no-explicit-any
-        setFileHandle(await (window as any).showSaveFilePicker({
-          suggestedName: state.projectName.replace(/[^\w-]/g, '_') + '.json',
-          types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
-        }));
+        setFileHandle(
+          // deno-lint-ignore no-explicit-any
+          await (globalThis as any).showSaveFilePicker({
+            suggestedName: state.projectName.replace(/[^\w-]/g, '_') + '.json',
+            types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
+          }),
+        );
       }
       const writable = await fileHandle.createWritable();
       await writable.write(serializeProject());

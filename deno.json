@@ -1,18 +1,21 @@
 {
-  "version": "2.1.4",
+  "version": "2.2.0",
   "nodeModulesDir": "none",
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
   },
   "imports": {
     "solver": "./src/solver.ts",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+    "@clerk/clerk-js/headless": "npm:@clerk/clerk-js@^5/headless"
   },
   "tasks": {
     "build:wasm": "deno run -A jsr:@jrmarcum/wasmtk modc solver/solver.ts -n dist/solver.wasm",
     "sync:version": "deno run -A scripts/sync-version.ts",
     "build": "deno task sync:version && deno task build:wasm && deno run -A build.ts",
     "dev": "deno task sync:version && deno task build:wasm && deno run -A dev.ts",
+    "api:dev": "deno run --allow-net --allow-env --env-file=.env.api --watch api/main.ts",
+    "db:check": "deno run --allow-net --allow-env --env-file=.env.api db/check.ts",
+    "promote": "deno run --allow-net --allow-env --env-file=.env.api db/promote.ts",
     "check": "deno fmt && deno lint",
     "serve": "deno run -A serve.ts",
     "serve:prod": "deno run --allow-net --allow-read main.ts",

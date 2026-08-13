@@ -2,27 +2,47 @@
 // DnD — selection, deletion, cursor, page management, block placement, drop
 // ---------------------------------------------------------------------------
 
-import { type Block, type TitleBlockData, GRID_SIZE } from './types.ts';
+import { type Block, GRID_SIZE, type TitleBlockData } from './types.ts';
 import {
-  state, canvas,
-  CANVAS_W, CANVAS_H, PAGE_H, margins, titleBlockEnabled, numPages,
-  selectedEl, setSelectedEl, selectedEls,
-  deletionStack, childToSection,
+  canvas,
+  CANVAS_H,
+  CANVAS_W,
+  childToSection,
   customModules,
-  setNumPages, setCANVAS_H, titleBlockH,
+  deletionStack,
   gridCursor,
+  margins,
+  numPages,
+  PAGE_H,
+  selectedEl,
+  selectedEls,
+  setCANVAS_H,
+  setNumPages,
+  setSelectedEl,
+  state,
+  titleBlockEnabled,
+  titleBlockH,
 } from './state.ts';
 import { clamp } from './utils/units.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
-import { unparentFromSection, reparentToSection, sectionAtPoint, nextSectionName } from './blocks/pro/section.ts';
+import {
+  nextSectionName,
+  reparentToSection,
+  sectionAtPoint,
+  unparentFromSection,
+} from './blocks/pro/section.ts';
 import { nextFigureNum } from './blocks/figure.ts';
 
 // ---------------------------------------------------------------------------
 // Cursor visibility
 // ---------------------------------------------------------------------------
 
-export function showCursor() { document.getElementById('grid-cursor')!.style.zIndex = '9999'; }
-export function hideCursor() { document.getElementById('grid-cursor')!.style.zIndex = '-1'; }
+export function showCursor() {
+  document.getElementById('grid-cursor')!.style.zIndex = '9999';
+}
+export function hideCursor() {
+  document.getElementById('grid-cursor')!.style.zIndex = '-1';
+}
 
 // ---------------------------------------------------------------------------
 // Selection
@@ -121,16 +141,27 @@ export function shiftBlocksVertical(thresholdY: number, delta: number) {
 export function syncTitleBlocks() {
   canvas.domElement.querySelectorAll('.title-block-overlay').forEach((e) => e.remove());
   if (!titleBlockEnabled) return;
-  if (!state.titleBlock) state.titleBlock = { project: '', by: '', sheetNo: '', subject: '', subject2: '', subject3: '', date: '', jobNo: '' };
+  if (!state.titleBlock) {
+    state.titleBlock = {
+      project: '',
+      by: '',
+      sheetNo: '',
+      subject: '',
+      subject2: '',
+      subject3: '',
+      date: '',
+      jobNo: '',
+    };
+  }
   const w = CANVAS_W - margins.left - margins.right;
   for (let i = 0; i < numPages; i++) {
     const el = document.createElement('div');
     el.className = 'block title-block title-block-overlay';
-    el.style.left     = `${margins.left}px`;
-    el.style.top      = `${i * PAGE_H + margins.top}px`;
-    el.style.width    = `${w}px`;
+    el.style.left = `${margins.left}px`;
+    el.style.top = `${i * PAGE_H + margins.top}px`;
+    el.style.width = `${w}px`;
     el.style.maxWidth = '';
-    el.style.zIndex   = '2';
+    el.style.zIndex = '2';
     buildTitleBlockOverlay(el, i);
     canvas.domElement.appendChild(el);
   }
@@ -138,7 +169,9 @@ export function syncTitleBlocks() {
 
 // Rebuild page-separator bars and per-page margin guides to match numPages.
 export function syncPageSeparators() {
-  canvas.domElement.querySelectorAll('.page-sep, .page-guide, .page-num').forEach((e) => e.remove());
+  canvas.domElement.querySelectorAll('.page-sep, .page-guide, .page-num').forEach((e) =>
+    e.remove()
+  );
   const isGridOn = document.getElementById('margin-guide')!.classList.contains('engineering-grid');
   for (let i = 1; i < numPages; i++) {
     // Per-page margin guide
@@ -162,7 +195,7 @@ export function syncPageSeparators() {
       const pn = document.createElement('div');
       pn.className = 'page-num';
       pn.textContent = `Page ${i} of ${numPages}`;
-      pn.style.top   = `${i * PAGE_H - margins.bottom}px`;
+      pn.style.top = `${i * PAGE_H - margins.bottom}px`;
       pn.style.right = `${margins.right}px`;
       canvas.domElement.appendChild(pn);
     }
@@ -200,7 +233,17 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
   el.style.cursor = 'default';
   el.style.zIndex = '2';
 
-  const data = state.titleBlock ?? { project: '', by: '', sheetNo: '', subject: '', subject2: '', subject3: '', date: '', jobNo: '' };
+  const data = state.titleBlock ??
+    {
+      project: '',
+      by: '',
+      sheetNo: '',
+      subject: '',
+      subject2: '',
+      subject3: '',
+      date: '',
+      jobNo: '',
+    };
   if (!state.titleBlock) state.titleBlock = data;
 
   function save() {
@@ -237,7 +280,12 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
       (data as unknown as Record<string, string>)[key] = td.textContent ?? '';
       save();
     });
-    td.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); td.blur(); } });
+    td.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        td.blur();
+      }
+    });
     return td;
   }
 
@@ -247,8 +295,10 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
 
   const logoImg = document.createElement('img');
   logoImg.className = 'tb-logo-img';
-  if (data.logo) { logoImg.src = data.logo; logoImg.style.display = ''; }
-  else logoImg.style.display = 'none';
+  if (data.logo) {
+    logoImg.src = data.logo;
+    logoImg.style.display = '';
+  } else logoImg.style.display = 'none';
 
   const logoPh = document.createElement('div');
   logoPh.className = 'tb-logo-ph';
@@ -269,9 +319,12 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
       data.logo = url;
       canvas.domElement.querySelectorAll<HTMLElement>('.title-block-overlay').forEach((o) => {
         const img = o.querySelector<HTMLImageElement>('.tb-logo-img');
-        const ph  = o.querySelector<HTMLElement>('.tb-logo-ph');
-        if (img) { img.src = url; img.style.display = ''; }
-        if (ph)  { ph.style.display = 'none'; }
+        const ph = o.querySelector<HTMLElement>('.tb-logo-ph');
+        if (img) {
+          img.src = url;
+          img.style.display = '';
+        }
+        if (ph) ph.style.display = 'none';
       });
     };
     reader.readAsDataURL(file);
@@ -280,14 +333,21 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
   logoTd.appendChild(logoImg);
   logoTd.appendChild(logoPh);
   logoTd.appendChild(fileInput);
-  logoTd.addEventListener('click', (ev) => { ev.stopPropagation(); fileInput.click(); });
+  logoTd.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    fileInput.click();
+  });
   logoTd.addEventListener('mousedown', (ev) => ev.stopPropagation());
 
-  const lbProject = makeLabel('Project');  lbProject.style.width  = '68px';
-  const lbBy       = makeLabel('By');      lbBy.style.width       = '68px';
-  const lbSheetNo  = makeLabel('Sheet No.'); lbSheetNo.style.width = '68px';
+  const lbProject = makeLabel('Project');
+  lbProject.style.width = '68px';
+  const lbBy = makeLabel('By');
+  lbBy.style.width = '68px';
+  const lbSheetNo = makeLabel('Sheet No.');
+  lbSheetNo.style.width = '68px';
   const ROW_H = '28px';
-  const row1 = document.createElement('tr'); row1.style.height = ROW_H;
+  const row1 = document.createElement('tr');
+  row1.style.height = ROW_H;
   row1.appendChild(logoTd);
   row1.appendChild(lbProject);
   row1.appendChild(makeValue('project', 'tb-wide'));
@@ -298,14 +358,16 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
   const sheetNoTd = document.createElement('td');
   sheetNoTd.className = 'tb-value tb-narrow tb-sheet-num';
   sheetNoTd.textContent = `${pageIdx + 1} of ${numPages}`;
-  const row2 = document.createElement('tr'); row2.style.height = ROW_H;
+  const row2 = document.createElement('tr');
+  row2.style.height = ROW_H;
   row2.appendChild(makeLabel('Subject'));
   row2.appendChild(makeValue('subject', 'tb-wide'));
   row2.appendChild(makeValue('by'));
   row2.appendChild(sheetNoTd);
   table.appendChild(row2);
 
-  const row3 = document.createElement('tr'); row3.style.height = ROW_H;
+  const row3 = document.createElement('tr');
+  row3.style.height = ROW_H;
   const blank3 = document.createElement('td');
   blank3.className = 'tb-blank';
   row3.appendChild(blank3);
@@ -314,7 +376,8 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
   row3.appendChild(makeLabel('Job No.'));
   table.appendChild(row3);
 
-  const row4 = document.createElement('tr'); row4.style.height = ROW_H;
+  const row4 = document.createElement('tr');
+  row4.style.height = ROW_H;
   const blank4 = document.createElement('td');
   blank4.className = 'tb-blank';
   row4.appendChild(blank4);
@@ -334,7 +397,7 @@ export function placeBlock(el: HTMLElement, newLeft: number, newTop: number) {
   const b = state.blocks.find((blk) => blk.id === el.id);
   if (b?.type === 'section') {
     el.style.left = `${margins.left}px`;
-    el.style.top  = `${newTop}px`;
+    el.style.top = `${newTop}px`;
     el.style.width = `${CANVAS_W - margins.left - margins.right}px`;
     el.style.maxWidth = '';
     b.x = 0;
@@ -344,35 +407,40 @@ export function placeBlock(el: HTMLElement, newLeft: number, newTop: number) {
   el.style.left = `${newLeft}px`;
   el.style.top = `${newTop}px`;
   el.style.maxWidth = `${CANVAS_W - margins.right - newLeft}px`;
-  if (b) { b.x = newLeft - margins.left; b.y = newTop - margins.top; }
+  if (b) {
+    b.x = newLeft - margins.left;
+    b.y = newTop - margins.top;
+  }
 }
 
 export function blocksOverlap(a: HTMLElement, b: HTMLElement): boolean {
   const aL = parseInt(a.style.left), aT = parseInt(a.style.top);
-  const aR = aL + a.offsetWidth,    aB = aT + a.offsetHeight;
+  const aR = aL + a.offsetWidth, aB = aT + a.offsetHeight;
   const bL = parseInt(b.style.left), bT = parseInt(b.style.top);
-  const bR = bL + b.offsetWidth,    bB = bT + b.offsetHeight;
+  const bR = bL + b.offsetWidth, bB = bT + b.offsetHeight;
   return aR > bL && aL < bR && aB > bT && aT < bB;
 }
 
 // When moving a block right, cascade-push any block it collides with.
 export function resolveOverlapsRight(movedEl: HTMLElement) {
-  if (movedEl.classList.contains('title-block') || movedEl.classList.contains('section-block')) return;
+  if (movedEl.classList.contains('title-block') || movedEl.classList.contains('section-block')) {
+    return;
+  }
 
-  const movedLeft   = parseInt(movedEl.style.left);
-  const movedTop    = parseInt(movedEl.style.top);
+  const movedLeft = parseInt(movedEl.style.left);
+  const movedTop = parseInt(movedEl.style.top);
   const movedBottom = movedTop + movedEl.offsetHeight;
 
   const wrapY = margins.top + Math.ceil((movedBottom - margins.top) / GRID_SIZE) * GRID_SIZE;
 
   function inRegion(el: HTMLElement): boolean {
-    if (el.classList.contains('title-block'))  return false;
+    if (el.classList.contains('title-block')) return false;
     if (el.classList.contains('section-block')) return false;
-    if (childToSection.has(el.id))             return false;
+    if (childToSection.has(el.id)) return false;
     const elLeft = parseInt(el.style.left);
-    const elTop  = parseInt(el.style.top);
+    const elTop = parseInt(el.style.top);
     if (elLeft < movedLeft) return false;
-    if (elTop < movedTop)   return false;
+    if (elTop < movedTop) return false;
     if (elTop >= movedBottom) return false;
     return true;
   }
@@ -391,15 +459,15 @@ export function resolveOverlapsRight(movedEl: HTMLElement) {
         const a = els[i], b = els[j];
         if (!blocksOverlap(a, b)) continue;
 
-        const aRight  = parseInt(a.style.left) + a.offsetWidth;
-        const needed  = margins.left + Math.round((aRight - margins.left) / GRID_SIZE) * GRID_SIZE;
+        const aRight = parseInt(a.style.left) + a.offsetWidth;
+        const needed = margins.left + Math.round((aRight - margins.left) / GRID_SIZE) * GRID_SIZE;
         const maxLeft = CANVAS_W - margins.right - b.offsetWidth;
 
         if (needed > maxLeft) {
           const bH = b.offsetHeight;
           for (const other of canvas.domElement.querySelectorAll<HTMLElement>('.block')) {
             if (other === movedEl || other === b) continue;
-            if (other.classList.contains('title-block'))  continue;
+            if (other.classList.contains('title-block')) continue;
             if (childToSection.has(other.id)) continue;
             const otherTop = parseInt(other.style.top);
             if (otherTop >= wrapY) {
@@ -422,8 +490,10 @@ export function blockAtCursor(canvasX: number, canvasY: number): HTMLElement | n
   for (const el of canvas.domElement.querySelectorAll<HTMLElement>('.block:not(.section-block)')) {
     const left = parseInt(el.style.left);
     const top = parseInt(el.style.top);
-    if (canvasX >= left && canvasX <= left + el.offsetWidth &&
-        canvasY >= top  && canvasY <= top  + el.offsetHeight) {
+    if (
+      canvasX >= left && canvasX <= left + el.offsetWidth &&
+      canvasY >= top && canvasY <= top + el.offsetHeight
+    ) {
       return el;
     }
   }
@@ -436,14 +506,14 @@ export function moveGridCursor(canvasX: number, canvasY: number) {
   const snappedX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
   gridCursor.x = clamp(snappedX, margins.left, CANVAS_W - margins.right);
 
-  const gridOrigin  = (pi: number) => pi * PAGE_H + margins.top;
-  const pageEffTop  = (pi: number) => pi * PAGE_H + margins.top + tbH;
-  const pageEffBot  = (pi: number) => pi * PAGE_H + PAGE_H - margins.bottom;
-  const firstGridY  = (pi: number) => {
+  const gridOrigin = (pi: number) => pi * PAGE_H + margins.top;
+  const pageEffTop = (pi: number) => pi * PAGE_H + margins.top + tbH;
+  const pageEffBot = (pi: number) => pi * PAGE_H + PAGE_H - margins.bottom;
+  const firstGridY = (pi: number) => {
     const go = gridOrigin(pi);
     return go + Math.ceil((pageEffTop(pi) - go) / GRID_SIZE) * GRID_SIZE;
   };
-  const lastGridY   = (pi: number) => {
+  const lastGridY = (pi: number) => {
     const go = gridOrigin(pi);
     return go + Math.floor((pageEffBot(pi) - go) / GRID_SIZE) * GRID_SIZE;
   };
@@ -512,7 +582,9 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
       const el = document.getElementById(block.id);
       if (el) {
         if (targetSection) reparentToSection(el, targetSection);
-        selectedEls.add(el); el.classList.add('selected'); setSelectedEl(el);
+        selectedEls.add(el);
+        el.classList.add('selected');
+        setSelectedEl(el);
       }
     }
     reEvalAllFormulas();
@@ -526,15 +598,22 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
     subtype,
     x: canvasX - margins.left,
     y: canvasY - margins.top,
-    content: customMod ? customMod.content
-           : type === 'formula' ? 'x = '
-           : type === 'summary' ? 'x = '
-           : '',
-    label: customMod ? customMod.label
-           : type === 'formula' ? 'Formula'
-           : type === 'summary' ? 'Summary'
-           : type === 'figure'  ? `Fig ${nextFigureNum()}`
-           : undefined,
+    content: customMod
+      ? customMod.content
+      : type === 'formula'
+      ? 'x = '
+      : type === 'summary'
+      ? 'x = '
+      : '',
+    label: customMod
+      ? customMod.label
+      : type === 'formula'
+      ? 'Formula'
+      : type === 'summary'
+      ? 'Summary'
+      : type === 'figure'
+      ? `Fig ${nextFigureNum()}`
+      : undefined,
     w: type === 'figure' ? 240 : undefined,
     h: type === 'figure' ? 200 : undefined,
     sectionName: type === 'section' ? nextSectionName() : undefined,

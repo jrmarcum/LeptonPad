@@ -1,4 +1,4 @@
 {
-    "deno.enable": true,
-    "json.validate.enable": false,
+  "deno.enable": true,
+  "json.validate.enable": false
 }
