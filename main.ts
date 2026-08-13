@@ -21,8 +21,11 @@
 // ---------------------------------------------------------------------------
 import { serveDir } from 'jsr:@std/http@1/file-server';
 import { handleApiRequest } from './api/main.ts';
+import { renderConfigJs } from './scripts/write-config.ts';
 
 const API_PREFIX = '/api';
+
+const { version } = JSON.parse(await Deno.readTextFile('deno.json')) as { version: string };
 
 Deno.serve((req) => {
   const { pathname } = new URL(req.url);
@@ -32,6 +35,23 @@ Deno.serve((req) => {
     // and stays identical to the standalone `deno task api:dev` surface.
     const path = pathname.slice(API_PREFIX.length) || '/';
     return handleApiRequest(req, path);
+  }
+
+  // Served fresh from the environment rather than from the built file.
+  //
+  // CLERK_PUBLISHABLE_KEY was previously baked in at build time, which meant a
+  // key added after the build silently stayed empty — the site looked deployed
+  // while sign-in was dead. Reading it per request makes the value a deploy
+  // setting rather than a build artefact: change it, restart, done.
+  if (pathname === '/config.js') {
+    return new Response(renderConfigJs(version), {
+      headers: {
+        'content-type': 'text/javascript; charset=utf-8',
+        // The service worker still precaches this; versioned cache names handle
+        // busting. no-store only stops an intermediary pinning a stale key.
+        'cache-control': 'no-store',
+      },
+    });
   }
 
   return serveDir(req, { fsRoot: 'dist', quiet: true });
