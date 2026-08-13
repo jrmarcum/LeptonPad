@@ -121,9 +121,35 @@ there with a misleading error.**
 raw `curl` with the extracted key returns `clerk_key_invalid` and looks like a bad key. Strip the
 quotes and the `\r` from CRLF.
 
-**Longer term this should become a Clerk _production_ instance** (`pk_live_`/`sk_live_`). That needs a
-domain whose DNS you control — `*.deno.net` will not work, so it waits on a custom domain. Until
-then the development instance carries Clerk's dev limits.
+### ⛔ The allowlist was NOT enough — a dev instance cannot serve the deployed site
+
+Adding the origin did not fix sign-in. Probing Clerk's Frontend API directly returns the real reason,
+which the app's "Password is incorrect." never revealed:
+
+```json
+{
+  "code": "dev_browser_unauthenticated",
+  "message": "Unable to authenticate this browser for your development instance."
+}
+```
+
+Development instances authenticate the browser through a **dev-browser handshake** against
+`*.clerk.accounts.dev`. That works on localhost and does not survive on a deployed domain. Clerk's own
+docs put it plainly: development instances have "a more relaxed security posture and are **not
+suitable for production workloads**", and are capped at **100 users** with no data transfer between
+instances.
+
+**So live sign-in is blocked until there is a Clerk _production_ instance**, which requires all of:
+
+| Requirement          | Detail                                                |
+| -------------------- | ----------------------------------------------------- |
+| A domain you control | `*.deno.net` cannot work — DNS records are needed     |
+| CNAME records        | FAPI hosted at `clerk.<yourdomain>`                   |
+| Production keys      | `pk_live_` / `sk_live_` replacing the `pk_test_` pair |
+| Own SSO credentials  | Clerk's shared dev OAuth credentials are dev-only     |
+
+Until then: **auth works locally, and the deployed site serves everything except sign-in.** The rest of
+the app — canvas, math engine, plots, save/load — is unaffected, because the backend is only a gate.
 
 ## Sign-up flow — Clerk uses a code, not a link
 

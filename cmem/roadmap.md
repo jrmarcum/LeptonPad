@@ -1,6 +1,6 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.1.4 (2026-08-13)
+## Where the project stands — v2.2.2 (2026-08-13)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
 960-line unit-aware math engine, a 22-category unit catalog, SVG plotting with unit-propagating
@@ -10,7 +10,8 @@ offline operation, Clerk auth with four roles, one-time license codes, and AES-2
 purchasable template packs.
 
 ~11k lines across `src/` (9.1k TS + 1.9k CSS), `api/`, `db/`, `solver/`, and the build scripts.
-`dist/main.js` is **403 KB**.
+`dist/main.js` is **409 KB**. Live at https://leptonpad.jrmarcum.deno.net — one Deno Deploy project
+serving both the site and the API at `/api`.
 
 **Backend migrated 2026-08-13** — off Supabase, onto Clerk + Neon + Deno Deploy, with the Supabase
 code deleted the same day. Driver was cost: the free tier paused after a week of inactivity, and the
@@ -28,9 +29,11 @@ deliberately small.
 
 ## Open items
 
-**1. Deploy `api/main.ts` to Deno Deploy** and point production `LP_API_URL` at it. Local development
-is fully working; production is not up. Set `DATABASE_URL`, `CLERK_JWT_KEY` (or `CLERK_SECRET_KEY`),
-and `ALLOWED_ORIGINS` in the dashboard. — [`build-and-deploy.md`](build-and-deploy.md)
+**1. A custom domain + Clerk production instance — the one thing blocking live sign-in.**
+The deployed site runs fine and the API is healthy, but Clerk is a DEVELOPMENT instance and its
+dev-browser handshake does not work on a deployed domain. A production instance needs CNAME records
+on a domain you control, which `*.deno.net` cannot provide. Everything else — canvas, math, plots,
+save/load — already works live, because the backend is only a gate. — [`auth-and-licensing.md`](auth-and-licensing.md)
 
 **2. Decide how third-party notices reach someone who only receives the deployed site.**
 `THIRD_PARTY_NOTICES.md` is complete and correct but is not copied into `dist/`; `@clerk/clerk-js` is
