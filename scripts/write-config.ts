@@ -37,8 +37,13 @@ export async function writeConfigJs(version: string, outPath = 'dist/config.js')
     // Clerk — identity. Publishable key is safe to expose by design.
     clerkPublishableKey: pick('CLERK_PUBLISHABLE_KEY', ''),
 
-    // The LeptonPad API on Deno Deploy — entitlement calls, no trailing slash.
-    apiBaseUrl: pick('LP_API_URL', 'http://localhost:8000'),
+    // Where the entitlement API lives, no trailing slash.
+    //
+    // Defaults to the RELATIVE "/api", which is where main.ts mounts it in
+    // production — same origin, so no CORS and no env var needed there. Local
+    // dev overrides it in .env to http://localhost:8000, because `deno task dev`
+    // serves the site on :5173 and the API runs separately.
+    apiBaseUrl: pick('LP_API_URL', '/api'),
 
     version,
   };

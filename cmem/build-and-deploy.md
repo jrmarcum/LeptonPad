@@ -99,12 +99,46 @@ git push origin refs/tags/2.2.0 refs/heads/2.2.0
 A tag and branch sharing a name makes git warn `refname is ambiguous` — that matches the existing
 convention, so disambiguate with `refs/tags/X.Y.Z` when it matters.
 
-## The two deployables
+## ONE Deno Deploy project serves both the site and the API
 
-| What                      | Where           | Env it reads                                                                                     |
-| ------------------------- | --------------- | ------------------------------------------------------------------------------------------------ |
-| The browser app (`dist/`) | **Deno Deploy** | `CLERK_PUBLISHABLE_KEY`, `LP_API_URL` — public values, baked into `dist/config.js` at build time |
-| The API (`api/main.ts`)   | **Deno Deploy** | `DATABASE_URL`, `CLERK_JWT_KEY` or `CLERK_SECRET_KEY`, `ALLOWED_ORIGINS` — **secrets**           |
+Production is `https://leptonpad.jrmarcum.deno.net`. The root `main.ts` routes:
+
+```
+/api/*  →  handleApiRequest()  from api/main.ts
+/*      →  serveDir over dist/
+```
+
+**Same origin on purpose.** The browser calls `/api/me`, so there is no CORS preflight, no
+`ALLOWED_ORIGINS` to keep in sync with the site's URL, and one place holding the secrets.
+`write-config.ts` defaults `apiBaseUrl` to the relative `"/api"`, so **production needs no
+`LP_API_URL` at all** — verified by running the generator with no `.env` and no env vars present.
+
+`api/main.ts` still runs standalone under `import.meta.main` for `deno task api:dev` on :8000, and
+its routes are identical because `handleApiRequest` takes the path with any mount prefix already
+stripped. `ALLOWED_ORIGINS` therefore only matters for local dev, where the site (:5173) and the API
+(:8000) are genuinely cross-origin.
+
+⚠️ **A missing API secret must not take the site down.** `api/main.ts` reports configuration problems
+from `configErrors()` instead of throwing at import — throwing would kill the static server too, when
+the right outcome is a working site whose API returns a clear 500. `GET /api/health` reports those
+errors rather than a bare 200, because a healthy answer from a service that cannot reach its database
+is a useless health check.
+
+### Environment (Deno Deploy dashboard)
+
+| Variable                                | Why                                                                                                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLERK_PUBLISHABLE_KEY`                 | Baked into `dist/config.js` at build time. **Without it Clerk never initialises and sign-in is dead** — the symptom is `clerkPublishableKey: ""` in the served config. |
+| `DATABASE_URL`                          | Neon connection string, used by the mounted API.                                                                                                                       |
+| `CLERK_JWT_KEY` _or_ `CLERK_SECRET_KEY` | JWT verification — PEM public key is networkless; the secret key falls back to a JWKS fetch.                                                                           |
+
+**Deno Deploy runs the build itself.** `dist/config.js` is the one file in `dist/` that is _not_
+committed, and the live site serves a generated one — so these variables are read at deploy time, and
+nothing has to be committed to change them.
+
+⚠️ Stale `SUPABASE_*` variables may still sit in the dashboard. Nothing reads them any more
+(`write-config.ts` consumes only the two public values above), so they cannot cause a failure — but
+delete them: if that Supabase project still exists, the key still authenticates against it.
 
 `main.ts` at the repo root exists for the Deno Deploy static path (`serveDir` over `dist/`) and is
 unrelated to `api/main.ts`.
@@ -126,8 +160,8 @@ CORS with no useful error in the app.
 4. `deno task build`.
 5. Confirm `dist/sw.js` contains the new `leptonpad-vX.Y.Z`. **If it did not change, stop** — the
    deploy will be invisible to returning users.
-6. Confirm `dist/config.js` has the **production** `apiBaseUrl`, not `http://localhost:8000`. It is
-   generated from `.env`, so a dev value ships straight through — `dist/` is tracked and committed.
+6. `dist/config.js` needs no check — Deno Deploy regenerates it, and with no `.env` present it
+   defaults `apiBaseUrl` to the relative `/api`.
 7. Commit, then push `main`.
 8. **Tag it** — `git tag -a X.Y.Z`, matching branch, push both. Without this the deploy keeps serving
    the previous release no matter what is on `main`.

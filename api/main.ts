@@ -39,24 +39,36 @@ const ALLOWED_ORIGINS = new Set(
     .filter(Boolean),
 );
 
-if (!DATABASE_URL) throw new Error('DATABASE_URL is not set.');
-if (!CLERK_JWT_KEY && !CLERK_SECRET_KEY) {
-  throw new Error('Set CLERK_JWT_KEY (preferred) or CLERK_SECRET_KEY.');
+/**
+ * Configuration problems, as a list. Empty means good to serve.
+ *
+ * Returned rather than thrown at import time because this module is also
+ * MOUNTED inside the static server (see main.ts). Throwing here would take the
+ * whole site down over a missing API secret, when the right outcome is a working
+ * site whose API returns a clear 500.
+ */
+function configErrors(): string[] {
+  const errs: string[] = [];
+  if (!DATABASE_URL) errs.push('DATABASE_URL is not set.');
+  if (!CLERK_JWT_KEY && !CLERK_SECRET_KEY) {
+    errs.push('Set CLERK_JWT_KEY (preferred) or CLERK_SECRET_KEY.');
+  }
+  // The easy mistake: pasting a pk_/sk_ token where the PEM *public* key belongs.
+  // Left unchecked the service answers every request with 401 forever — a silent
+  // outage that reads as a client bug. Hit for real on 2026-08-13.
+  if (CLERK_JWT_KEY && !CLERK_JWT_KEY.includes('BEGIN PUBLIC KEY')) {
+    errs.push(
+      'CLERK_JWT_KEY must be the PEM public key (-----BEGIN PUBLIC KEY-----), not a ' +
+        `pk_/sk_ token. Got something starting "${CLERK_JWT_KEY.slice(0, 8)}". ` +
+        'Leave it empty to verify via CLERK_SECRET_KEY instead.',
+    );
+  }
+  return errs;
 }
 
-// Fail loudly on the easy mistake: pasting a pk_/sk_ key into CLERK_JWT_KEY,
-// which wants the PEM *public* key. Without this the service starts happily and
-// then rejects every single request as unauthenticated — a silent outage that
-// looks like a client bug. Verified as a real footgun on 2026-08-13.
-if (CLERK_JWT_KEY && !CLERK_JWT_KEY.includes('BEGIN PUBLIC KEY')) {
-  throw new Error(
-    'CLERK_JWT_KEY must be the PEM public key (-----BEGIN PUBLIC KEY-----), not a ' +
-      `pk_/sk_ token. Got something starting "${CLERK_JWT_KEY.slice(0, 8)}". ` +
-      'Leave it empty to verify via CLERK_SECRET_KEY instead.',
-  );
-}
-
-const sql = neon(DATABASE_URL);
+/** Lazily built so a missing DATABASE_URL cannot break module load. */
+let _sql: ReturnType<typeof neon> | null = null;
+const db = () => (_sql ??= neon(DATABASE_URL));
 
 // ---------------------------------------------------------------------------
 // CORS — exact-origin allowlist. A wildcard here would let any site spend a
@@ -110,33 +122,50 @@ async function userIdFrom(req: Request): Promise<string | null> {
 // Routes
 // ---------------------------------------------------------------------------
 
-Deno.serve(async (req) => {
+/**
+ * Handles one API request. `path` is the route WITHOUT any mount prefix, so the
+ * same code serves `/me` standalone and `/api/me` when mounted in main.ts.
+ */
+export async function handleApiRequest(req: Request, path: string): Promise<Response> {
   const origin = req.headers.get('Origin');
-  const { pathname, searchParams } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
 
-  // Unauthenticated liveness probe.
-  if (pathname === '/health') {
-    return json({ ok: true }, 200, origin);
+  // Unauthenticated liveness probe. Reports misconfiguration, because a 200 from
+  // a service that cannot reach its database would be a useless health check.
+  if (path === '/health') {
+    const errs = configErrors();
+    return errs.length === 0
+      ? json({ ok: true }, 200, origin)
+      : json({ ok: false, errors: errs }, 500, origin);
+  }
+
+  const errs = configErrors();
+  if (errs.length > 0) {
+    console.error('[api] misconfigured:', errs.join(' '));
+    return fail('API is not configured.', 500, origin);
   }
 
   const userId = await userIdFrom(req);
   if (!userId) return fail('Not signed in.', 401, origin);
 
   try {
-    if (req.method === 'GET' && pathname === '/me') {
-      const rows = await sql`select get_my_role(${userId}) as data`;
+    if (req.method === 'GET' && path === '/me') {
+      const rows = await db()`select get_my_role(${userId}) as data` as Record<string, unknown>[];
       return json(rows[0].data, 200, origin);
     }
 
-    if (req.method === 'GET' && pathname === '/pack-key') {
+    if (req.method === 'GET' && path === '/pack-key') {
       const packId = searchParams.get('pack_id');
       if (!packId) return fail('Missing pack_id.', 400, origin);
 
-      const rows = await sql`select get_pack_key(${userId}, ${packId}) as key`;
+      const rows = await db()`select get_pack_key(${userId}, ${packId}) as key` as Record<
+        string,
+        unknown
+      >[];
       const key = rows[0].key as string | null;
 
       // 403 rather than 200-with-null so the client can distinguish "you don't
@@ -145,19 +174,30 @@ Deno.serve(async (req) => {
       return json({ key }, 200, origin);
     }
 
-    if (req.method === 'POST' && pathname === '/redeem') {
+    if (req.method === 'POST' && path === '/redeem') {
       const body = await req.json().catch(() => null) as { code?: string } | null;
       const code = (body?.code ?? '').trim().toUpperCase();
       if (!code) return fail('Please enter a code.', 400, origin);
 
-      const rows = await sql`select redeem_license_code(${userId}, ${code}) as data`;
+      const rows = await db()`select redeem_license_code(${userId}, ${code}) as data` as Record<
+        string,
+        unknown
+      >[];
       return json(rows[0].data, 200, origin);
     }
 
     return fail('Not found.', 404, origin);
   } catch (e) {
     // Never surface a database error verbatim — it can leak schema detail.
-    console.error('[api]', pathname, e);
+    console.error('[api]', path, e);
     return fail('Server error.', 500, origin);
   }
-});
+}
+
+// Standalone mode — `deno task api:dev` on :8000. In production the routes are
+// mounted under /api by main.ts instead, so there is one origin and no CORS.
+if (import.meta.main) {
+  const errs = configErrors();
+  if (errs.length > 0) console.error('[api] misconfigured:\n  ' + errs.join('\n  '));
+  Deno.serve((req) => handleApiRequest(req, new URL(req.url).pathname));
+}
