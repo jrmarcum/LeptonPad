@@ -68,7 +68,7 @@ effective fees approaching 9% with add-ons, which erodes the reason to pay an Mo
 ⚠️ **Paddle vets sellers before approving an account**, and wants a reviewable product. That is a
 lead time measured in days, not minutes — apply well before launch day rather than on it.
 
-Whichever wins, the integration is the same shape and small:
+The integration is small:
 
 1. Hosted checkout — **card data never touches LeptonPad**, so PCI scope stays at SAQ-A.
 2. One webhook: verify the signature, then either grant the pack or mint a code.
