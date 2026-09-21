@@ -94,6 +94,12 @@ browser is still serving the old JS** and any "it's not fixed" report is about s
 backslashes and corrupt script and file content silently. Use the Write/Edit tools, or write a script
 file and run it. Details and alternatives: [`conventions.md`](conventions.md) § Agent tooling.
 
+### LF line endings (binding on every agent)
+
+**LF is the standard — in git and in the working tree. Never CRLF.** `.gitattributes` enforces it
+regardless of `core.autocrlf`; write every new file with LF and never convert one to CRLF.
+[`conventions.md`](conventions.md) § Agent tooling.
+
 ### The "look for code issues" trigger (binding on every agent)
 
 When Jon says **"look for code issues"** (or "code audit", "audit the code", "hunt for bugs"),
@@ -128,7 +134,7 @@ exactly what you changed, what you could not verify, and what Jon needs to click
 | [security-model.md](security-model.md)         | The encryption invariant (ciphertext only, never plaintext, in project JSON), per-user key derivation, RLS posture, and the **explicitly accepted** weaknesses: client-side role gating and cached pack keys in `localStorage`.                                                                                                                                                |
 | [build-and-deploy.md](build-and-deploy.md)     | The `deno task` graph, the version-sync chain, service-worker cache busting, the dev server's SSE auto-shutdown, and the `dist/config.js`-is-generated gotcha.                                                                                                                                                                                                                 |
 | [design-decisions.md](design-decisions.md)     | Why each non-obvious choice was made — TS-not-WASM for math, compound expansion and its display side effect, mutable module state, plot sweep-variable unit propagation, fixed `TITLE_BLOCK_H`, `globalThis` over `window`.                                                                                                                                                    |
-| [conventions.md](conventions.md)               | The coding rules that were paid for: no shell heredocs (Windows mangles backslashes), `.block:hover` not `.formula-block:hover`, `transformUnit()` not `transformPiece()` for unit ids, `globalThis` not `window`, delete unused imports, never remove `Cache-Control: no-store`.                                                                                                                                               |
+| [conventions.md](conventions.md)               | The coding rules that were paid for: no shell heredocs (Windows mangles backslashes), LF line endings only, `.block:hover` not `.formula-block:hover`, `transformUnit()` not `transformPiece()` for unit ids, `globalThis` not `window`, delete unused imports, never remove `Cache-Control: no-store`.                                                                                                                                               |
 | [known-issues.md](known-issues.md)             | Live defects and traps: `public/config.js` is patched but never shipped (and holds real credentials), version drift, `CLAUDE.md` untracked, the `mathwasm-` localStorage key that cannot be renamed, Windows-only browser launch.                                                                                                                                              |
 | [testing.md](testing.md)                       | The honest state: there is no automated test suite. What `deno task check` actually covers, what Jon verifies by hand in the browser, and the manual regression checklist for the risky subsystems.                                                                                                                                                                            |
 | [licensing.md](licensing.md)                   | LeptonPad is proprietary, all rights reserved. What that means for dependency choice, and the two MIT components (`@std/*`, `@jrmarcum/wasmtk`) reproduced in `THIRD_PARTY_NOTICES.md`.                                                                                                                                                                                        |

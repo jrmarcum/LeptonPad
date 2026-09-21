@@ -35,6 +35,13 @@ Instead: create or change files with the Write/Edit tools; put any throwaway scr
 single-quoted PowerShell here-string. Paid for 2026-09-21 — three edit scripts in one session reported
 0 matches or threw on content that plainly existed, and one command hung for two minutes.
 
+**LF line endings, never CRLF — in git and on disk.** `.gitattributes` (`* text=auto eol=lf`)
+enforces it per-repo, overriding the machine-wide `core.autocrlf=true` that Git for Windows sets in
+its system gitconfig (that setting is what printed "LF will be replaced by CRLF" on every commit).
+Write new files with LF; do not "fix" a file by converting it to CRLF; when adding a new binary type
+(image, font, wasm), add a `binary` line to `.gitattributes` so it is never line-ending converted.
+`deno fmt` also emits LF. Set 2026-09-21, when three working-tree files had been checked out as CRLF.
+
 ## CSS
 
 **Always write `.block:hover .handle`, never `.formula-block:hover .handle`.** Every block element

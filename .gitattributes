@@ -1,0 +1,13 @@
+# LF is the line-ending standard for this repo — in the index AND in the working tree,
+# regardless of a machine's core.autocrlf setting. See cmem/conventions.md § Agent tooling.
+* text=auto eol=lf
+
+# Binary — never touch line endings
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
