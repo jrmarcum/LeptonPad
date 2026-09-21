@@ -242,6 +242,7 @@ type TT =
   | 'LPAREN'
   | 'RPAREN'
   | 'COMMA'
+  | 'UNIT'
   | 'EQ'
   | 'NEQ'
   | 'LT'
@@ -254,7 +255,16 @@ interface Tok {
   v: string;
 }
 
+/**
+ * Remove the display-only Greek marker: `\phiM_n` evaluates as `phiM_n`. The backslash
+ * only tells the renderer where the Greek name ends (see transformPiece in markdown.ts).
+ */
+export function stripGreekMarks(src: string): string {
+  return src.replace(/\\(?=[A-Za-z])/g, '');
+}
+
 function lex(src: string): Tok[] {
+  src = stripGreekMarks(src);
   const out: Tok[] = [];
   let i = 0;
   while (i < src.length) {
@@ -282,6 +292,20 @@ function lex(src: string): Tok[] {
       let s = '';
       while (i < src.length && /\w/.test(src[i])) s += src[i++];
       out.push({ t: 'ID', v: s });
+      continue;
+    }
+
+    // Inline unit tag: 0.0625 [in] — [[target]] is only valid at the end of a statement
+    if (ch === '[') {
+      if (src[i + 1] === '[') {
+        throw new Error('[[unit]] conversion must be at the end of the statement');
+      }
+      const close = src.indexOf(']', i);
+      if (close < 0) throw new Error("Missing ']' in unit tag");
+      const body = src.slice(i + 1, close).trim();
+      if (!body) throw new Error('Empty unit tag []');
+      out.push({ t: 'UNIT', v: body });
+      i = close + 1;
       continue;
     }
 
@@ -452,7 +476,8 @@ const CMP_OPS: TT[] = ['EQ', 'NEQ', 'LT', 'GT', 'LEQ', 'GEQ'];
 // Grammar (highest precedence last):
 //   compare → arithmetic (CMP_OP arithmetic)?   ← returns 0 or 1 (dimensionless)
 //   arithmetic → addend  (('+' | '-') addend)*
-//   addend  → power      (('*' | '/') power)*
+//   addend  → tagged     (('*' | '/') tagged)*
+//   tagged  → power      (UNIT ('^' power)?)?    ← [unit] declares the unit, no conversion
 //   power   → unary      ('^' power)?            ← right-associative
 //   unary   → '-' unary  | atom
 //   atom    → NUM | '(' compare ')' | ID '(' arglist ')' | ID
@@ -521,13 +546,30 @@ class Parser {
   }
 
   addend(): Quantity {
-    let q = this.power();
+    let q = this.tagged();
     while (this.peek().t === 'STAR' || this.peek().t === 'SLASH') {
       const op = this.eat().t;
-      const r = this.power();
+      const r = this.tagged();
       q = op === 'STAR' ? { v: q.v * r.v, u: mulU(q.u, r.u) } : { v: q.v / r.v, u: divU(q.u, r.u) };
     }
     return q;
+  }
+
+  // Kept above power() so `x^2 [in^2]` tags x^2, not the exponent.
+  tagged(): Quantity {
+    const q = this.power();
+    if (this.peek().t !== 'UNIT') return q;
+    const t: Quantity = { v: q.v, u: parseUnitExpr(this.eat().v) };
+    // `3 [in]^2` — allow a power on the tagged quantity
+    if (this.peek().t === 'CARET') {
+      this.eat();
+      const exp = this.power();
+      if (Object.keys(exp.u).length > 0) {
+        throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
+      }
+      return { v: Math.pow(t.v, exp.v), u: powU(t.u, exp.v) };
+    }
+    return t;
   }
 
   power(): Quantity {
@@ -737,17 +779,19 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
 
     // Strip [[targetUnit]] first — double-bracket means "convert result to this unit"
     let targetUnit: UnitMap | undefined;
-    let stmt = s;
-    const targetMatch = s.match(/\[\[([^\]]+)\]\]\s*$/);
+    let stmt = stripGreekMarks(s); // raw (s) keeps the marker for display
+    const targetMatch = stmt.match(/\[\[([^\]]+)\]\]\s*$/);
     if (targetMatch) {
       targetUnit = parseUnitExpr(targetMatch[1]);
-      stmt = s.slice(0, targetMatch.index!).trim();
+      stmt = stmt.slice(0, targetMatch.index!).trim();
     }
 
-    // Strip optional [unit] tag — single-bracket declares/overrides unit, no conversion
+    // Strip optional [unit] tag — single-bracket declares/overrides unit, no conversion.
+    // Only when it is the sole tag: with inline tags (`a + 1 [in] + 2 [in]`) every tag,
+    // including the last, binds to its own term and is left for the parser.
     let tagUnit: UnitMap | undefined;
     const unitMatch = stmt.match(/\[([^\]]+)\]\s*$/);
-    if (unitMatch) {
+    if (unitMatch && !stmt.slice(0, unitMatch.index!).includes('[')) {
       tagUnit = parseUnitExpr(unitMatch[1]);
       stmt = stmt.slice(0, unitMatch.index!).trim();
     }
@@ -915,7 +959,7 @@ function parseForHeader(
   scope: Scope,
   fnScope: FnScope,
 ): { varName: string; startVal: number; endVal: number; stepVal: number } {
-  let mainPart = header.trim();
+  let mainPart = stripGreekMarks(header.trim());
   let stepExpr: string | undefined;
 
   // Optional "step" suffix — split from the right

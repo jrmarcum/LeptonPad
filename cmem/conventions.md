@@ -24,6 +24,17 @@ rather than an error.
 **Formatting is enforced, not suggested.** Single quotes, semicolons, 2-space indent, 100 columns.
 Run `deno task check` before saying anything is done.
 
+## Agent tooling (Windows shell)
+
+**Never use heredocs (`<<'EOF'`) — not to write files, not to feed scripts to `python`/`node`/`deno`,
+not for commit messages.** On this machine (Windows, Git Bash) heredoc bodies arrive mangled:
+backslashes are silently dropped, so regex-heavy content like `\[`, `\b`, or `\\` never matches what
+was intended. A bare `cat > file` with no heredoc also waits on stdin and hangs until timeout.
+Instead: create or change files with the Write/Edit tools; put any throwaway script in a real file
+(Write it to the scratchpad) and run that file; pass commit messages with `git commit -F <file>` or a
+single-quoted PowerShell here-string. Paid for 2026-09-21 — three edit scripts in one session reported
+0 matches or threw on content that plainly existed, and one command hung for two minutes.
+
 ## CSS
 
 **Always write `.block:hover .handle`, never `.formula-block:hover .handle`.** Every block element

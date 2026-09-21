@@ -3,46 +3,58 @@
 // All functions are pure (string in → string out), no state access — TS-only.
 // ---------------------------------------------------------------------------
 
+// A Greek name also matches as a camelCase prefix: phiM_n → φM<sub>n</sub>, but not phase.
 const GREEK_TABLE: [RegExp, string][] = [
-  [/\bepsilon\b/g, 'ε'],
-  [/\bEpsilon\b/g, 'ε'],
-  [/\blambda\b/g, 'λ'],
-  [/\bLambda\b/g, 'Λ'],
-  [/\balpha\b/g, 'α'],
-  [/\bAlpha\b/g, 'α'],
-  [/\btheta\b/g, 'θ'],
-  [/\bTheta\b/g, 'Θ'],
-  [/\bdelta\b/g, 'δ'],
-  [/\bDelta\b/g, 'Δ'],
-  [/\bgamma\b/g, 'γ'],
-  [/\bGamma\b/g, 'Γ'],
-  [/\bomega\b/g, 'ω'],
-  [/\bOmega\b/g, 'Ω'],
-  [/\bsigma\b/g, 'σ'],
-  [/\bSigma\b/g, 'Σ'],
-  [/\bbeta\b/g, 'β'],
-  [/\bBeta\b/g, 'Β'],
-  [/\bphi\b/g, 'φ'],
-  [/\bPhi\b/g, 'Φ'],
-  [/\bpsi\b/g, 'ψ'],
-  [/\bPsi\b/g, 'Ψ'],
-  [/\bchi\b/g, 'χ'],
-  [/\bChi\b/g, 'Χ'],
-  [/\bxi\b/g, 'ξ'],
-  [/\bXi\b/g, 'Ξ'],
-  [/\beta\b/g, 'η'],
-  [/\bEta\b/g, 'Η'],
-  [/\bmu\b/g, 'μ'],
-  [/\bMu\b/g, 'Μ'],
-  [/\bnu\b/g, 'ν'],
-  [/\bNu\b/g, 'Ν'],
-  [/\brho\b/g, 'ρ'],
-  [/\bRho\b/g, 'Ρ'],
-  [/\btau\b/g, 'τ'],
-  [/\bTau\b/g, 'Τ'],
-  [/\bpi\b/g, 'π'],
-  [/\bPi\b/g, 'Π'],
+  [/\bepsilon(?![a-z0-9_])/g, 'ε'],
+  [/\bEpsilon(?![a-z0-9_])/g, 'ε'],
+  [/\blambda(?![a-z0-9_])/g, 'λ'],
+  [/\bLambda(?![a-z0-9_])/g, 'Λ'],
+  [/\balpha(?![a-z0-9_])/g, 'α'],
+  [/\bAlpha(?![a-z0-9_])/g, 'α'],
+  [/\btheta(?![a-z0-9_])/g, 'θ'],
+  [/\bTheta(?![a-z0-9_])/g, 'Θ'],
+  [/\bdelta(?![a-z0-9_])/g, 'δ'],
+  [/\bDelta(?![a-z0-9_])/g, 'Δ'],
+  [/\bgamma(?![a-z0-9_])/g, 'γ'],
+  [/\bGamma(?![a-z0-9_])/g, 'Γ'],
+  [/\bomega(?![a-z0-9_])/g, 'ω'],
+  [/\bOmega(?![a-z0-9_])/g, 'Ω'],
+  [/\bsigma(?![a-z0-9_])/g, 'σ'],
+  [/\bSigma(?![a-z0-9_])/g, 'Σ'],
+  [/\bbeta(?![a-z0-9_])/g, 'β'],
+  [/\bBeta(?![a-z0-9_])/g, 'Β'],
+  [/\bphi(?![a-z0-9_])/g, 'φ'],
+  [/\bPhi(?![a-z0-9_])/g, 'Φ'],
+  [/\bpsi(?![a-z0-9_])/g, 'ψ'],
+  [/\bPsi(?![a-z0-9_])/g, 'Ψ'],
+  [/\bchi(?![a-z0-9_])/g, 'χ'],
+  [/\bChi(?![a-z0-9_])/g, 'Χ'],
+  [/\bxi(?![a-z0-9_])/g, 'ξ'],
+  [/\bXi(?![a-z0-9_])/g, 'Ξ'],
+  [/\beta(?![a-z0-9_])/g, 'η'],
+  [/\bEta(?![a-z0-9_])/g, 'Η'],
+  [/\bmu(?![a-z0-9_])/g, 'μ'],
+  [/\bMu(?![a-z0-9_])/g, 'Μ'],
+  [/\bnu(?![a-z0-9_])/g, 'ν'],
+  [/\bNu(?![a-z0-9_])/g, 'Ν'],
+  [/\brho(?![a-z0-9_])/g, 'ρ'],
+  [/\bRho(?![a-z0-9_])/g, 'Ρ'],
+  [/\btau(?![a-z0-9_])/g, 'τ'],
+  [/\bTau(?![a-z0-9_])/g, 'Τ'],
+  [/\bpi(?![a-z0-9_])/g, 'π'],
+  [/\bPi(?![a-z0-9_])/g, 'Π'],
 ];
+
+// Greek name → symbol, recovered from the table sources (`\bphi(?!…)` → `phi`).
+const GREEK_SYM = new Map(
+  GREEK_TABLE.map(([re, sym]) => [re.source.slice(2).replace(/\(.*$/, ''), sym]),
+);
+// `\name` — longest names first so \epsilon never matches as \eps…, \beta never as \eta.
+const GREEK_MARK_RE = new RegExp(
+  '\\\\(' + [...GREEK_SYM.keys()].sort((a, b) => b.length - a.length).join('|') + ')',
+  'g',
+);
+const GREEK_SUB_RE = /(?<![A-Za-z0-9_Ͱ-Ͽ])([A-Za-zͰ-Ͽ][A-Za-z0-9Ͱ-Ͽ]*)((?:_[A-Za-z0-9Ͱ-Ͽ]+)+)/g;
 
 /** Reject javascript: URLs to prevent XSS. */
 function sanitizeUrl(url: string): string {
@@ -54,8 +66,8 @@ function sanitizeUrl(url: string): string {
 export function topLevelIdx(s: string, ch: string): number {
   let depth = 0;
   for (let i = 0; i <= s.length - ch.length; i++) {
-    if (s[i] === '(') depth++;
-    else if (s[i] === ')') depth--;
+    if (s[i] === '(' || s[i] === '[') depth++;
+    else if (s[i] === ')' || s[i] === ']') depth--;
     else if (depth === 0 && s.slice(i, i + ch.length) === ch) return i;
   }
   return -1;
@@ -83,8 +95,8 @@ export function stripOuter(s: string): string {
 function findAssignmentIdx(s: string): number {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(') depth++;
-    else if (s[i] === ')') depth--;
+    if (s[i] === '(' || s[i] === '[') depth++;
+    else if (s[i] === ')' || s[i] === ']') depth--;
     else if (depth === 0 && s[i] === '=') {
       if (i > 0 && /[<>!=]/.test(s[i - 1])) continue;
       if (i + 1 < s.length && s[i + 1] === '=') continue;
@@ -109,12 +121,24 @@ export function transformUnit(raw: string): string {
 
 /** Apply Greek/superscript/subscript/sqrt/× transforms to a raw text piece. */
 export function transformPiece(raw: string): string {
+  // Inline [unit] tags render as units — never Greek-substituted (psi stays psi).
+  if (raw.includes('[')) {
+    return raw.split(/(\[[^\]]+\])/).map((part) =>
+      /^\[[^\]]+\]$/.test(part)
+        ? `<span class="fp-unit">${transformUnit(part.slice(1, -1))}</span>`
+        : transformPiece(part)
+    ).join(' ').replace(/\s+/g, ' ').trim();
+  }
   let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   s = s.replace(/\bsqrt\s*\(/g, '√(');
+  // Explicit Greek marker: \phiM_n, \phin, \phi2, M_\phi — converts the name right after
+  // the backslash whatever follows it. The evaluator ignores the backslash (stripGreekMarks).
+  s = s.replace(GREEK_MARK_RE, (_m, name) => GREEK_SYM.get(name)!);
   // Subscripted identifiers first (before Greek) so full base name is captured.
   // Multiple underscores become comma-separated subscripts:
   //   delta_1 → δ<sub>1</sub>,  delta_1_2 → δ<sub>1,2</sub>
-  s = s.replace(/\b([A-Za-z][A-Za-z0-9]*)((?:_[A-Za-z0-9]+)+)\b/g, (_m, base, subs) => {
+  // Bases and subscripts may contain Greek letters produced by the marker pass above.
+  s = s.replace(GREEK_SUB_RE, (_m, base, subs) => {
     let baseHtml = base;
     for (const [re, sym] of GREEK_TABLE) baseHtml = baseHtml.replace(re, sym);
     const subParts = subs.split('_').filter(Boolean).join(',');
@@ -144,8 +168,8 @@ export function renderExpr(raw: string): string {
   const addSplits: number[] = [];
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(') depth++;
-    else if (s[i] === ')') depth--;
+    if (s[i] === '(' || s[i] === '[') depth++;
+    else if (s[i] === ')' || s[i] === ']') depth--;
     else if (depth === 0 && i > 0 && (s[i] === '+' || s[i] === '-')) addSplits.push(i);
   }
 
@@ -194,8 +218,8 @@ export function renderExpr(raw: string): string {
   const mulSplits: number[] = [];
   depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(') depth++;
-    else if (s[i] === ')') depth--;
+    if (s[i] === '(' || s[i] === '[') depth++;
+    else if (s[i] === ')' || s[i] === ']') depth--;
     else if (depth === 0 && s[i] === '*') mulSplits.push(i);
   }
 
@@ -237,7 +261,9 @@ export function prettifyExpr(src: string): string {
   }
 
   let unitHtml = '';
-  const unitMatch = afterTarget.match(/\[([^\]]+)\]\s*$/);
+  // Same rule as evalStatements: a trailing [unit] is peeled off only when it is the sole tag.
+  let unitMatch = afterTarget.match(/\[([^\]]+)\]\s*$/);
+  if (unitMatch && afterTarget.slice(0, unitMatch.index!).includes('[')) unitMatch = null;
   const body = unitMatch ? afterTarget.slice(0, unitMatch.index!).trim() : afterTarget;
   if (unitMatch) {
     unitHtml = ` <span class="fp-unit">${transformUnit(unitMatch[1])}</span>`;
