@@ -118,12 +118,34 @@ to test: pure functions in, `Quantity` out, no DOM.
 
 ---
 
-## 11. Built-in constants silently shadow user variables named `pi`, `e`, `tau` — OPEN
+## 11. Built-in constants silently shadowed user variables named `pi`, `e`, `tau` — FIXED 2.3.0
 
-Found 2026-09-21. `Parser.atom()` checks `CONST[name]` **before** `this.scope[name]`, so after
-`e = 0.5 [in]` (an eccentricity) every later `e` still evaluates to 2.718… with no error — a
-silent wrong number, the worst failure mode. Offered to Jon as either "error on assignment" or "user
-definition wins"; not yet decided. The readme tells users to avoid the three names meanwhile.
+Found 2026-09-21. `Parser.atom()` checked `CONST[name]` **before** `this.scope[name]`, so after
+`e = 0.5 [in]` (an eccentricity) every later `e` still evaluated to 2.718… with no error — a silent
+wrong number, the worst failure mode. `\tau` for shear stress was shadowed the same way.
+
+Fixed 2026-09-22 — Jon chose an **explicit constant marker** (declined: "your definition wins"):
+
+- `\e` is Euler's number and the **only** spelling of it; plain `e` is an ordinary variable.
+- `\pi` is π; plain `pi` **also** stays π (too many `pi*d^2/4` sheets to break), and assigning to
+  `pi`, `\pi` or `\e` is an explicit error.
+- `tau` is no longer a constant (2π = `2*\pi`).
+
+Mechanics: `stripGreekMarks` keeps the backslash on a _standalone_ `\e`/`\pi`; `lex()` emits it as an
+`ID` token with the backslash, looked up in `MARKED_CONST` — no user name can contain `\`, so no
+collision is possible. **Breaking by design:** sheets that used plain `e` as 2.718… now show
+`Undefined: e` (an error, never a wrong number) until changed to `\e`.
+
+---
+
+## 11a. Unary minus bound tighter than `^` — FIXED 2.3.0 (changes existing results)
+
+Found 2026-09-22 while testing `integral(\e^(-x^2), …)`, which returned 7.3×10¹⁴ instead of √π. The
+grammar was `power → unary ('^' power)?`, `unary → '-' unary | atom`, so `-x^2` parsed as `(-x)^2` —
+**a silent sign error on every `-a^n` with even n** (`-2^2` gave 4). Now `tagged` takes a leading
+minus outside the power and its unit tag, and `power → atom ('^' unary)?` (so `2^-1` still works):
+`-x^2` = −(x²), `-3 [in]^2` = −9 in². Matches Mathcad/MATLAB/Python; Excel is the outlier. **Sheets
+that relied on the old reading now evaluate differently** — correctly.
 
 ---
 

@@ -3,11 +3,13 @@ import { UNIT_LOOKUP } from './utils/unit-defs.ts';
 // Recursive-descent expression evaluator with dimensional analysis.
 // Supports: + - * / ^ () identifiers function-calls numbers (incl. sci notation)
 // Comparison: = == != <> < > <= >=  (return 1 or 0)
-// Built-in constants : pi  e  tau
+// Built-in constants : \e (Euler)  \pi  pi   — plain e and tau are ordinary variables
 // Built-in functions (1-arg): sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh
-//                              sqrt cbrt abs exp expm1 log log2 log10 log1p
+//                              sqrt cbrt abs exp expm1 log ln log2 log10 log1p
 //                              floor ceil round trunc sign degrees radians not
-// Built-in functions (2-arg): min max atan2 mod hypot pow and or xor
+//                              (log = ln = natural log; log10 for base 10)
+// Built-in functions (2-arg): min max atan2 mod hypot pow and or xor log(x, base)
+// Big operators (4-arg)      : sum(expr, i, a, b)  prod(expr, i, a, b)  integral(expr, x, a, b)
 // Built-in functions (3-arg): if(cond, then, else)
 //                              clamp(x, min, max)
 // Statistical/combinatorial  : factorial(n)  gamma(n)  lgamma(n)  erf(x)  erfc(x)
@@ -256,11 +258,17 @@ interface Tok {
 }
 
 /**
- * Remove the display-only Greek marker: `\phiM_n` evaluates as `phiM_n`. The backslash
- * only tells the renderer where the Greek name ends (see transformPiece in markdown.ts).
+ * Reduce display-only LaTeX marks to a plain variable name:
+ *   `\phiM_n` → `phiM_n`, `\ell_b` → `ell_b`, `\bar{x}` → `xbar`, `\bar{\sigma}_c` → `sigmabar_c`.
+ * The marks only tell the renderer what to draw (see transformPiece in markdown.ts). `\bar{}` is
+ * rewritten first, while its braces still delimit the name — the lexer rejects `{` anywhere else.
+ * Exception: a standalone `\e` or `\pi` is a constant, not a mark — its backslash is kept for the
+ * lexer (MARKED_CONST). `\pi_1`, `\piR`, `\e2` are names and are stripped as usual.
  */
 export function stripGreekMarks(src: string): string {
-  return src.replace(/\\(?=[A-Za-z])/g, '');
+  return src
+    .replace(/\\bar\{\s*\\?([A-Za-z][A-Za-z0-9]*)\s*\}/g, '$1bar')
+    .replace(/\\(?=[A-Za-z])(?!(?:e|pi)(?![A-Za-z0-9_]))/g, '');
 }
 
 /**
@@ -294,6 +302,15 @@ function lex(src: string): Tok[] {
         while (i < src.length && /\d/.test(src[i])) s += src[i++];
       }
       out.push({ t: 'NUM', v: s });
+      continue;
+    }
+
+    // Marked constant: \e, \pi — kept as an ID *with* its backslash (see MARKED_CONST)
+    if (ch === '\\') {
+      const m = src.slice(i).match(/^\\(e|pi)(?![A-Za-z0-9_])/);
+      if (!m) throw new Error(`Unknown character: '\\'`);
+      out.push({ t: 'ID', v: m[0] });
+      i += m[0].length;
       continue;
     }
 
@@ -444,7 +461,8 @@ const MATH_FN: Record<string, (x: number) => number> = {
   // Exponential / logarithmic
   exp: Math.exp,
   expm1: Math.expm1,
-  log: Math.log,
+  log: Math.log, // natural log — NOT base 10 (use log10); kept for existing sheets
+  ln: Math.log, // explicit natural log, so a sheet can say what it means
   log2: Math.log2,
   log10: Math.log10,
   log1p: Math.log1p,
@@ -476,9 +494,121 @@ const PRESERVE_FN: Record<string, (x: number) => number> = {
   trunc: Math.trunc,
 };
 
-const CONST: Record<string, number> = { pi: Math.PI, e: Math.E, tau: 2 * Math.PI };
+// Constants (2026-09-22, v2.3.0). Structural sheets use `e` (eccentricity) and `\tau` (shear stress)
+// as variables, and constants used to shadow them silently — `e = 0.5 [in]` was ignored and every
+// later `e` was 2.718…. So:
+//   \e   Euler's number — the ONLY spelling of it. Plain `e` is an ordinary variable.
+//   \pi  π. Plain `pi` also stays π (countless `A = pi*d^2/4` sheets); assigning to it is an error.
+//   tau  no longer a constant (2π is 2*\pi) — frees `\tau` for shear stress.
+// Marked constants are lexed as ID tokens that keep their backslash, so no user name (letters,
+// digits, `_`) can ever collide with them.
+const MARKED_CONST: Record<string, number> = { '\\e': Math.E, '\\pi': Math.PI };
+const PLAIN_CONST: Record<string, number> = { pi: Math.PI };
 
 const CMP_OPS: TT[] = ['EQ', 'NEQ', 'LT', 'GT', 'LEQ', 'GEQ'];
+
+// ---------------------------------------------------------------------------
+// Big operators — sum(expr, i, a, b) · prod(expr, i, a, b) · integral(expr, x, a, b)
+// ---------------------------------------------------------------------------
+// `at(q)` evaluates the captured expression with the bound variable set to q (see Parser.bigOp).
+
+const BIG_OPS = new Set(['sum', 'prod', 'integral']);
+const MAX_TERMS = 100_000; // sum/prod term cap — evaluation runs on every keystroke
+const MAX_INTEGRAND_EVALS = 200_000;
+
+/** Σ / Π over whole-number i = a … b. Empty range → 0 (sum) or 1 (prod). Terms add under the same
+ *  strict unit rule as `+`; products multiply units. */
+function sumOrProd(
+  name: string,
+  at: (q: Quantity) => Quantity,
+  lo: Quantity,
+  hi: Quantity,
+): Quantity {
+  if (Object.keys(lo.u).length > 0 || Object.keys(hi.u).length > 0) {
+    throw new Error(`${name}(): index limits must be unitless`);
+  }
+  const a = Math.round(lo.v), b = Math.round(hi.v);
+  if (Math.abs(lo.v - a) > 1e-9 || Math.abs(hi.v - b) > 1e-9) {
+    throw new Error(`${name}(): index limits must be whole numbers (got ${lo.v} … ${hi.v})`);
+  }
+  if (b - a + 1 > MAX_TERMS) throw new Error(`${name}(): more than ${MAX_TERMS} terms`);
+  const isSum = name === 'sum';
+  let acc: Quantity | null = null;
+  for (let i = a; i <= b; i++) {
+    const t = at({ v: i, u: {} });
+    acc = acc === null
+      ? t
+      : isSum
+      ? { v: acc.v + t.v, u: addU(acc.u, t.u) }
+      : { v: acc.v * t.v, u: mulU(acc.u, t.u) };
+  }
+  return acc ?? { v: isSum ? 0 : 1, u: {} };
+}
+
+/**
+ * ∫ₐᵇ f dx by adaptive Simpson's rule (relative tolerance ~1e-10, at least 4 subdivision levels so a
+ * curve that happens to vanish at the first sample points is not read as zero). The variable carries
+ * the bounds' unit and the result is unit(f)·unit(x) — kip/ft over ft gives kip. A unitless sample
+ * (e.g. an `if(…, 0, w)` branch) is accepted beside a united one, matching `+`.
+ */
+function integrate(at: (q: Quantity) => Quantity, lo: Quantity, hi: Quantity): Quantity {
+  const xu = addU(lo.u, hi.u); // bounds must share a unit (or one may be a bare 0)
+  let fu: UnitMap = {};
+  let evals = 0;
+  const f = (x: number): number => {
+    if (++evals > MAX_INTEGRAND_EVALS) {
+      throw new Error('integral(): did not converge — is the integrand discontinuous or singular?');
+    }
+    const q = at({ v: x, u: xu });
+    if (!isFinite(q.v)) throw new Error(`integral(): integrand is not finite at ${x}`);
+    if (Object.keys(q.u).length > 0) {
+      if (Object.keys(fu).length === 0) fu = q.u;
+      else if (!eqU(fu, q.u)) {
+        throw new Error(
+          `integral(): integrand unit changes (${formatUnit(fu)} ≠ ${formatUnit(q.u)})`,
+        );
+      }
+    }
+    return q.v;
+  };
+
+  const a = lo.v, b = hi.v;
+  if (a === b) {
+    f(a); // still resolve the integrand's unit
+    return { v: 0, u: mulU(fu, xu) };
+  }
+  const simpson = (x0: number, x1: number, f0: number, fm: number, f1: number) =>
+    (x1 - x0) / 6 * (f0 + 4 * fm + f1);
+  const rec = (
+    x0: number,
+    x1: number,
+    f0: number,
+    fm: number,
+    f1: number,
+    whole: number,
+    eps: number,
+    depth: number,
+  ): number => {
+    const m = (x0 + x1) / 2;
+    const flm = f((x0 + m) / 2), frm = f((m + x1) / 2);
+    const left = simpson(x0, m, f0, flm, fm), right = simpson(m, x1, fm, frm, f1);
+    const delta = left + right - whole;
+    if (depth >= 4 && (Math.abs(delta) <= 15 * eps || depth >= 50)) {
+      return left + right + delta / 15;
+    }
+    return rec(x0, m, f0, flm, fm, left, eps / 2, depth + 1) +
+      rec(m, x1, fm, frm, f1, right, eps / 2, depth + 1);
+  };
+  const fa = f(a), fb = f(b), fm = f((a + b) / 2);
+  const whole = simpson(a, b, fa, fm, fb);
+  // Tolerance scale from a spread of samples, not just the ends and middle — sin(x) over 0…2π is 0 at
+  // all three, which made the target tolerance ~0 and the recursion never settle.
+  let peak = Math.max(Math.abs(fa), Math.abs(fm), Math.abs(fb));
+  for (let k = 1; k < 16; k++) peak = Math.max(peak, Math.abs(f(a + (b - a) * k / 16)));
+  const scale = Math.max(peak, 1e-300) * Math.abs(b - a);
+  const v = rec(a, b, fa, fm, fb, whole, 1e-10 * scale, 0);
+  return { v, u: mulU(fu, xu) };
+}
 
 // ---------------------------------------------------------------------------
 // Parser / evaluator — returns Quantity (value + unit)
@@ -487,9 +617,9 @@ const CMP_OPS: TT[] = ['EQ', 'NEQ', 'LT', 'GT', 'LEQ', 'GEQ'];
 //   compare → arithmetic (CMP_OP arithmetic)?   ← returns 0 or 1 (dimensionless)
 //   arithmetic → addend  (('+' | '-') addend)*
 //   addend  → tagged     (('*' | '/') tagged)*
-//   tagged  → power      (UNIT ('^' power)?)?    ← [unit] declares the unit, no conversion
-//   power   → unary      ('^' power)?            ← right-associative
-//   unary   → '-' unary  | atom
+//   tagged  → '-' tagged | power (UNIT ('^' unary)?)?  ← [unit] declares the unit; -x^2 = -(x^2)
+//   unary   → '-' unary  | power                 ← exponents only: 2^-1
+//   power   → atom       ('^' unary)?            ← right-associative
 //   atom    → NUM | '(' compare ')' | ID '(' arglist ')' | ID
 //   arglist → compare (',' compare)*
 
@@ -507,6 +637,51 @@ class Parser {
     const tok = this.eat();
     if (tok.t !== t) throw new Error(`Expected ${t}, got '${tok.v}'`);
     return tok;
+  }
+
+  /**
+   * sum(expr, i, a, b) · prod(expr, i, a, b) · integral(expr, x, a, b). The name is consumed and
+   * LPAREN is next. `expr` must be re-evaluated for every value of the bound variable, so its tokens
+   * are captured unevaluated (balanced-paren scan to the first top-level comma) and replayed through
+   * a fresh Parser with the variable added to scope.
+   */
+  private bigOp(name: string): Quantity {
+    const usage = `${name}(expression, variable, from, to)`;
+    this.need('LPAREN');
+    const start = this.pos;
+    let depth = 0;
+    for (;;) {
+      const t = this.peek().t;
+      if (t === 'EOF') throw new Error(`${name}(): missing ')' — ${usage}`);
+      if (depth === 0 && (t === 'COMMA' || t === 'RPAREN')) break;
+      if (t === 'LPAREN') depth++;
+      else if (t === 'RPAREN') depth--;
+      this.eat();
+    }
+    const body = this.toks.slice(start, this.pos);
+    if (body.length === 0 || this.peek().t !== 'COMMA') throw new Error(`Usage: ${usage}`);
+    this.eat();
+    const vTok = this.eat();
+    if (vTok.t !== 'ID' || vTok.v.startsWith('\\')) {
+      throw new Error(`${name}(): 2nd argument must be the variable name — ${usage}`);
+    }
+    this.need('COMMA');
+    const lo = this.compare();
+    this.need('COMMA');
+    const hi = this.compare();
+    this.need('RPAREN');
+
+    const at = (q: Quantity): Quantity => {
+      const p = new Parser(
+        [...body, { t: 'EOF', v: '' }],
+        { ...this.scope, [vTok.v]: q },
+        this.fnScope,
+      );
+      const r = p.compare();
+      if (p.peek().t !== 'EOF') throw new Error(`${name}(): unexpected input in the expression`);
+      return r;
+    };
+    return name === 'integral' ? integrate(at, lo, hi) : sumOrProd(name, at, lo, hi);
   }
 
   // Top-level: comparison (returns 0 or 1) or plain arithmetic
@@ -565,15 +740,21 @@ class Parser {
     return q;
   }
 
-  // Kept above power() so `x^2 [in^2]` tags x^2, not the exponent.
+  // Kept above power() so `x^2 [in^2]` tags x^2, not the exponent. A leading minus is taken here,
+  // OUTSIDE the tag and its power, so `-3 [in]^2` = -(3 in)^2 = -9 in², consistent with -x^2.
   tagged(): Quantity {
+    if (this.peek().t === 'MINUS') {
+      this.eat();
+      const q = this.tagged();
+      return { v: -q.v, u: q.u };
+    }
     const q = this.power();
     if (this.peek().t !== 'UNIT') return q;
     const t: Quantity = { v: q.v, u: parseUnitExpr(this.eat().v) };
     // `3 [in]^2` — allow a power on the tagged quantity
     if (this.peek().t === 'CARET') {
       this.eat();
-      const exp = this.power();
+      const exp = this.unary();
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
@@ -582,26 +763,29 @@ class Parser {
     return t;
   }
 
-  power(): Quantity {
-    const base = this.unary();
-    if (this.peek().t === 'CARET') {
-      this.eat();
-      const exp = this.power(); // right-associative
-      if (Object.keys(exp.u).length > 0) {
-        throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
-      }
-      return { v: Math.pow(base.v, exp.v), u: powU(base.u, exp.v) };
-    }
-    return base;
-  }
-
+  // Unary minus binds LOOSER than '^' (standard math, Mathcad, MATLAB): -x^2 = -(x^2), -2^2 = -4.
+  // Before 2026-09-22 the order was reversed and -x^2 silently evaluated as (+x^2).
   unary(): Quantity {
     if (this.peek().t === 'MINUS') {
       this.eat();
       const q = this.unary();
       return { v: -q.v, u: q.u };
     }
-    return this.atom();
+    return this.power();
+  }
+
+  // Exponent is a unary(), so 2^-1 = 0.5 and 2^3^2 = 2^9 (right-associative).
+  power(): Quantity {
+    const base = this.atom();
+    if (this.peek().t === 'CARET') {
+      this.eat();
+      const exp = this.unary();
+      if (Object.keys(exp.u).length > 0) {
+        throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
+      }
+      return { v: Math.pow(base.v, exp.v), u: powU(base.u, exp.v) };
+    }
+    return base;
   }
 
   atom(): Quantity {
@@ -622,6 +806,11 @@ class Parser {
     if (tok.t === 'ID') {
       this.eat();
       const name = tok.v;
+
+      // sum / prod / integral — unless the sheet defines its own function by that name
+      if (this.peek().t === 'LPAREN' && BIG_OPS.has(name) && !(name in this.fnScope)) {
+        return this.bigOp(name);
+      }
 
       if (this.peek().t === 'LPAREN') {
         this.eat();
@@ -685,6 +874,16 @@ class Parser {
             return { v: Math.atan2(a.v, b.v), u: {} };
           }
           if (name === 'mod') return { v: ((a.v % b.v) + b.v) % b.v, u: {} };
+          // log(x, base) = log_base(x). One-arg log(x) stays the natural log.
+          if (name === 'log') {
+            if (Object.keys(a.u).length > 0 || Object.keys(b.u).length > 0) {
+              throw new Error('log(x, base) requires dimensionless arguments');
+            }
+            if (!(b.v > 0) || b.v === 1) {
+              throw new Error(`log base must be positive and not 1 (got ${b.v})`);
+            }
+            return { v: Math.log(a.v) / Math.log(b.v), u: {} };
+          }
           if (name === 'pow') {
             if (Object.keys(b.u).length > 0) {
               throw new Error('pow() exponent must be dimensionless');
@@ -746,7 +945,8 @@ class Parser {
         throw new Error(`Unknown function or wrong argument count: ${name}(${args.length} args)`);
       }
 
-      if (CONST[name] !== undefined) return { v: CONST[name], u: {} };
+      if (MARKED_CONST[name] !== undefined) return { v: MARKED_CONST[name], u: {} };
+      if (PLAIN_CONST[name] !== undefined) return { v: PLAIN_CONST[name], u: {} };
       if (this.scope[name] !== undefined) return this.scope[name];
 
       throw new Error(`Undefined: ${name}`);
@@ -830,6 +1030,20 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     if (eqIdx > 0) {
       const name = stmt.slice(0, eqIdx).trim();
       const expr = stmt.slice(eqIdx + 1).trim();
+
+      // Constants can't be assigned — say so, rather than let the constant silently win later.
+      if (name in MARKED_CONST || name in PLAIN_CONST) {
+        const what = name.endsWith('e') ? "Euler's number" : 'π';
+        results.push({
+          raw: s,
+          name: '',
+          expr,
+          value: NaN,
+          unit: {},
+          error: `${name} is the constant ${what} and can't be assigned — use another name`,
+        });
+        continue;
+      }
 
       if (/^[a-zA-Z_]\w*$/.test(name)) {
         try {

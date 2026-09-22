@@ -3,10 +3,23 @@
 // All functions are pure (string in → string out), no state access — TS-only.
 // ---------------------------------------------------------------------------
 
-// Greek letters render ONLY when written with a backslash: \phi → φ, \Delta → Δ. A bare `phi`
-// displays as typed. The backslash is display-only — the evaluator strips it (stripGreekMarks),
-// so \phiM_n and phiM_n are the same variable.
+// Greek and letter-like symbols render ONLY when written with a backslash: \phi → φ, \Delta → Δ,
+// \ell → ℓ. A bare `phi` displays as typed. The backslash is display-only — the evaluator strips it
+// (stripGreekMarks), so \phiM_n and phiM_n are the same variable.
+//
+// \var forms give the OTHER shape of the letter (Jon's decision, 2026-09-22). LeptonPad's \phi and
+// \epsilon already draw curly φ and ε — the glyphs real LaTeX calls \varphi/\varepsilon — so here
+// \varphi → ϕ and \varepsilon → ϵ, the reverse of LaTeX for those two, keeping the AISC-style φ on \phi.
 const GREEK_SYM = new Map<string, string>([
+  ['e', 'e'], // \e — Euler's number; shown as a plain e (the backslash only tells the calculator)
+  ['ell', 'ℓ'],
+  ['varphi', 'ϕ'],
+  ['varepsilon', 'ϵ'],
+  ['vartheta', 'ϑ'],
+  ['varsigma', 'ς'],
+  ['varrho', 'ϱ'],
+  ['varpi', 'ϖ'],
+  ['varkappa', 'ϰ'],
   ['alpha', 'α'],
   ['Alpha', 'Α'],
   ['beta', 'β'],
@@ -61,7 +74,18 @@ const GREEK_MARK_RE = new RegExp(
   '\\\\(' + [...GREEK_SYM.keys()].sort((a, b) => b.length - a.length).join('|') + ')',
   'g',
 );
-const GREEK_SUB_RE = /(?<![A-Za-z0-9_Ͱ-Ͽ])([A-Za-zͰ-Ͽ][A-Za-z0-9Ͱ-Ͽ]*)((?:_[A-Za-z0-9Ͱ-Ͽ]+)+)/g;
+// Letters a subscript base/subscript may contain: Latin, Greek block (incl. ϕ ϵ ϑ ϰ ϱ ϖ ς), ℓ — plus
+// combining marks (U+0300–036F), so an overbar from \bar{} does not break `\bar{y}_c`.
+const SUB_LETTER = 'A-Za-z\\u0370-\\u03FF\\u2113';
+const SUB_MARK = '\\u0300-\\u036F';
+const GREEK_SUB_RE = new RegExp(
+  `(?<![${SUB_LETTER}${SUB_MARK}0-9_])([${SUB_LETTER}][${SUB_LETTER}${SUB_MARK}0-9]*)` +
+    `((?:_[${SUB_LETTER}${SUB_MARK}0-9]+)+)`,
+  'g',
+);
+// \bar{x} → x̄. Braces hold one name, optionally a symbol name: \bar{\sigma} → σ̄. The evaluator
+// rewrites it to the variable `xbar` / `sigmabar` (stripGreekMarks in expr.ts).
+const BAR_RE = /\\bar\{\s*(\\?[A-Za-z][A-Za-z0-9]*)\s*\}/g;
 
 /** Reject javascript: URLs to prevent XSS. */
 function sanitizeUrl(url: string): string {
@@ -140,6 +164,12 @@ export function transformPiece(raw: string): string {
   // Symbols require the backslash, LaTeX-style: \sqrt( → √(, \phi → φ. Bare sqrt / phi display
   // as typed. The name after \ converts whatever follows it: \phiM_n, \phin, \phi2, M_\phi.
   s = s.replace(/\\sqrt\s*\(/g, '√(');
+  // Overbar: one character takes a combining macron (x̄); several take a combining overline each so
+  // the bar runs continuously across them (A̅B̅).
+  s = s.replace(BAR_RE, (_m, inner: string) => {
+    const chars = [...inner.replace(GREEK_MARK_RE, (_g, name) => GREEK_SYM.get(name)!)];
+    return chars.length === 1 ? chars[0] + '̄' : chars.map((c) => c + '̅').join('');
+  });
   s = s.replace(GREEK_MARK_RE, (_m, name) => GREEK_SYM.get(name)!);
   // Multiple underscores become comma-separated subscripts:
   //   \delta_1 → δ<sub>1</sub>,  \delta_1_2 → δ<sub>1,2</sub>
@@ -154,6 +184,58 @@ export function transformPiece(raw: string): string {
   return s;
 }
 
+/** Split `s` at top-level commas (outside () and []). */
+function splitTopLevelCommas(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(' || s[i] === '[') depth++;
+    else if (s[i] === ')' || s[i] === ']') depth--;
+    else if (depth === 0 && s[i] === ',') {
+      out.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(s.slice(start));
+  return out.map((p) => p.trim());
+}
+
+const BIG_OP_SYM: Record<string, string> = { sum: 'Σ', prod: 'Π', integral: '∫' };
+
+/**
+ * `sum(expr, i, a, b)` → Σ with i = a below and b above, then the expression; `prod` → Π;
+ * `integral(expr, x, a, b)` → ∫ with a below and b above, the expression, then `dx`. Returns null
+ * unless `s` is exactly one such call (its opening paren closes at the very end).
+ */
+function renderBigOp(s: string): string | null {
+  const m = s.match(/^\\?(sum|prod|integral)\s*\(/);
+  if (!m || !s.endsWith(')')) return null;
+  let depth = 0;
+  for (let i = m[0].length - 1; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')' && --depth === 0 && i !== s.length - 1) return null;
+  }
+  const args = splitTopLevelCommas(s.slice(m[0].length, -1));
+  if (args.length !== 4 || args.some((a) => !a)) return null;
+  const [body, v, from, to] = args;
+  const op = m[1];
+  const vHtml = transformPiece(v);
+  const lower = op === 'integral' ? renderExpr(from) : `${vHtml}=${renderExpr(from)}`;
+  // Σ(a + b) needs parentheses to read correctly; Σ a·b does not.
+  let hasAddSub = false;
+  for (let i = 1, depth = 0; i < body.length; i++) {
+    if (body[i] === '(' || body[i] === '[') depth++;
+    else if (body[i] === ')' || body[i] === ']') depth--;
+    else if (depth === 0 && (body[i] === '+' || body[i] === '-')) hasAddSub = true;
+  }
+  const bodyHtml = hasAddSub ? `(${renderExpr(body)})` : renderExpr(body);
+  return `<span class="bigop"><span class="bigop-lim">${renderExpr(to)}</span>` +
+    `<span class="bigop-sym">${
+      BIG_OP_SYM[op]
+    }</span><span class="bigop-lim">${lower}</span></span>` +
+    bodyHtml + (op === 'integral' ? ` d${vHtml}` : '');
+}
+
 /**
  * Recursively render an expression to HTML.
  * - Splits at top-level + / - first (so each additive term is handled independently)
@@ -165,6 +247,8 @@ export function transformPiece(raw: string): string {
 export function renderExpr(raw: string): string {
   const s = stripOuter(raw.trim());
   if (!s) return '';
+  const bigOp = renderBigOp(s);
+  if (bigOp !== null) return bigOp;
 
   // Find top-level + and - (unary minus at position 0 is not a split point)
   const addSplits: number[] = [];
@@ -236,7 +320,8 @@ export function renderExpr(raw: string): string {
 
     return pieces.map((piece) => {
       const stripped = stripOuter(piece);
-      return stripped !== piece ? '(' + renderExpr(stripped) + ')' : transformPiece(piece);
+      if (stripped !== piece) return '(' + renderExpr(stripped) + ')';
+      return renderBigOp(piece) ?? transformPiece(piece);
     }).join(' · ');
   }
 

@@ -122,7 +122,8 @@ Compound units (pressure, energy, power, torque, etc.) are automatically expande
 **Variable names** start with a letter or `_` and may contain only letters, digits and `_`
 (case-sensitive). An underscore marks a subscript in the display: `M_n` → M<sub>n</sub>,
 `delta_1_2` → delta<sub>1,2</sub>. Avoid `__` in your own names — it is the section separator
-(`beam1__L`, written `beam1.L`) — and avoid `pi`, `e` and `tau`, which are built-in constants.
+(`beam1__L`, written `beam1.L`). `e` and `tau` are ordinary names — use them freely for
+eccentricity and shear stress (`\tau`); only `pi` is reserved (see Constants below).
 
 **Greek letters and √ are written LaTeX-style, with a backslash — it is required.** The backslash
 only affects the display; the calculator removes it, so `\phiM_n` and `phiM_n` are the same
@@ -135,17 +136,80 @@ variable.
 | `\phi\alpha\beta`   | φαβ            | `phialphabeta`   |
 | `M_\phi`            | M<sub>φ</sub>  | `M_phi`          |
 | `\Delta`, `\Omega`  | Δ, Ω           | `Delta`, `Omega` |
+| `\ell_b`            | ℓ<sub>b</sub>  | `ell_b`          |
+| `\varphi`           | ϕ              | `varphi`         |
+| `\bar{x}`           | x̄              | `xbar`           |
+| `\bar{y}_c`         | ȳ<sub>c</sub>  | `ybar_c`         |
+| `\bar{\sigma}`      | σ̄              | `sigmabar`       |
 | `\sqrt(A/\pi)`      | √(A/π)         | (calls `sqrt`)   |
 | `phi_ty`, `sqrt(x)` | shown as typed | —                |
 
 All 24 Greek letters are available in lower and upper case (`\alpha` … `\omega`, `\Alpha` …
-`\Omega`). Unit tags are never converted: `5 [psi]` always shows `psi`. The same rules apply in
-plot labels and in `$...$` math inside text blocks.
+`\Omega`), plus `\ell` (ℓ). Unit tags are never converted: `5 [psi]` always shows `psi`. The same
+rules apply in plot labels and in `$...$` math inside text blocks.
+
+**`\var` letters give the other shape of a letter:** `\varphi` ϕ, `\varepsilon` ϵ, `\vartheta` ϑ,
+`\varsigma` ς, `\varrho` ϱ, `\varpi` ϖ, `\varkappa` ϰ. Note that LeptonPad's `\phi` (φ) and `\epsilon`
+(ε) are the shapes real LaTeX draws for `\varphi` and `\varepsilon` — for those two the names are
+swapped relative to LaTeX, so `\phi` keeps the curly φ used in AISC resistance factors.
+
+**`\bar{…}`** puts a bar over one name — a letter or letters, or a symbol such as `\bar{\sigma}` — and
+the variable is that name followed by `bar`. Other LaTeX (`\frac`, `\hat`, braces elsewhere) is not
+supported.
 
 **In hand-written or AI-generated project files**, JSON requires every backslash to be doubled:
 `"\\phi_ty = 0.90"`. LeptonPad repairs single backslashes that JSON rejects (`\p`, `\a`, `\u…`)
 when loading, but `\b`, `\f`, `\n`, `\r` and `\t` are valid JSON escapes and silently become
-control characters — so `\beta`, `\nu`, `\rho`, `\tau` and `\theta` must be written doubled.
+control characters — so `\beta`, `\bar{…}`, `\nu`, `\rho`, `\tau` and `\theta` must be written
+doubled.
+
+## Built-in functions and constants
+
+| Kind        | Functions                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| Logarithms  | `ln(x)` and `log(x)` = natural log · `log10(x)` · `log2(x)` · `log(x, base)` · `log1p(x)`         |
+| Exponential | `exp(x)` · `expm1(x)` · `pow(x, n)` · `x^n`                                                       |
+| Roots       | `sqrt(x)` · `cbrt(x)`                                                                             |
+| Trig        | `sin` `cos` `tan` `asin` `acos` `atan` `atan2(y, x)` (radians) · `degrees(x)` · `radians(x)`      |
+| Hyperbolic  | `sinh` `cosh` `tanh` `asinh` `acosh` `atanh`                                                      |
+| Rounding    | `abs` `floor` `ceil` `round` `trunc` `sign` · `min(a, b)` `max(a, b)` `clamp(x, lo, hi)`          |
+| Logic       | `if(cond, a, b)` · `and` `or` `xor` `not` · comparisons `==` `!=` `<` `>` `<=` `>=` (1 or 0)      |
+| Other       | `mod(a, b)` · `hypot(a, b)` · `factorial` `gamma` `lgamma` `erf` `erfc` `comb(n, k)` `perm(n, k)` |
+
+**Sums, products and integrals** take the expression, the variable, and the two limits:
+
+| You type                        | Displays as                | Result               |
+| ------------------------------- | -------------------------- | -------------------- |
+| `sum(i^2, i, 1, 10)`            | Σ from i=1 to 10 of i²     | 385                  |
+| `prod(1 + r, i, 1, n)`          | Π from i=1 to n of (1 + r) | (1 + r)ⁿ             |
+| `integral(w(x), x, 0, L)`       | ∫ from 0 to L of w(x) dx   | total load, e.g. kip |
+| `integral(w(x)*x, x, 0, L) / W` | stacked fraction           | centroid location    |
+
+- `sum`/`prod` step the index by 1 over whole-number limits; an empty range gives 0 (sum) or 1 (prod).
+- `integral` is numerical (adaptive Simpson's rule, ~10 significant figures for smooth functions).
+  Units follow the math — a kip/ft load integrated over ft gives kip. The integrand must be finite
+  across the whole range: `integral(1/x, x, 0, 1)` reports an error rather than a guess.
+- They nest (`sum(sum(i*j, j, 1, 3), i, 1, 3)`) and work inside `for` loops and plots.
+
+**Order of operations:** `^` binds tighter than a leading minus — `-x^2` is −(x²) and `-2^2` is −4,
+as in Mathcad and MATLAB (Excel differs). Write `(-x)^2` for the square of −x.
+
+**`log(x)` is the natural log (ln), not log₁₀** — use `log10(x)` for base-10 equations, or write
+`ln(x)` to make intent obvious. For any other base, `log(x, base)`: log₂ 50 is `log(50, 2)`. Log,
+trig and exponential arguments must be unitless — divide the unit out first, e.g. `ln(d / 1 [in])`.
+
+**Constants** are marked with a backslash, so they can never be confused with your variables:
+
+| You type       | Means                                                   |
+| -------------- | ------------------------------------------------------- |
+| `\e`           | Euler's number 2.71828… (`\e^2`, `\e^(-x)`)             |
+| `\pi` or `pi`  | π 3.14159…                                              |
+| `e`            | **your variable** — e.g. eccentricity `e = 0.5 [in]`    |
+| `tau` / `\tau` | **your variable** — e.g. shear stress τ (2π is `2*\pi`) |
+
+Plain `e` is never Euler's number — a sheet that uses `e` as 2.718… shows `Undefined: e` until it is
+changed to `\e` (or `exp(x)`). `\e`, `\pi` and `pi` cannot be assigned; `\pi_1` or `\piR` are ordinary
+names that merely display with π.
 
 ## Section template encryption
 

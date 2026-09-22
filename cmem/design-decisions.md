@@ -137,6 +137,23 @@ Two options were offered and declined: **auto-inserting `\` into existing projec
 have preserved every sheet's appearance) and **keeping `sqrt` → √ automatic**. Consequence, accepted:
 projects and purchased section templates written before 2.2.5 display plain names until edited.
 
+## `\var` letters give the other shape, even where that reverses LaTeX (2026-09-22, v2.3.0)
+
+LeptonPad's `\phi` → φ and `\epsilon` → ε are the glyphs real LaTeX draws for `\varphi` and
+`\varepsilon`. Jon chose to keep them (the curly φ is the AISC resistance-factor glyph, and sheets made
+since 2.2.5 keep their look) and to make every `\var` form produce the **alternate** glyph —
+`\varphi` → ϕ, `\varepsilon` → ϵ — so each name yields a glyph otherwise unavailable. Cost, accepted:
+pasted LaTeX that relies on the φ/ϕ distinction renders swapped for those two letters.
+
+## Euler's number is `\e`; plain `e` belongs to the user (2026-09-22, v2.3.0)
+
+In structural work `e` is eccentricity and τ is shear stress, and the old constants silently won
+over both. Jon chose an explicit marker over "user definition wins": `\e` = Euler's number, plain `e`
+= always a variable. That breaks sheets using plain `e` as 2.718… — deliberately, because the break is
+an `Undefined: e` error, never a wrong number. `pi` was the exception: plain `pi` stays π because
+nobody names a variable `pi` and `pi*d^2/4` is everywhere; it is simply made unassignable. `tau` (2π)
+was dropped outright. Details: [`known-issues.md`](known-issues.md) §11.
+
 ## The plot is an SVG string, the crosshair is DOM nodes
 
 `plot.ts` concatenates the static plot as an SVG string (cheap to rebuild wholesale on any config

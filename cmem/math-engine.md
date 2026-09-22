@@ -82,6 +82,48 @@ variables. Rendering lives in `transformPiece()` (`src/utils/markdown.ts`): `GRE
 letters, both cases) → `GREEK_MARK_RE` (longest name first) → `GREEK_SUB_RE`, whose bases and
 subscripts accept Greek code points so `\phi_c` and `M_\phi` subscript correctly.
 
+**Added in 2.3.0 (2026-09-22):** `\ell` → ℓ (common structural length symbol), seven `\var` letters,
+and `\bar{…}`.
+
+- **`\var` = the other shape** (Jon's choice): `\varphi` ϕ, `\varepsilon` ϵ, `\vartheta` ϑ,
+  `\varsigma` ς, `\varrho` ϱ, `\varpi` ϖ, `\varkappa` ϰ. Because LeptonPad's `\phi`/`\epsilon` already
+  draw φ/ε — the glyphs real LaTeX calls `\varphi`/`\varepsilon` — those two pairs are **swapped
+  relative to LaTeX**. Deliberate: keeps the AISC curly φ on `\phi` and existing sheets unchanged.
+  Offered and declined: matching LaTeX exactly.
+- **`\bar{name}`** — braces hold one name (`\?[A-Za-z][A-Za-z0-9]*`). `stripGreekMarks` rewrites it to
+  `namebar` **before** removing other backslashes (so `\bar{\sigma}_c` → `sigmabar_c`); the lexer still
+  rejects `{` everywhere else. Display (`BAR_RE` in `transformPiece`): one character gets a combining
+  macron U+0304 (x̄), several get U+0305 each (A̅B̅). `GREEK_SUB_RE` now also accepts ℓ and combining
+  marks (U+0300–036F) so `\ell_b` and `\bar{y}_c` subscript.
+- `\pm` was considered and **rejected** by Jon — a calculator cannot return two values from one row.
+
+### Sums, products, integrals (2.3.0)
+
+`sum(expr, i, a, b)`, `prod(expr, i, a, b)`, `integral(expr, x, a, b)` — `BIG_OPS` in `expr.ts`,
+dispatched from `Parser.atom()` **before** normal argument evaluation (unless the sheet defines its own
+function of that name). `Parser.bigOp()` captures the first argument's **tokens unevaluated**
+(balanced-paren scan to the first top-level comma) and replays them through a fresh `Parser` with the
+bound variable added to scope — the only lazily-evaluated argument in the language.
+
+- `sumOrProd`: whole-number, unitless limits; step 1; cap `MAX_TERMS` = 100 000 (evaluation runs on
+  every keystroke); terms combine with `addU`/`mulU`, so a sum is as unit-strict as `+`.
+- `integrate`: adaptive Simpson, relative tol 1e-10, **minimum depth 4** and a 16-point pre-sample for
+  the tolerance scale (sin over 0…2π is zero at the ends and middle — scaling from those three points
+  made the tolerance ~0 and it never converged). Variable carries the bounds' unit; result unit is
+  unit(f)·unit(x). Non-finite samples and > 200 000 evaluations are errors, never guesses.
+- Display: `renderBigOp()` in `markdown.ts` → Σ/Π/∫ with stacked limits (`.bigop` CSS), `dx` after ∫.
+- Tested (script, 2026-09-22): Σi² = 385, 5! = 120, ∫sin 0…π = 2, ∫e^(−x²) = √π to 11 digits,
+  triangular load W = 20 kip / centroid 2L/3, nested sums, sums inside `for` loops.
+
+### Logarithms (2.3.0)
+
+⚠️ **`log(x)` is the natural log** (`Math.log`), not log₁₀ — a silent 2.3× error for anyone reading
+"log" the engineering way. It was left as is (changing it would alter existing sheets' numbers);
+instead 2.3.0 added `ln(x)` (explicit natural log) and a **two-argument `log(x, base)`** in the 2-arg
+branch of `Parser.atom()` — previously an error, so no existing result changes. It rejects units and a
+base ≤ 0 or = 1 with a clear error rather than returning NaN/Infinity. LaTeX `\log_a b` is not
+parsed (`\log_a` becomes the identifier `log_a`); the readme's functions table documents all of this.
+
 History: 2.2.3 briefly auto-converted a Greek name followed by a capital (`phiM_n` → φM<sub>n</sub>)
 with `\` as an optional override. Jon made `\` mandatory in 2.2.5 "so there is absolutely no
 confusion" — see [`design-decisions.md`](design-decisions.md). Existing sheets were deliberately
@@ -92,8 +134,8 @@ confusion" — see [`design-decisions.md`](design-decisions.md). Existing sheets
 `parseProjectJson()` (`src/persistence.ts`) is used by every file-open path (Load Project, New from
 Template, Import Tools). If `JSON.parse` fails it retries once with every backslash that is not a
 valid JSON escape doubled — including `\u` not followed by four hex digits (`\upsilon`). A file that
-already parses is never altered. **It cannot fix `\b \f \n \r \t`** — `\beta`, `\nu`, `\rho`, `\tau`,
-`\theta` are valid escapes that silently become control characters; the formula then errors (the lexer
+already parses is never altered. **It cannot fix `\b \f \n \r \t`** — `\beta`, `\bar{…}`, `\nu`,
+`\rho`, `\tau`, `\theta` are valid escapes that silently become control characters; the formula then errors (the lexer
 rejects the control char or the name is undefined) rather than yielding a wrong number. Files saved
 by LeptonPad itself are always correctly escaped by `JSON.stringify`.
 
