@@ -149,7 +149,20 @@ Implementation: `MATRIX_FNS` in `expr.ts` is dispatched in `atom()` **before** t
 (A × B)ᵀ.
 
 - Transpose (v2.3.6): rows ↔ columns, each element keeps its unit; a number is its own transpose.
-  Verified: 2×3 → 3×2, uᵀ·u = 14, u·uᵀ outer product, A·Aᵀ, (Aᵀ)ᵀ = A, mixed-unit M.
+  Verified: 2×3 → 3×2, uᵀ·u = 14, u·uᵀ outer product, A·Aᵀ, (Aᵀ)ᵀ = A, mixed-unit M. **Jon confirmed
+  in the browser 2026-09-22.**
+- Determinant (v2.3.7): Gaussian elimination with partial pivoting; every value cross-checked against
+  a cofactor expansion (2×2, 3×3, 4×4, singular, row-swap sign). Two details that matter:
+  - **Unit:** `unitFactors()` splits element units into row × column factors (u(i,j) = r(i)·c(j)) —
+    the condition under which every term of the expansion shares one unit; `det` = Πr·Πc. K in
+    kip/in | kip | kip·in gives kip². A plain `0` element carries no unit and is skipped, so zeros
+    never block the split; where zeros cut the matrix into groups, each group's factors are fixed
+    only up to a shared factor, which cancels iff the group is square — an unbalanced group is
+    genuinely ambiguous and errors.
+  - **Singularity:** elimination leaves ~1e-16 dust; results below `1e-12 ×` a Hadamard-style scale
+    are reported as exactly 0.
+  - Fixed on the way: `[1/kip]` used to create a **phantom unit named "1"** that never cancelled
+    (`4 [kip] * 2 [1/kip]` was not dimensionless). `parseUnitExpr` now skips a `1` term.
 
 ### Comparison display (2.3.1, 2026-09-22)
 

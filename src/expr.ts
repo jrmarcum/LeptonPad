@@ -232,9 +232,125 @@ function transpose(a: Quantity): Quantity {
   return matrixOf(m[0].map((_, j) => m.map((row) => row[j])));
 }
 
+/**
+ * Split a matrix's element units into a row unit × column unit — u(i,j) = r(i)·c(j).
+ *
+ * Every determinant term (and every element of an inverse) mixes elements from different rows and
+ * columns, and only matrices with this structure give those terms a single, well-defined unit. Real
+ * stiffness and flexibility matrices have it: K = {{kip/in, kip}, {kip, kip·in}} splits into
+ * r = (kip/in, kip) and c = (1, in).
+ *
+ * An element that is exactly 0 with no unit carries no information (sheets write a plain `0`), so it
+ * is skipped and its unit is inferred from the rest. Returns null when the units do not split, or
+ * when the known elements leave a row/column unit undetermined — in both cases the caller reports an
+ * error rather than inventing a unit.
+ */
+function unitFactors(
+  m: Quantity[][],
+): { r: UnitMap[]; c: UnitMap[]; components: { rows: number[]; cols: number[] }[] } | null {
+  const n = m.length, k = m[0].length;
+  const known = (i: number, j: number) => !(m[i][j].v === 0 && Object.keys(m[i][j].u).length === 0);
+  const r: (UnitMap | null)[] = Array(n).fill(null);
+  const c: (UnitMap | null)[] = Array(k).fill(null);
+  const components: { rows: number[]; cols: number[] }[] = [];
+
+  // Known elements link a row to a column; each connected group is solved from one gauge choice
+  // (its first row carries the whole unit). Zeros link nothing, so a matrix can have several groups.
+  for (let seed = 0; seed < n; seed++) {
+    if (r[seed] !== null) continue;
+    r[seed] = {};
+    const comp = { rows: [seed], cols: [] as number[] };
+    for (let pass = 0; pass < n + k; pass++) {
+      let grew = false;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < k; j++) {
+          if (!known(i, j)) continue;
+          if (r[i] !== null && c[j] === null) {
+            c[j] = divU(m[i][j].u, r[i]!);
+            comp.cols.push(j);
+            grew = true;
+          } else if (r[i] === null && c[j] !== null) {
+            r[i] = divU(m[i][j].u, c[j]!);
+            comp.rows.push(i);
+            grew = true;
+          }
+        }
+      }
+      if (!grew) break;
+    }
+    components.push(comp);
+  }
+  for (let j = 0; j < k; j++) {
+    if (c[j] === null) { // a column of nothing but zeros — its own group
+      c[j] = {};
+      components.push({ rows: [], cols: [j] });
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < k; j++) {
+      if (known(i, j) && !eqU(m[i][j].u, mulU(r[i]!, c[j]!))) return null; // does not split
+    }
+  }
+  return { r: r as UnitMap[], c: c as UnitMap[], components };
+}
+
+/**
+ * The unit of det(A) — the product of all row units and all column units.
+ *
+ * Where zeros split the matrix into separate groups, each group's split is only fixed up to a shared
+ * factor; that factor cancels out of the total exactly when the group has as many rows as columns,
+ * which is the case whenever a non-zero term of the determinant exists at all. An unbalanced group
+ * means the unit really is ambiguous, so it is an error instead of a guess.
+ */
+function detUnit(m: Quantity[][]): UnitMap {
+  const f = unitFactors(m);
+  const ambiguous = f?.components.some((comp) => comp.rows.length !== comp.cols.length);
+  if (!f || ambiguous) {
+    throw new Error(
+      "det(): this matrix's units don't give the determinant a single unit — every term of the " +
+        'expansion must come out the same',
+    );
+  }
+  return [...f.r, ...f.c].reduce(mulU, {});
+}
+
+/**
+ * det(A) — Gaussian elimination with partial pivoting (product of the pivots, sign from the row
+ * swaps). Square matrices only; a 1×1 determinant is its element.
+ */
+function det(a: Quantity): Quantity {
+  if (!a.m) throw new Error('det() needs a square matrix');
+  const n = a.m.length;
+  if (a.m[0].length !== n) {
+    throw new Error(`det() needs a square matrix (got ${n}×${a.m[0].length})`);
+  }
+  const u = detUnit(a.m);
+  const g = a.m.map((row) => row.map((q) => q.v)); // work on the numbers alone
+  // Hadamard-style size of the biggest term, for rounding elimination dust to an exact 0 below.
+  const scale = g.reduce((p, row) => p * Math.max(...row.map(Math.abs), 1), 1);
+  let sign = 1, v = 1;
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let i = col + 1; i < n; i++) if (Math.abs(g[i][col]) > Math.abs(g[piv][col])) piv = i;
+    if (g[piv][col] === 0) return { v: 0, u };
+    if (piv !== col) {
+      [g[col], g[piv]] = [g[piv], g[col]];
+      sign = -sign;
+    }
+    v *= g[col][col];
+    for (let i = col + 1; i < n; i++) {
+      const f = g[i][col] / g[col][col];
+      for (let j = col; j < n; j++) g[i][j] -= f * g[col][j];
+    }
+  }
+  // A singular matrix leaves ~1e-16 × scale behind; report the 0 it mathematically is.
+  return { v: Math.abs(v) <= 1e-12 * scale ? 0 : sign * v, u };
+}
+
 /** Functions that take matrices, dispatched before the scalar-only argument guard in atom(). */
 const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Quantity }> = {
   transpose: { arity: 1, run: ([a]) => transpose(a) },
+  det: { arity: 1, run: ([a]) => det(a) },
 };
 
 /** Apply `f` to a number, or to every element of a matrix. */
@@ -296,7 +412,10 @@ function parseUnitExpr(s: string): UnitMap {
         exp = 1;
       }
       if (!name) continue;
-      // Expand compound units (e.g. ksi → kip·in⁻²) so unit cancellation works.
+      // `[1/kip]`, `[1/s]` — the leading 1 is "no unit", not a unit named "1". Without this it
+      // became a phantom symbol that never cancelled (seen as `1·kip^-1`).
+      if (name === '1') continue;
+      // Expand compound units (e.g. ksi → kip⋅in⁻²) so unit cancellation works.
       const def = UNIT_LOOKUP.get(name);
       if (def?.baseUnits) {
         for (const [bKey, bExp] of Object.entries(def.baseUnits)) {
