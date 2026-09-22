@@ -41,28 +41,28 @@ The `.example` files are documentation and are committed — never put a real va
 
 ## Block types
 
-| Block     | Description                                                                                                                      |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Formula   | Live math evaluation with units, variables, control flow                                                                         |
-| Summary   | Formula block with a green accent for key results; place it anywhere — inside a Section it also feeds the section's summary line |
-| Plot      | SVG curve plot with variable x-range, optional area fill, x and y markers                                                        |
-| Figure    | Image block with paste or click-to-upload                                                                                        |
-| Text      | Markdown text block                                                                                                              |
-| Header    | Section heading                                                                                                                  |
-| Section   | Collapsible container (pro+ only)                                                                                                |
-| Beam Def  | Beam deflection math block                                                                                                       |
-| Sect Prop | Section properties math block                                                                                                    |
+| Block     | Description                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Formula   | Live math evaluation with units, variables, control flow                                                                            |
+| Summary   | Section companion (pro+ only) — a green-accented formula block placed inside a Section; its results feed the section's summary line |
+| Plot      | SVG curve plot with variable x-range, optional area fill, x and y markers                                                           |
+| Figure    | Image block with paste or click-to-upload                                                                                           |
+| Text      | Markdown text block                                                                                                                 |
+| Header    | Section heading                                                                                                                     |
+| Section   | Collapsible container (pro+ only)                                                                                                   |
+| Beam Def  | Beam deflection math block                                                                                                          |
+| Sect Prop | Section properties math block                                                                                                       |
 
 All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, and Figure blocks have a **stretch-right** handle at the right edge; Plot and Figure also have a **stretch-down** handle at the bottom edge.
 
 ## User roles
 
-| Role    | Access                                                    |
-| ------- | --------------------------------------------------------- |
-| `super` | Everything — all section creation, all packs, admin       |
-| `pro`   | Create/edit section blocks + own purchased template packs |
-| `demo`  | Same as pro, expires 30 days from trial start             |
-| `free`  | Use purchased section template packs only                 |
+| Role    | Access                                                                |
+| ------- | --------------------------------------------------------------------- |
+| `super` | Everything — all section creation, all packs, admin                   |
+| `pro`   | Create/edit section and summary blocks + own purchased template packs |
+| `demo`  | Same as pro, expires 30 days from trial start                         |
+| `free`  | Use purchased section template packs only                             |
 
 ## Key source files
 

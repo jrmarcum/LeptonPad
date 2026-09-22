@@ -110,10 +110,18 @@ const MODULES: {
   name: string;
   icon: string;
   type: Block['type'];
-  requiresPro?: boolean; // section creation is a pro+ feature
+  sectionOnly?: boolean; // may only be placed inside a Section
+  requiresPro?: boolean; // Section and its companion Summary block are pro+ features
 }[] = [
   { id: 'formula', name: 'Formula Block', icon: '\u03a3', type: 'formula' },
-  { id: 'summary', name: 'Summary Block', icon: '\u03a3\u0332', type: 'summary' },
+  {
+    id: 'summary',
+    name: 'Summary Block',
+    icon: '\u03a3\u0332',
+    type: 'summary',
+    sectionOnly: true,
+    requiresPro: true,
+  },
   { id: 'section', name: 'Section', icon: '\u29c5', type: 'section', requiresPro: true },
   { id: 'beam-def', name: 'Beam Deflection', icon: '\u{1F4CF}', type: 'math' },
   { id: 'sect-prop', name: 'Section Properties', icon: '\u{1F3D7}', type: 'math' },
@@ -475,10 +483,10 @@ function _showProRequiredDialog() {
 
   const msg = document.createElement('p');
   msg.textContent = blocked
-    ? 'Creating Section blocks needs Pro or an active Demo trial, and we could not reach the ' +
-      'server to check yours. Your existing sheets are unaffected. Try again once you are back ' +
-      'online.'
-    : 'Creating Section blocks requires a Pro subscription or active Demo trial. ' +
+    ? 'Creating Section and Summary blocks needs Pro or an active Demo trial, and we could not ' +
+      'reach the server to check yours. Your existing sheets are unaffected. Try again once you ' +
+      'are back online.'
+    : 'Creating Section and Summary blocks requires a Pro subscription or active Demo trial. ' +
       'Sign in and redeem a license code to unlock.';
   msg.style.fontSize = '0.9rem';
   dialog.appendChild(msg);
@@ -784,12 +792,21 @@ function renderSidebar() {
     item.dataset.moduleType = mod.type;
     item.dataset.moduleId = mod.id;
     item.innerHTML = `<span>${mod.icon}</span><span>${mod.name}</span>`;
+    if (mod.sectionOnly) {
+      const badge = document.createElement('span');
+      badge.className = 'module-section-badge';
+      badge.textContent = '§';
+      badge.title = 'Can only be placed inside a Section';
+      item.appendChild(badge);
+    }
     if (mod.requiresPro) {
       item.dataset.requiresPro = '1';
       const proBadge = document.createElement('span');
       proBadge.className = 'module-pro-badge';
       proBadge.textContent = 'PRO';
-      proBadge.title = 'Requires Pro or higher to create sections';
+      proBadge.title = mod.type === 'summary'
+        ? 'Requires Pro or higher — Summary blocks belong to Sections'
+        : 'Requires Pro or higher to create sections';
       proBadge.style.display = canCreateSection() ? 'none' : '';
       item.appendChild(proBadge);
       if (!canCreateSection()) item.classList.add('module-locked');
@@ -1066,6 +1083,9 @@ async function start() {
           const h = Math.abs(cy - bandState.startY);
           clearSelection();
           for (const bl of canvas.domElement.querySelectorAll<HTMLElement>('.block')) {
+            // Title blocks are fixed page furniture — selecting them let Ctrl+Arrow move them
+            // and Ctrl+Delete remove them.
+            if (bl.classList.contains('title-block')) continue;
             const bL = parseInt(bl.style.left), bT = parseInt(bl.style.top);
             if (bL + bl.offsetWidth > x && bL < x + w && bT + bl.offsetHeight > y && bT < y + h) {
               bl.classList.add('selected');
@@ -1491,7 +1511,8 @@ async function start() {
     });
 
     document.addEventListener('contextmenu', (e) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>('.block');
+      // Title blocks are page furniture: no block menu, and never selectable (Ctrl+Arrow/Delete).
+      const target = (e.target as HTMLElement).closest<HTMLElement>('.block:not(.title-block)');
       if (!target) return;
       e.preventDefault();
       // Keep existing multi-selection; only select the target if it's not already in the set

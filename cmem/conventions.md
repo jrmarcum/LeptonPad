@@ -53,6 +53,12 @@ buttons, drag grips.
 hot-copies this one file. Inline `style.cssText` appears in a few dynamically-built modals
 (`license.ts`) — acceptable for modal-local styling, not for block styling.
 
+**Every `querySelectorAll('.block')` loop that moves, selects, or deletes must skip
+`.title-block` and section children (`childToSection.has(el.id)`).** Title-block overlays share the
+`.block` class, and section children are positioned relative to their section. Forgetting this let
+Shift+Enter push page-2+ title blocks off their page top (2026-09-22). —
+[`known-issues.md`](known-issues.md) §14
+
 ## Unit rendering — the `psi` trap
 
 **Use `transformUnit()`, never `transformPiece()`, when rendering unit abbreviations** in

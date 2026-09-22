@@ -52,7 +52,10 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] Create, rename (collision reverts), collapse/expand — height is correct after toggle.
 - [ ] Section-scoped variable resolves as `<name>__var`.
 - [ ] A Summary block inside a section drives the section summary; a Formula block does not.
-- [ ] A Summary block places on the open sheet (drag and double-click) as well as inside a section.
+- [ ] A Summary block places inside a section (drag and double-click); dropped on the open sheet it
+      shows the "Summary blocks go inside a Section" message; a free user gets the Pro dialog.
+- [ ] With the title block on and 3+ pages, Shift+Enter on page 1 pushes content down but every
+      page's title block stays pinned to its page top; rubber-band and right-click never select one.
 
 **Persistence and encryption** (the invariant — see [`security-model.md`](security-model.md))
 

@@ -156,3 +156,20 @@ user text must apply the same preprocessing as formula rows.**
 
 Still open: a comparison ending in a single unit tag labels its 0/1 result (`P_u != 0 [kip]` → `1 kip`)
 — the legacy trailing-tag rule, cosmetic.
+
+---
+
+## 14. Fixed 2.2.8 — title blocks on pages 2+ drifted down with Shift+Enter
+
+Reported 2026-09-22: "the second and third sheets have shifted it down exactly three grid squares."
+Title-block overlays carry the `.block` class (`'block title-block title-block-overlay'`), so every
+`querySelectorAll('.block')` loop treats them as ordinary blocks. `shiftBlocksVertical` (Shift+Enter
+= push everything below the grid cursor down one `GRID_SIZE`) moved each page-2+ overlay whose top was
+below the cursor — three presses, three squares. Page 1's overlay sits above any valid cursor row, so
+it never moved. Also fixed: rubber-band selection and right-click could select an overlay, after which
+Ctrl+Arrow moved it and Ctrl+Delete removed it. `shiftBlocksVertical` now also skips section children
+(their `top` is section-relative, so comparing it to a canvas Y was meaningless).
+
+Overlay positions are never saved — `syncTitleBlocks()` rebuilds them at `i * PAGE_H + margins.top` —
+so an already-displaced sheet corrects itself on reload or on toggling the title block.
+`resolveOverlapsRight` already excluded title blocks; **any new `.block` loop must too.**

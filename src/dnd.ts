@@ -122,8 +122,12 @@ export function deleteBlock(el: HTMLElement) {
 // ---------------------------------------------------------------------------
 
 // Shift all blocks whose top edge is at or below thresholdY (canvas px) by delta px.
+// Title blocks are pinned to the top of their page and must never move — they carry the `.block`
+// class, so without this guard Shift+Enter pushed page 2+ title blocks down one grid square per
+// press. Section children are positioned relative to their section and move with it.
 export function shiftBlocksVertical(thresholdY: number, delta: number) {
   for (const el of canvas.domElement.querySelectorAll<HTMLElement>('.block')) {
+    if (el.classList.contains('title-block') || childToSection.has(el.id)) continue;
     const top = parseInt(el.style.top);
     if (top >= thresholdY) {
       const newTop = clamp(top + delta, margins.top, CANVAS_H + PAGE_H);
@@ -555,8 +559,17 @@ export function renderBlock(block: Block) {
 }
 
 export function dropBlock(type: Block['type'], subtype: string, canvasX: number, canvasY: number) {
-  // Summary blocks may go anywhere (2026-09-21). Outside a section they are a highlighted formula
-  // block; inside one they also feed the section's summary line (reEvalAllFormulas).
+  // A Summary block is the Section's companion (pro+): it only has meaning inside a section, where it
+  // feeds the section summary line. Refuse other placements — but say so; this used to be silent,
+  // which read as "the block won't place".
+  if (type === 'summary' && !sectionAtPoint(canvasX, canvasY)) {
+    alert(
+      'Summary blocks go inside a Section.\n\nDrop it onto an open section, or click inside one ' +
+        'and double-click Summary Block again.',
+    );
+    return;
+  }
+
   const customMod = type === 'formula' && subtype
     ? customModules.find((m) => m.id === subtype)
     : undefined;
