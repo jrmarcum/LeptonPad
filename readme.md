@@ -208,6 +208,7 @@ doubled.
 | `det(K)`                                                | determinant (square only); K in kip/in·kip·kip·in gives kip² |
 | `inv(K)`                                                | inverse, shown as K⁻¹; K in kip/in gives in/kip              |
 | `solve(K, F)`                                           | the u of K·u = F, without forming the inverse                |
+| `el(K, 1, 2)`                                           | one element, row 1 column 2 (1-based), with its own unit     |
 
 Units are checked element by element, so adding kip to kip/in is an error that names the element.
 `A + 1` is an error (not defined for matrices), and so is `2 / A` (dividing by a matrix means
@@ -232,12 +233,16 @@ inv(K)                   → [0.333 in/kip, 0.5 1/kip; 0.5 1/kip, 1 1/(kip·in)]
 det(K)                   → 12 kip²
 ```
 
-Not yet available (they report an error, never a wrong number): element access, other functions of a
-matrix, comparisons and `[[…]]` conversion.
+`el(A, i, j)` pulls one element out for use in ordinary formulas — `el(u, 1, 1)` is the displacement
+from the example above. Not yet available (they report an error, never a wrong number): other
+functions of a matrix, comparisons and `[[…]]` conversion.
 
 **Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
 and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section
 summary checks. A comparison splits the line first, so `f_a/F_a <= 1.0` shows as a fraction ≤ 1.0.
+
+A trailing `[unit]` on a comparison is ignored rather than labelling the pass/fail: `P_u != 0 [kip]`
+gives a plain 1, not "1 kip".
 
 **Order of operations:** `^` binds tighter than a leading minus — `-x^2` is −(x²) and `-2^2` is −4,
 as in Mathcad and MATLAB (Excel differs). Write `(-x)^2` for the square of −x.

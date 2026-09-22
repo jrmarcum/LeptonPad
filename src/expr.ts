@@ -34,6 +34,8 @@ export interface Quantity {
   v: number;
   u: UnitMap;
   m?: Quantity[][];
+  /** Set on the 1/0 of a comparison, so a trailing [unit] never labels a pass/fail as "1 kip". */
+  isTest?: boolean;
 }
 
 /** Scope maps variable names to Quantities (value + unit). */
@@ -458,7 +460,24 @@ const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Qua
   det: { arity: 1, run: ([a]) => det(a) },
   inv: { arity: 1, run: ([a]) => inv(a) },
   solve: { arity: 2, run: ([k, f]) => solveSystem(k, f) },
+  el: { arity: 3, run: ([a, i, j]) => element(a, i, j) },
 };
+
+/** el(A, i, j) — one element of a matrix, 1-based, with its own unit. */
+function element(a: Quantity, i: Quantity, j: Quantity): Quantity {
+  if (!a.m) throw new Error('el() needs a matrix as its first argument');
+  const idx = (q: Quantity, what: string, max: number): number => {
+    noMatrix(q, `el() ${what}`);
+    if (Object.keys(q.u).length > 0) throw new Error(`el(): the ${what} must be unitless`);
+    const n = Math.round(q.v);
+    if (Math.abs(q.v - n) > 1e-9) throw new Error(`el(): the ${what} must be a whole number`);
+    if (n < 1 || n > max) throw new Error(`el(): ${what} ${n} is outside 1…${max}`);
+    return n;
+  };
+  const row = idx(i, 'row', a.m.length);
+  const col = idx(j, 'column', a.m[0].length);
+  return a.m[row - 1][col - 1];
+}
 
 /** Apply `f` to a number, or to every element of a matrix. */
 function mapQ(q: Quantity, f: (x: Quantity) => Quantity): Quantity {
@@ -1129,7 +1148,7 @@ class Parser {
         default:
           result = false;
       }
-      return { v: result ? 1 : 0, u: {} };
+      return { v: result ? 1 : 0, u: {}, isTest: true };
     }
     return q;
   }
@@ -1415,6 +1434,9 @@ export function evalExpr(src: string, scope: Scope, fnScope: FnScope = {}): Quan
 /** A statement's trailing `[unit]` (declare) and `[[unit]]` (convert). A matrix takes the declared
  *  unit on every element; converting a matrix is not supported yet and says so. */
 function applyStatementUnits(q: Quantity, tag?: UnitMap, target?: UnitMap): Quantity {
+  // `P_u != 0 [kip]` — the tag belongs to the 0 being compared against, not to the pass/fail.
+  // Labelling a 1 as "1 kip" was meaningless; the comparison itself is unaffected.
+  if (q.isTest) return q;
   // The legacy whole-result tag would silently overwrite a matrix's own per-element units
   // (`Km / 2 [in]` turned every element into "in"). Allow it only on a matrix whose elements are
   // still unitless (`{{12, -6}, {-6, 4}} [kip/in]`); otherwise the unit belongs next to its number.

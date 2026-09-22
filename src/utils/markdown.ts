@@ -287,6 +287,37 @@ function renderCall(s: string): string | null {
   return `${transformPiece(name)}(${body})`;
 }
 
+/**
+ * A power with any exponent: `e^(-x/2)` → e raised to −x/2, `x^(2*n)`, `2^-1`, as well as the simple
+ * `x^2` the piece renderer already handled. The exponent runs to the end of the term, except that a
+ * trailing `[unit]` tag stays out of it (`3 [in]^2 [in]` keeps its tag beside the value). An
+ * exponent's own parentheses are dropped, since the raised position already groups it.
+ */
+function renderPower(s: string): string | null {
+  const caret = topLevelIdx(s, '^');
+  if (caret <= 0) return null;
+  const base = s.slice(0, caret).trim();
+  const rest = s.slice(caret + 1);
+  // A unit tag after the exponent is not part of it.
+  let end = rest.length, depth = 0;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '(' || rest[i] === '{') depth++;
+    else if (rest[i] === ')' || rest[i] === '}') depth--;
+    else if (depth === 0 && rest[i] === '[') {
+      end = i;
+      break;
+    }
+  }
+  const exp = rest.slice(0, end).trim();
+  const trailing = rest.slice(end).trim();
+  if (!base || !exp) return null;
+  const baseHtml = renderBigOp(base) ?? renderMatrixLiteral(base) ?? renderPostfixFn(base) ??
+    renderCall(base) ?? (stripOuter(base) !== base ? `(${renderExpr(stripOuter(base))})` : null) ??
+    transformPiece(base);
+  return `${baseHtml}<sup>${renderExpr(exp)}</sup>` +
+    (trailing ? ' ' + transformPiece(trailing) : '');
+}
+
 const BIG_OP_SYM: Record<string, string> = { sum: 'Σ', prod: 'Π', integral: '∫' };
 
 // Comparison operators and their display glyphs. Two-character operators are tried first so `>=`
@@ -379,7 +410,10 @@ export function renderExpr(raw: string): string {
   for (let i = 0; i < s.length; i++) {
     if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
     else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
-    else if (depth === 0 && i > 0 && (s[i] === '+' || s[i] === '-')) addSplits.push(i);
+    // A +/- straight after '^' is the exponent's sign (2^-1), not an addition.
+    else if (depth === 0 && i > 0 && (s[i] === '+' || s[i] === '-') && s[i - 1] !== '^') {
+      addSplits.push(i);
+    }
   }
 
   if (addSplits.length > 0) {
@@ -441,7 +475,7 @@ export function renderExpr(raw: string): string {
       const stripped = stripOuter(piece);
       if (stripped !== piece) return '(' + renderExpr(stripped) + ')';
       return renderBigOp(piece) ?? renderMatrixLiteral(piece) ?? renderPostfixFn(piece) ??
-        renderCall(piece) ?? transformPiece(piece);
+        renderCall(piece) ?? renderPower(piece) ?? transformPiece(piece);
     };
     let html = '';
     let start = 0;
@@ -452,7 +486,7 @@ export function renderExpr(raw: string): string {
     return html + renderPiece(s.slice(start).trim());
   }
 
-  return transformPiece(s);
+  return renderPower(s) ?? transformPiece(s);
 }
 
 /**

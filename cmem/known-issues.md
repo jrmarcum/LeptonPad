@@ -176,8 +176,9 @@ user text must apply the same preprocessing as formula rows.**
   curve looked up `theta`. `evalPlotData` now keys by `stripGreekMarks(cfg.xVar)`.
 - **`beam1.\phi_M`** — the dot rewrite required a letter after the dot; it now accepts `.\`.
 
-Still open: a comparison ending in a single unit tag labels its 0/1 result (`P_u != 0 [kip]` → `1 kip`)
-— the legacy trailing-tag rule, cosmetic.
+Fixed in 2.3.10: a comparison ending in a single unit tag labelled its 0/1 result (`P_u != 0 [kip]`
+→ `1 kip`). `compare()` marks its result `isTest` and `applyStatementUnits` leaves such a result
+alone — the tag belongs to the value being compared against, which the comparison never needed.
 
 ---
 

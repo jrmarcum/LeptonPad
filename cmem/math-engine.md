@@ -179,6 +179,13 @@ Implementation: `MATRIX_FNS` in `expr.ts` is dispatched in `atom()` **before** t
     rendered — `renderCall()` (v2.3.9) now renders the arguments of **any** call, so matrix literals
     inside `solve`/`det`/`min`/a user function show as grids and Greek, subscripts, units and
     fractions come out. `\sqrt(` keeps its √; bare `sqrt(` stays text, per the backslash rule.
+- Element access (v2.3.10): **`el(A, i, j)`**, 1-based, returning that element with its own unit —
+  `el(u, 1, 1)` is a displacement usable in ordinary formulas. Row/column must be whole, unitless and
+  in range; each failure says which. Named for the functions-only convention; rename if Jon prefers.
+- Exponent display (v2.3.10): `renderPower()` raises **any** exponent — `\e^(-x/2)`, `x^(2*n)`,
+  `2^-1`, `2^3^2` (nested), `(a+b)^2` — not just a digit or single letter. A `[unit]` tag after the
+  exponent stays out of it, and `renderExpr`'s additive split now skips a `+`/`-` straight after `^`
+  (that sign belongs to the exponent; `\e^-2` used to render as "e^ - 2").
 
 ### Comparison display (2.3.1, 2026-09-22)
 
