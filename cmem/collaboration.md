@@ -11,6 +11,25 @@ not a full-time software developer — which shapes everything below.
   did and did not verify.** The useful ending to a change is: what changed, and exactly what to click
   to confirm it.
 
+## How a feature gets built (established 2026-09-22, the matrix session)
+
+Jon sets the order himself and says so: _"We will need to test each before moving to the next one."_
+The rhythm that worked, 14 releases in a day:
+
+1. **Settle the ambiguous syntax decisions up front**, before any code — operator meaning, what a
+   name renders as, what is refused. Offer options with consequences; Jon decides quickly and his
+   answers are specific (`.*` for the matrix product, `\` mandatory, no `\pm`).
+2. **Build one step**, run it through the real code path in a script, and report a **table of exactly
+   what to type and what it should produce**.
+3. **Bump, build, push, wait for the live cache name**, then Jon tests in the browser and says
+   "proceed" or reports what he saw. Nothing moves to the next step before that.
+
+**Every test table must be self-contained.** This is the lesson of the session, paid for three times:
+a table that reused `A` from an earlier table (2×3 where the reader still had a 2×2) sent Jon chasing
+an error that was in the instructions, not the code. **Define every variable in the block you hand
+over, and say whether a row is about the display or the calculated result** — a row can render
+perfectly and still show `err` because a name is undefined.
+
 ## Communication
 
 - **Keep responses concise.** No line-by-line narration of changes — Jon reads the diff. End-of-turn

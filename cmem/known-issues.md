@@ -55,7 +55,7 @@ Corrected in the topic files; listed here so they are not re-introduced.
 | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | "Solver: TypeScript math kernel (`src/solver/`)"                | The directory does not exist. Source is **`solver/solver.ts`** at repo root; **`src/solver.ts`** is an 11-line WASM loader shim aliased as `solver` in the import map. |
 | "`src/blocks/plot.ts` — Plot block (**Plotters SVG via WASM**)" | Plotters is a Rust crate and has never been used here. `plot.ts` builds SVG as a **TypeScript string**, then attaches a crosshair with `createElementNS`.              |
-| Implication that the math kernel runs in WASM                   | `src/expr.ts` is 960 lines of TypeScript running in the browser. WASM exports exactly three arithmetic functions.                                                      |
+| Implication that the math kernel runs in WASM                   | `src/expr.ts` is 1,718 lines of TypeScript (2026-09-22) running in the browser. WASM exports exactly three arithmetic functions.                                       |
 
 ---
 
@@ -111,7 +111,7 @@ suppression that trains people to ignore the linter.
 **Partially addressed 2026-08-13:** the backend now has one — `deno task db:check`, ten assertions
 over the entitlement chain, which caught two real bugs on its first run.
 
-**`src/expr.ts` still has none, and that is the larger risk.** 960 lines of unit algebra with no
+**`src/expr.ts` still has none, and that is the larger risk.** 1,718 lines of unit algebra with no
 regression net, and a failure mode of **a wrong number that looks right** on a calculation sheet an
 engineer stamps. See [`testing.md`](testing.md) for why it is also the easiest module in the codebase
 to test: pure functions in, `Quantity` out, no DOM.

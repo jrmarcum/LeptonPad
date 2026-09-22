@@ -1,17 +1,39 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.2.2 (2026-08-13)
+## Where the project stands — v2.3.10 (2026-09-22)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
-960-line unit-aware math engine, a 22-category unit catalog, SVG plotting with unit-propagating
+1,718-line unit-aware math engine, a 22-category unit catalog, SVG plotting with unit-propagating
 sweep variables, markdown text, figures, collapsible sections with scoped namespaces, custom
 multi-block user tools, page-sized canvas with title block and page numbering, PWA install and
 offline operation, Clerk auth with four roles, one-time license codes, and AES-256-GCM encrypted
 purchasable template packs.
 
-~11k lines across `src/` (9.1k TS + 1.9k CSS), `api/`, `db/`, `solver/`, and the build scripts.
-`dist/main.js` is **409 KB**. Live at https://leptonpad.jrmarcum.deno.net — one Deno Deploy project
-serving both the site and the API at `/api`.
+~13k lines across `src/` (11k TS + 2.1k CSS), `api/`, `db/`, `solver/`, and the build scripts.
+`dist/main.js` is **426 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
+one Deno Deploy project serving both the site and the API at `/api`, and **a push to `main` is the
+deploy**.
+
+### The 2026-09-22 session — the math and notation layer, in 14 releases
+
+Driven by Jon's own sheets (AISC Design Example D.1 first), each step tested in the browser before
+the next. Detail in [`math-engine.md`](math-engine.md); the short list:
+
+- **Units:** `[unit]` tags anywhere in an expression, not just one at the end.
+- **Notation, LaTeX-style and mandatory:** `\phi` → φ (all 24 letters, both cases), `\ell`, the seven
+  `\var` shapes, `\bar{x}`, `\sqrt(`. A bare name renders as typed — no guessing.
+- **Constants:** `\e` is Euler's number; plain `e` and `tau` belong to the user (eccentricity, shear
+  stress). `pi` stays π. Assigning to a constant is an error.
+- **New maths:** `ln`, `log(x, base)`, `sum`, `prod`, `integral` (adaptive Simpson, unit-aware),
+  displayed as Σ Π ∫ with limits.
+- **Matrices, the largest piece:** brace literals with per-element units, element-wise `+ − * /`,
+  scalar scaling, the `.*` product (shown as ×), `transpose`, `det`, `inv`, `solve(K, F)` and
+  `el(A, i, j)` — enough for K·u = F with a mixed-unit stiffness matrix, rendered as bracketed grids.
+- **Display:** comparisons as ≥ ≤ ≠, any exponent raised, function arguments rendered.
+- **Bugs found and fixed along the way:** unary minus bound tighter than `^` (`-x^2` gave `+x²`),
+  `==` read as an assignment, plots missing section dot-notation, title blocks drifting down a page
+  per Shift+Enter, `[1/kip]` inventing a unit named "1", a service worker that could cache the
+  previous release's JS, and a project file loader that rejected a hand-written `\phi`.
 
 **Backend migrated 2026-08-13** — off Supabase, onto Clerk + Neon + Deno Deploy, with the Supabase
 code deleted the same day. Driver was cost: the free tier paused after a week of inactivity, and the

@@ -6,7 +6,8 @@ A browser-based engineering calculation pad PWA. Users build calculation sheets 
 
 - **Runtime**: Deno 2.x
 - **Build**: `deno bundle --platform browser` → `dist/main.js`
-- **Math**: TypeScript — `src/expr.ts` handles units, dimensional analysis, and control flow
+- **Math**: TypeScript — `src/expr.ts` handles units, dimensional analysis, matrices, sums and
+  integrals, and control flow
 - **Solver**: three arithmetic functions compiled to WASM (`solver/solver.ts` → `dist/solver.wasm`)
 - **Auth**: Clerk (email + password)
 - **Database**: Neon Postgres, reached only through a small API (`api/main.ts`) on Deno Deploy

@@ -37,7 +37,7 @@ LeptonPad/
 │   ├── main.ts             # Entry point — sidebar, modals, event wiring, keyboard, start()
 │   ├── state.ts            # ALL shared mutable state + the callback-slot registry
 │   ├── types.ts            # Shared interfaces + canvas/page constants
-│   ├── expr.ts             # The math engine — lexer, parser, units, control flow (960 lines)
+│   ├── expr.ts             # The math engine — lexer, parser, units, matrices, control flow (1718 lines)
 │   ├── canvas.ts           # Canvas class — DOM element, snap grid, margin guide, page separators
 │   ├── dnd.ts              # Drag-and-drop, block placement, marquee selection, multi-drag
 │   ├── backend.ts          # The provider-agnostic backend contract — the ONLY vendor seam
@@ -49,8 +49,8 @@ LeptonPad/
 │   ├── persistence.ts      # Project serialize/deserialize, save/load, encrypted block handling
 │   ├── solver.ts           # 11-line WASM loader shim — aliased as `solver` in the import map
 │   ├── blocks/
-│   │   ├── formula.ts      # Formula + Summary blocks — live evaluation (1000 lines)
-│   │   ├── plot.ts         # Plot block — SVG built as a string in TypeScript (737 lines)
+│   │   ├── formula.ts      # Formula + Summary blocks — live evaluation (1059 lines)
+│   │   ├── plot.ts         # Plot block — SVG built as a string in TypeScript (1294 lines)
 │   │   ├── figure.ts       # Figure/image block — paste or click-to-upload
 │   │   ├── text.ts         # Markdown text block
 │   │   ├── beam-def.ts     # Beam deflection math block (calls WASM)

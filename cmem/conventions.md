@@ -98,6 +98,18 @@ exponents.
 **Only add `baseUnits` to a `UnitDef` when `1 [unit] = 1 [product of base units]` exactly.** Otherwise
 expansion silently changes numeric values. — [`units.md`](units.md)
 
+**A value that some paths cannot handle needs a guard on every one of those paths, not a comment.**
+Matrices (`Quantity.m`) carry `NaN` in `v`, so any scalar-only path that read it would print a
+plausible number. `noMatrix()` is called in comparisons, powers, every function argument,
+sum/prod/integral limits and bodies, `[[…]]` conversion, if-conditions, for-limits and the plot
+evaluator. Add a new evaluation path, add the guard. — [`math-engine.md`](math-engine.md)
+
+**Display-only syntax must be stripped at every entry point to evaluation, in one shared helper.**
+`stripGreekMarks()` runs in `lex()`, `evalStatements()`, `parseForHeader()` and the plot's sweep
+variable; the one path that forgot it (the plot) made `\theta` an undefined variable. Same for
+`expandDotNotation()` — it lived in `formula.ts`, so plots could not use `beam1.L` until it moved to
+`expr.ts`. — [`known-issues.md`](known-issues.md) §13
+
 ## Persistence and security
 
 **The serializer keys off `encIv`/`encContent`, not `block.encrypted`.** Do not "simplify" it to trust

@@ -13,7 +13,7 @@ What exists:
 
 ## Why this matters more here than in most projects
 
-`src/expr.ts` is 960 lines of dimensional analysis. Its failure mode is not a crash — it is **a number
+`src/expr.ts` is 1,718 lines of dimensional analysis (2026-09-22). Its failure mode is not a crash — it is **a number
 that is wrong and looks right**. A structural engineer stamping a calculation sheet is the consumer.
 There is no regression net between a refactor of `mulU`/`addU`/`applyTargetUnit` and a wrong beam
 deflection on someone's drawing.
@@ -40,6 +40,27 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 
 - [ ] `delta(x) = expr [[in]]` — conversion applies on **every** call, including inside a plot.
 - [ ] An `if` block and a `for` block each evaluate and render.
+- [ ] `a == b`, `a <= b`, `f(x) == 3` evaluate (not read as assignments) and display as = ≤.
+- [ ] `sum(i^2, i, 1, 10)` = 385; `integral(sin(x), x, 0, \pi)` = 2; both draw Σ / ∫ with limits.
+- [ ] `log(8, 2)` = 3 and `ln(\e)` = 1; `log(x)` is still the natural log.
+
+**Notation (mandatory backslash)**
+
+- [ ] `\phi_ty` renders φ<sub>ty</sub>; bare `phi_ty` renders as typed.
+- [ ] `\ell_b`, `\bar{y}_c`, `\varphi` render ℓ<sub>b</sub>, ȳ<sub>c</sub>, ϕ.
+- [ ] `\e^2` = 7.389; plain `e` is a free variable (`e = 0.5 [in]` then `P * e` works).
+- [ ] `-2^2` = −4 (minus binds looser than `^`); `\e^(-x/2)` renders raised, not as `^`.
+
+**Matrices** (all through the formula-block path, with every matrix defined in the same block)
+
+- [ ] `{{1, 2}, {3, 4}}` draws a bracketed grid; `{1, 2, 3}` is a **column**.
+- [ ] Element-wise `A + B`, `A * B`; `2 * A`; `A .* B` (2×3 .* 3×2 works, 2×3 .* 2×2 errors).
+- [ ] `K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}`, `F = {5.94 [kip], -2.96 [kip*in]}`:
+      `solve(K, F)` = [0.5 in; 0.01], `K .* solve(K, F)` returns F, `det(K)` = 12 kip²,
+      `inv(K)` is a flexibility matrix, `el(u, 1, 1)` = 0.5 in.
+- [ ] `K .* inv(K)` reads as a clean identity (no 1e-16 dust).
+- [ ] Anything unsupported errors instead of showing NaN: `sqrt(A)`, `A^2`, `A >= B`, `A + 1`,
+      `2 / A`, `A [[mm]]`, an `if` condition on a matrix, a plot of a matrix.
 
 **Plot**
 

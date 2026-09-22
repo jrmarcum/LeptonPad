@@ -1,7 +1,8 @@
 # Math Engine — `src/expr.ts`
 
-960 lines of TypeScript. This is the product's differentiator: not that it evaluates expressions, but
-that **every value carries units and the units are checked**.
+1,718 lines of TypeScript (2026-09-22). This is the product's differentiator: not that it evaluates
+expressions, but that **every value carries units and the units are checked** — now for matrices as
+well as single values.
 
 ## Core types
 
