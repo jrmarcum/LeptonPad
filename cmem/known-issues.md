@@ -131,6 +131,28 @@ definition wins"; not yet decided. The readme tells users to avoid the three nam
 
 From 2.2.5 Greek renders only with a backslash (`\phi`). Sheets and purchased section templates that
 use bare `phi_ty` now display `phi_ty`. Jon declined auto-migration on load — see
-[`design-decisions.md`](design-decisions.md). Values are unaffected. Also: section summary lines
-(`updateSectionSummary`) show variable names and comparison text as **plain text**, so a
-`\phi_P_nr >= P_u` check appears there with its backslash.
+[`design-decisions.md`](design-decisions.md). Values are unaffected.
+
+Fixed in 2.2.6: the section summary line (`updateSectionSummary`) used to write names and
+comparisons as plain text, so `\phi_P_nr >= P_u` showed its backslash. It now renders through
+`transformPiece`/`prettifyExpr`; `sectionSummaryVarNames` maps each name to its spelling **as typed**
+so the Greek form survives.
+
+---
+
+## 13. Fixed 2.2.6 — gaps that only one block type had closed
+
+Audit 2026-09-21 after the summary report. Rule of thumb it produced: **every path that evaluates
+user text must apply the same preprocessing as formula rows.**
+
+- **`==` read as assignment** — `evalStatements` used `indexOf('=')`, so `a == b` assigned `"= b"` to
+  `a` and errored, and `f(x) == 3` redefined `f`. Now `search(/(?<![=<>!])=(?!=)/)` and `=(?!=)` in
+  the function-definition regex.
+- **Plots skipped `expandDotNotation`** — `beam1.L` failed in plot curves and ranges. The function
+  moved from `formula.ts` to `expr.ts`; `evalPlotData` applies it to the curve and both bounds.
+- **Plot sweep variable kept its `\`** — `\theta` was stored as the scope key `\theta` while the
+  curve looked up `theta`. `evalPlotData` now keys by `stripGreekMarks(cfg.xVar)`.
+- **`beam1.\phi_M`** — the dot rewrite required a letter after the dot; it now accepts `.\`.
+
+Still open: a comparison ending in a single unit tag labels its 0/1 result (`P_u != 0 [kip]` → `1 kip`)
+— the legacy trailing-tag rule, cosmetic.

@@ -91,7 +91,8 @@ export const globalFnScope: FnScope = {};
 
 // Summary-block outputs per section.
 // Only Summary Blocks (type='summary') inside a section drive these; Formula Blocks do not.
-export const sectionSummaryVarNames = new Map<string, Set<string>>();
+// variable name → its spelling as typed (keeps `\phi_P_nr` so the summary line can render φ)
+export const sectionSummaryVarNames = new Map<string, Map<string, string>>();
 export const sectionSummaryComparisons = new Map<string, Array<{ expr: string; pass: boolean }>>();
 
 // Maps child block id → parent section block id; rebuilt from state on load.

@@ -2,7 +2,14 @@
 // Plot block — SVG curve plotter
 // ---------------------------------------------------------------------------
 
-import { evalExpr, type FnScope, type Scope, type UnitMap } from '../expr.ts';
+import {
+  evalExpr,
+  expandDotNotation,
+  type FnScope,
+  type Scope,
+  stripGreekMarks,
+  type UnitMap,
+} from '../expr.ts';
 import { type Block, DEFAULT_PLOT, type PlotConfig } from '../types.ts';
 import { CANVAS_W, globalFnScope, globalScope, margins } from '../state.ts';
 import { isDark } from '../utils/theme.ts';
@@ -529,8 +536,12 @@ export function evalPlotData(
   // Resolve from/to expressions, preserving units so the sweep variable carries the
   // same unit as the range bounds (e.g. x gets {ft:1} when xMax references l [ft]).
   const baseScope: Scope = { ...globalScope };
-  const xMinExpr = cfg.xMinExpr ?? String(cfg.xMin);
-  const xMaxExpr = cfg.xMaxExpr ?? String(cfg.xMax);
+  // Same preprocessing as formula rows: `beam1.L` → `beam1__L`. The sweep variable is keyed by its
+  // bare name — typed `\theta` it displays θ, but the expression evaluator sees `theta`.
+  const xMinExpr = expandDotNotation(cfg.xMinExpr ?? String(cfg.xMin));
+  const xMaxExpr = expandDotNotation(cfg.xMaxExpr ?? String(cfg.xMax));
+  const expr = expandDotNotation(cfg.expr);
+  const xVar = stripGreekMarks(cfg.xVar).trim() || 'x';
   const xMinQty = resolveRangeQty(xMinExpr, cfg.xMin, baseScope, globalFnScope);
   const xMaxQty = resolveRangeQty(xMaxExpr, cfg.xMax, baseScope, globalFnScope);
   const resolvedXMin = isFinite(xMinQty.v) ? xMinQty.v : 0;
@@ -550,9 +561,9 @@ export function evalPlotData(
 
   for (let i = 0; i <= cfg.nPts; i++) {
     const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg.nPts);
-    const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: xUnit } };
+    const scope: Scope = { ...globalScope, [xVar]: { v: xv, u: xUnit } };
     try {
-      const yv = evalExpr(cfg.expr, scope, globalFnScope).v;
+      const yv = evalExpr(expr, scope, globalFnScope).v;
       points.push([xv, isFinite(yv) ? yv : NaN]);
       if (isFinite(yv)) {
         if (yv < yMin) yMin = yv;
@@ -581,10 +592,10 @@ export function evalPlotData(
   const markerSrc: MarkerSource[] = [];
 
   for (const xv of cfg.xMarkers) {
-    const scope: Scope = { ...globalScope, [cfg.xVar]: { v: xv, u: xUnit } };
+    const scope: Scope = { ...globalScope, [xVar]: { v: xv, u: xUnit } };
     let yv: number;
     try {
-      yv = evalExpr(cfg.expr, scope, globalFnScope).v;
+      yv = evalExpr(expr, scope, globalFnScope).v;
     } catch {
       yv = NaN;
     }

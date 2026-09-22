@@ -21,6 +21,7 @@ import {
   state,
 } from '../../state.ts';
 import { clamp } from '../../utils/units.ts';
+import { prettifyExpr, transformPiece, transformUnit } from '../../utils/markdown.ts';
 import { fmtNum } from '../formula.ts';
 import { reEvalAllFormulas } from '../formula.ts';
 import { canCreateSection, hasPack } from '../../auth.ts';
@@ -108,13 +109,15 @@ export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
   if (!summary) return;
   const prefix = (block.sectionName || 'section') + '__';
 
+  // Entries are HTML: names go through the same renderer as formula rows (\phi_P_nr → φ, M_n →
+  // subscript), units through transformUnit (psi never becomes ψ). Both escape their input.
   const summaryVars = sectionSummaryVarNames.get(sectionEl.id);
   const entries = summaryVars && summaryVars.size > 0
-    ? [...summaryVars].map((k) => {
+    ? [...summaryVars].map(([k, typed]) => {
       const v = globalScope[prefix + k] ?? globalScope[k];
       if (!v) return null;
       const unit = formatUnit(v.u);
-      return `${k} = ${fmtNum(v.v)}${unit ? ' ' + unit : ''}`;
+      return `${transformPiece(typed)} = ${fmtNum(v.v)}${unit ? ' ' + transformUnit(unit) : ''}`;
     }).filter(Boolean) as string[]
     : [];
 
@@ -127,7 +130,7 @@ export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
   summary.innerHTML = '';
   if (entries.length > 0) {
     const varsSpan = document.createElement('span');
-    varsSpan.textContent = entries.join('\u00a0\u00a0|\u00a0\u00a0');
+    varsSpan.innerHTML = entries.join('&nbsp;&nbsp;|&nbsp;&nbsp;');
     summary.appendChild(varsSpan);
   }
   for (const cmp of comparisons) {
@@ -136,7 +139,7 @@ export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
     }
     const badge = document.createElement('span');
     badge.className = cmp.pass ? 'section-cmp-pass' : 'section-cmp-fail';
-    badge.textContent = (cmp.pass ? '✓ ' : '✗ ') + cmp.expr;
+    badge.innerHTML = (cmp.pass ? '✓ ' : '✗ ') + prettifyExpr(cmp.expr);
     summary.appendChild(badge);
   }
 }

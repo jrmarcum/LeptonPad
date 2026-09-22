@@ -5,6 +5,7 @@
 import {
   evalExpr,
   evalFormulaRows,
+  expandDotNotation,
   type FnScope,
   formatUnit,
   type FormulaRow,
@@ -38,11 +39,6 @@ export function fmtNum(n: number): string {
   if (!isFinite(n)) return String(n);
   if (Number.isInteger(n) && Math.abs(n) < 1e9) return n.toLocaleString();
   return parseFloat(n.toPrecision(6)).toString();
-}
-
-// WASM-READY: (string) -> string
-export function expandDotNotation(expr: string): string {
-  return expr.replace(/\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b/g, '$1__$2');
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +255,7 @@ export function reEvalAllFormulas() {
           })
         : [];
 
-      const summaryVars = new Set<string>();
+      const summaryVars = new Map<string, string>(); // name → spelling as typed
       const summaryComps: Array<{ expr: string; pass: boolean }> = [];
 
       for (const cel of childFormulaEls) {
@@ -275,11 +271,11 @@ export function reEvalAllFormulas() {
           for (const stmt of stmts) {
             if (!stmt.active || stmt.rowType) continue;
             if (stmt.name && !stmt.error) {
-              summaryVars.add(stmt.name);
+              summaryVars.set(stmt.name, stmt.raw.slice(0, stmt.raw.indexOf('=')).trim());
             } else if (!stmt.name && !stmt.error && COMP_RE.test(stmt.expr)) {
               summaryComps.push({ expr: stmt.raw, pass: stmt.value !== 0 });
             } else if (!stmt.name && !stmt.error && /^[a-zA-Z_]\w*$/.test(stmt.expr.trim())) {
-              summaryVars.add(stmt.expr.trim());
+              summaryVars.set(stmt.expr.trim(), stmt.raw.trim());
             } else if (COMP_RE.test(stmt.raw)) {
               try {
                 const result = evalExpr(stmt.raw, sectionScope, sectionFnScope);

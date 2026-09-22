@@ -263,6 +263,16 @@ export function stripGreekMarks(src: string): string {
   return src.replace(/\\(?=[A-Za-z])/g, '');
 }
 
+/**
+ * Section access: `beam1.L` → `beam1__L`, the key sections export into the global scope. Formula
+ * and plot blocks both apply it before evaluating. The member may carry a Greek marker
+ * (`beam1.\phi_P` → `beam1__\phi_P`); stripGreekMarks removes it afterwards.
+ */
+// WASM-READY: (string) -> string
+export function expandDotNotation(expr: string): string {
+  return expr.replace(/\b([A-Za-z_]\w*)\.(\\?[A-Za-z_]\w*)\b/g, '$1__$2');
+}
+
 function lex(src: string): Tok[] {
   src = stripGreekMarks(src);
   const out: Tok[] = [];
@@ -797,7 +807,8 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     }
 
     // Function definition: f(x) = expr  — stored in fnScope, no numeric result
-    const fnDefMatch = stmt.match(/^([a-zA-Z_]\w*)\s*\(([a-zA-Z_]\w*)\)\s*=\s*(.+)$/);
+    // `=(?!=)` so the comparison `f(x) == 3` is not taken as defining f.
+    const fnDefMatch = stmt.match(/^([a-zA-Z_]\w*)\s*\(([a-zA-Z_]\w*)\)\s*=(?!=)\s*(.+)$/);
     if (fnDefMatch) {
       const [, fnName, param, fnExpr] = fnDefMatch;
       fnScope[fnName] = { param, expr: fnExpr.trim(), ...(targetUnit && { targetUnit }) };
@@ -813,7 +824,9 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
       continue;
     }
 
-    const eqIdx = stmt.indexOf('=');
+    // The assignment '=' is a lone '=' — never part of ==, <=, >=, != (else `a == b` was read
+    // as assigning "= b" to a and errored).
+    const eqIdx = stmt.search(/(?<![=<>!])=(?!=)/);
     if (eqIdx > 0) {
       const name = stmt.slice(0, eqIdx).trim();
       const expr = stmt.slice(eqIdx + 1).trim();
