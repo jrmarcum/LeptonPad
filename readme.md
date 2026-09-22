@@ -191,7 +191,8 @@ doubled.
   across the whole range: `integral(1/x, x, 0, 1)` reports an error rather than a guess.
 - They nest (`sum(sum(i*j, j, 1, 3), i, 1, 3)`) and work inside `for` loops and plots.
 
-**Matrices** (in progress — step 1 of 3: element-wise operations) are written in braces, row by row:
+**Matrices** (in progress — steps 1–2 of 3 done: element-wise and number × matrix) are written in
+braces, row by row:
 
 | You type                                                | Means                                              |
 | ------------------------------------------------------- | -------------------------------------------------- |
@@ -200,10 +201,14 @@ doubled.
 | `K = {{12, -6}, {-6, 4}} [kip/in]`                      | every element in kip/in                            |
 | `K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}` | each element its own unit                          |
 | `A + B`, `A - B`, `A * B`, `A / B`, `-A`                | element by element — same size required            |
+| `2 * A`, `A * 2`, `A / 2`, `L * A`                      | every element scaled; units multiply through       |
 
 Units are checked element by element, so adding kip to kip/in is an error that names the element.
-Not yet available (they report an error, never a wrong number): number × matrix, matrix
-multiplication `A .* B` (row-by-column), functions of a matrix, comparisons and `[[…]]` conversion.
+`A + 1` is an error (not defined for matrices), and so is `2 / A` (dividing by a matrix means
+multiplying by its inverse). On a matrix that already has units, write a scaling unit next to its
+number — `Km / (2 [in])`, not `Km / 2 [in]`, which would relabel every element and is refused.
+Not yet available (they report an error, never a wrong number): matrix multiplication `A .* B`
+(row-by-column), inverse, functions of a matrix, comparisons and `[[…]]` conversion.
 
 **Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
 and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section

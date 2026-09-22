@@ -116,7 +116,15 @@ Jon's plan, **each step tested before the next**: (1) element-wise `+ − * /` o
 Step 1 (v2.3.2): `combine()` in `expr.ts` handles + − * / for both scalars and matrices; `-A` and a
 trailing/inline `[unit]` map over elements. Display: `renderMatrixLiteral()` (markdown.ts, braces now
 count as nesting in every depth scanner) and `matrixResultHtml()` (formula.ts) draw a bracketed grid
-(`.mat` CSS); the section summary line shows the grid too.
+(`.mat` CSS); the section summary line shows the grid too. **Jon confirmed step 1 in the browser,
+2026-09-22.**
+
+Step 2 (v2.3.3): `combine()` scales every element for `k*A`, `A*k`, `A/k` (units multiply through).
+Refused with a clear error: `A ± k` (undefined in matrix algebra) and `k / A` (division by a matrix =
+multiply by the inverse, per Jon — no element-wise reciprocal). **Trap found while testing:** the
+legacy single-trailing-tag rule made `Km / 2 [in]` relabel _every_ element of a mixed-unit matrix as
+`in`. `applyStatementUnits` now refuses a whole-result tag on a matrix whose elements already carry
+units, pointing to `Km / (2 [in])`; `{{12, -6}, …} [kip/in]` (unitless elements) still works.
 
 ### Comparison display (2.3.1, 2026-09-22)
 

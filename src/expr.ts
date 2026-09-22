@@ -146,14 +146,30 @@ function scalarOp(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity
 }
 
 /**
- * + − * / for any pair: two numbers as before; two same-shape matrices element by element, each
- * element keeping its own unit (so + and − check units per element). Mixing a matrix with a number
- * is step 2 and is refused.
+ * + − * / for any pair:
+ *   number ∘ number   — as before;
+ *   matrix ∘ matrix   — element by element on same-shape matrices, each element keeping its own unit
+ *                       (so + and − check units per element)                            [step 1];
+ *   k * A, A * k, A / k — every element scaled by the number, units multiplied through   [step 2].
+ * Refused: A ± k (not defined in matrix algebra) and k / A (division by a matrix means multiplying
+ * by its inverse — Jon's rule; there is no element-wise reciprocal).
  */
 function combine(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity {
   if (!a.m && !b.m) return scalarOp(a, b, op);
   if (!a.m || !b.m) {
-    throw new Error(`Matrix ${op} number is not supported yet — both sides must be matrices`);
+    const scale = (m: Quantity[][], f: (x: Quantity) => Quantity) =>
+      matrixOf(m.map((row) => row.map(f)));
+    if (op === '*') {
+      return a.m ? scale(a.m, (x) => scalarOp(x, b, '*')) : scale(b.m!, (x) => scalarOp(a, x, '*'));
+    }
+    if (op === '/' && a.m) return scale(a.m, (x) => scalarOp(x, b, '/'));
+    if (op === '/') {
+      throw new Error("A number can't be divided by a matrix — that needs the matrix inverse");
+    }
+    throw new Error(
+      `A matrix and a number can't be ${op === '+' ? 'added' : 'subtracted'} — ` +
+        'use a matrix of the same size',
+    );
   }
   const ar = a.m.length, ac = a.m[0].length, br = b.m.length, bc = b.m[0].length;
   if (ar !== br || ac !== bc) {
@@ -1106,6 +1122,15 @@ export function evalExpr(src: string, scope: Scope, fnScope: FnScope = {}): Quan
 /** A statement's trailing `[unit]` (declare) and `[[unit]]` (convert). A matrix takes the declared
  *  unit on every element; converting a matrix is not supported yet and says so. */
 function applyStatementUnits(q: Quantity, tag?: UnitMap, target?: UnitMap): Quantity {
+  // The legacy whole-result tag would silently overwrite a matrix's own per-element units
+  // (`Km / 2 [in]` turned every element into "in"). Allow it only on a matrix whose elements are
+  // still unitless (`{{12, -6}, {-6, 4}} [kip/in]`); otherwise the unit belongs next to its number.
+  if (tag !== undefined && q.m?.some((row) => row.some((x) => Object.keys(x.u).length > 0))) {
+    throw new Error(
+      'A trailing [unit] would relabel every element of a matrix that already has units — ' +
+        'put the unit next to its number, e.g. Km / (2 [in])',
+    );
+  }
   if (tag !== undefined) q = mapQ(q, (x) => ({ v: x.v, u: tag }));
   if (target !== undefined) q = applyTargetUnit(noMatrix(q, 'Unit conversion [[…]]'), target);
   return q;
