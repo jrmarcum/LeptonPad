@@ -175,6 +175,10 @@ Implementation: `MATRIX_FNS` in `expr.ts` is dispatched in `atom()` **before** t
   - `matMul` now rounds a summed element to 0 when it is ≤ `1e-12 ×` the sum of |terms|, so
     `K .* inv(K)` reads as the identity instead of 1 and −1.1e-16.
   - Display: `inv(X)` → X⁻¹ (`POSTFIX_FN_SUP`), `solve(K, F)` stays a named call.
+  - **Jon confirmed inv/solve in the browser, 2026-09-22**, asking only that a call's arguments be
+    rendered — `renderCall()` (v2.3.9) now renders the arguments of **any** call, so matrix literals
+    inside `solve`/`det`/`min`/a user function show as grids and Greek, subscripts, units and
+    fractions come out. `\sqrt(` keeps its √; bare `sqrt(` stays text, per the backslash rule.
 
 ### Comparison display (2.3.1, 2026-09-22)
 

@@ -265,6 +265,28 @@ function renderPostfixFn(s: string): string | null {
   return `${body}<sup>${POSTFIX_FN_SUP[m[1]]}</sup>`;
 }
 
+/**
+ * Any other call — `solve(K, F)`, `det(A)`, `min(a, b)`, a user's `f(x)` — with each argument
+ * rendered, so a matrix literal inside shows as a grid and units/Greek inside arguments come out.
+ * `\sqrt(x)` keeps its √. Returns null unless `s` is exactly one call.
+ */
+function renderCall(s: string): string | null {
+  const m = s.match(/^(\\?[A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+  if (!m || !s.endsWith(')')) return null;
+  let depth = 0;
+  for (let i = m[0].length - 1; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')' && --depth === 0 && i !== s.length - 1) return null;
+  }
+  const inner = s.slice(m[0].length, -1);
+  const args = inner.trim() ? splitTopLevelCommas(inner) : [];
+  if (args.some((a) => !a)) return null;
+  const body = args.map(renderExpr).join(', ');
+  const name = m[1];
+  if (name === '\\sqrt') return `√(${body})`; // bare `sqrt(` stays text — the backslash rule
+  return `${transformPiece(name)}(${body})`;
+}
+
 const BIG_OP_SYM: Record<string, string> = { sum: 'Σ', prod: 'Π', integral: '∫' };
 
 // Comparison operators and their display glyphs. Two-character operators are tried first so `>=`
@@ -339,7 +361,7 @@ function renderBigOp(s: string): string | null {
 export function renderExpr(raw: string): string {
   const s = stripOuter(raw.trim());
   if (!s) return '';
-  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s) ?? renderPostfixFn(s);
+  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s) ?? renderPostfixFn(s) ?? renderCall(s);
   if (bigOp !== null) return bigOp;
 
   // A comparison splits first, so each side renders on its own: `a/b >= c` is a fraction ≥ c, not
@@ -419,7 +441,7 @@ export function renderExpr(raw: string): string {
       const stripped = stripOuter(piece);
       if (stripped !== piece) return '(' + renderExpr(stripped) + ')';
       return renderBigOp(piece) ?? renderMatrixLiteral(piece) ?? renderPostfixFn(piece) ??
-        transformPiece(piece);
+        renderCall(piece) ?? transformPiece(piece);
     };
     let html = '';
     let start = 0;
