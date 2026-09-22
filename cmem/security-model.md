@@ -118,6 +118,16 @@ that ever stops being true.
 4. **The Clerk publishable key is public by design.** It identifies the Clerk instance and grants
    nothing on its own; it is safe in `dist/config.js`.
 
+## Local-only files (never commit)
+
+- **`cmem/clerk-leptonpad.com.zone`** and any other DNS zone export. Jon designated these private on
+  2026-09-22: they carry registrar records and host names, infrastructure detail that does not belong
+  in a public repo. Verified never committed and absent from history (`git log --all -- <path>`);
+  `.gitignore` now carries `*.zone`. **`cmem/` is otherwise committed in full** — this is the one
+  exception, so do not assume a file is safe just because it sits in `cmem/`.
+- The same rule as always for values: real credentials live in gitignored `.env*` files or the host
+  dashboard, never in a `*.example` file.
+
 ## Review checklist for changes in this area
 
 - [ ] Does `serializeProject()` still write ciphertext only? Save a project containing an owned pack

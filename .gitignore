@@ -5,3 +5,7 @@ dist/
 .env.*
 !.env.example
 !.env.api.example
+
+# DNS zone exports (e.g. cmem/clerk-leptonpad.com.zone) — registrar records and host names,
+# private infrastructure detail. Keep them local; never commit one.
+*.zone
