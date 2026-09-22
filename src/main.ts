@@ -110,17 +110,10 @@ const MODULES: {
   name: string;
   icon: string;
   type: Block['type'];
-  sectionOnly?: boolean;
   requiresPro?: boolean; // section creation is a pro+ feature
 }[] = [
   { id: 'formula', name: 'Formula Block', icon: '\u03a3', type: 'formula' },
-  {
-    id: 'summary',
-    name: 'Summary Block',
-    icon: '\u03a3\u0332',
-    type: 'summary',
-    sectionOnly: true,
-  },
+  { id: 'summary', name: 'Summary Block', icon: '\u03a3\u0332', type: 'summary' },
   { id: 'section', name: 'Section', icon: '\u29c5', type: 'section', requiresPro: true },
   { id: 'beam-def', name: 'Beam Deflection', icon: '\u{1F4CF}', type: 'math' },
   { id: 'sect-prop', name: 'Section Properties', icon: '\u{1F3D7}', type: 'math' },
@@ -791,13 +784,6 @@ function renderSidebar() {
     item.dataset.moduleType = mod.type;
     item.dataset.moduleId = mod.id;
     item.innerHTML = `<span>${mod.icon}</span><span>${mod.name}</span>`;
-    if (mod.sectionOnly) {
-      const badge = document.createElement('span');
-      badge.className = 'module-section-badge';
-      badge.textContent = '§';
-      badge.title = 'Can only be placed inside a Section';
-      item.appendChild(badge);
-    }
     if (mod.requiresPro) {
       item.dataset.requiresPro = '1';
       const proBadge = document.createElement('span');

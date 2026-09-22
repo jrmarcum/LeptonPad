@@ -728,18 +728,6 @@ main {
   border-left: 3px solid #22c55e !important;
 }
 
-/* Sidebar badge marking section-only modules */
-.module-section-badge {
-  margin-left: auto;
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #64748b;
-  background: #e2e8f0;
-  border-radius: 3px;
-  padding: 0 4px;
-  line-height: 1.4;
-}
-
 .formula-label {
   font-weight: 600;
   font-size: 0.78rem;

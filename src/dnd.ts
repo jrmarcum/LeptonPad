@@ -555,8 +555,8 @@ export function renderBlock(block: Block) {
 }
 
 export function dropBlock(type: Block['type'], subtype: string, canvasX: number, canvasY: number) {
-  if (type === 'summary' && !sectionAtPoint(canvasX, canvasY)) return;
-
+  // Summary blocks may go anywhere (2026-09-21). Outside a section they are a highlighted formula
+  // block; inside one they also feed the section's summary line (reEvalAllFormulas).
   const customMod = type === 'formula' && subtype
     ? customModules.find((m) => m.id === subtype)
     : undefined;

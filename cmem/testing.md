@@ -52,6 +52,7 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] Create, rename (collision reverts), collapse/expand — height is correct after toggle.
 - [ ] Section-scoped variable resolves as `<name>__var`.
 - [ ] A Summary block inside a section drives the section summary; a Formula block does not.
+- [ ] A Summary block places on the open sheet (drag and double-click) as well as inside a section.
 
 **Persistence and encryption** (the invariant — see [`security-model.md`](security-model.md))
 

@@ -41,17 +41,17 @@ The `.example` files are documentation and are committed — never put a real va
 
 ## Block types
 
-| Block     | Description                                                               |
-| --------- | ------------------------------------------------------------------------- |
-| Formula   | Live math evaluation with units, variables, control flow                  |
-| Summary   | Formula block variant with green accent; surfaces key results             |
-| Plot      | SVG curve plot with variable x-range, optional area fill, x and y markers |
-| Figure    | Image block with paste or click-to-upload                                 |
-| Text      | Markdown text block                                                       |
-| Header    | Section heading                                                           |
-| Section   | Collapsible container (pro+ only)                                         |
-| Beam Def  | Beam deflection math block                                                |
-| Sect Prop | Section properties math block                                             |
+| Block     | Description                                                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Formula   | Live math evaluation with units, variables, control flow                                                                         |
+| Summary   | Formula block with a green accent for key results; place it anywhere — inside a Section it also feeds the section's summary line |
+| Plot      | SVG curve plot with variable x-range, optional area fill, x and y markers                                                        |
+| Figure    | Image block with paste or click-to-upload                                                                                        |
+| Text      | Markdown text block                                                                                                              |
+| Header    | Section heading                                                                                                                  |
+| Section   | Collapsible container (pro+ only)                                                                                                |
+| Beam Def  | Beam deflection math block                                                                                                       |
+| Sect Prop | Section properties math block                                                                                                    |
 
 All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, and Figure blocks have a **stretch-right** handle at the right edge; Plot and Figure also have a **stretch-down** handle at the bottom edge.
 
