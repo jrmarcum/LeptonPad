@@ -177,7 +177,12 @@ CORS with no useful error in the app.
 3. `deno task check` — fmt + lint must be clean (lint failures block, unused imports are errors).
 4. `deno task build`.
 5. Confirm `dist/sw.js` contains the new `leptonpad-vX.Y.Z`. **If it did not change, stop** — the
-   deploy will be invisible to returning users.
+   deploy will be invisible to returning users. ⚠️ Check the build's **exit status**, not just its
+   tail: on 2026-09-22 (v2.3.4) `sync-version.ts` failed with Windows os error 1224 ("user-mapped
+   section open") because VS Code / the Deno LSP held `public/sw.js`, the build aborted, and a commit
+   went out with a stale `dist/`. The script only writes when the cache name is out of date, so
+   updating that one line in `public/sw.js` by another route (the editor, or an agent's Edit tool)
+   lets the build proceed.
 6. `dist/config.js` needs no check — Deno Deploy regenerates it, and with no `.env` present it
    defaults `apiBaseUrl` to the relative `/api`.
 7. Commit, then push `main` — **this deploys to production.**
