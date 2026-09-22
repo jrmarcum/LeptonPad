@@ -97,6 +97,27 @@ and `\bar{…}`.
   marks (U+0300–036F) so `\ell_b` and `\bar{y}_c` subscript.
 - `\pm` was considered and **rejected** by Jon — a calculator cannot return two values from one row.
 
+### Matrices — staged build (started 2026-09-22)
+
+Jon's plan, **each step tested before the next**: (1) element-wise `+ − * /` on same-shape matrices,
+(2) scalar × and ÷, (3) matrix product. Decisions:
+
+- **Syntax: braces** (`[…]` is units, `;` splits statements, `M(1,2)` reads as a call). Rows:
+  `{{a, b}, {c, d}}`; a flat `{a, b, c}` is a **column** vector (u, F in K·u = F).
+- **Mixed units are required** (stiffness matrices mix kip/in, kip, kip·in): a matrix is
+  `Quantity.m: Quantity[][]`, each element its own unit; the matrix's own `v` is NaN.
+- **Operators (Jon, 2026-09-22):** `*` and `/` between two matrices are **element-wise**; `.*` will be
+  the "dot product" = row-by-column matrix multiplication as in the algebra1course.wordpress.com
+  article Jon cited; there is **no `./`** — division is "multiply by the inverse".
+- **Guard rule:** every scalar-only path calls `noMatrix()` — comparisons, powers, all function args,
+  sum/prod/integral limits and bodies, `[[…]]` conversion, if-conditions, for-limits, plots. A matrix
+  must never reach code that reads its NaN `v`.
+
+Step 1 (v2.3.2): `combine()` in `expr.ts` handles + − * / for both scalars and matrices; `-A` and a
+trailing/inline `[unit]` map over elements. Display: `renderMatrixLiteral()` (markdown.ts, braces now
+count as nesting in every depth scanner) and `matrixResultHtml()` (formula.ts) draw a bracketed grid
+(`.mat` CSS); the section summary line shows the grid too.
+
 ### Comparison display (2.3.1, 2026-09-22)
 
 `renderExpr` splits at the first **top-level** comparison (`findTopLevelCmp`, two-char operators

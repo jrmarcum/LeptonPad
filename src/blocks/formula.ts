@@ -9,6 +9,7 @@ import {
   type FnScope,
   formatUnit,
   type FormulaRow,
+  type Quantity,
   type Scope,
 } from '../expr.ts';
 import { type Block } from '../types.ts';
@@ -130,6 +131,19 @@ function serializeEditable(el: HTMLElement): string {
 // Evaluation
 // ---------------------------------------------------------------------------
 
+/** A matrix result as a bracketed grid; every element shows its own value and unit. */
+export function matrixResultHtml(m: Quantity[][]): string {
+  const cells = m.flat().map((q) => {
+    const u = formatUnit(q.u);
+    return `<span>${fmtNum(q.v)}${
+      u ? ` <span class="result-unit">${transformUnit(u)}</span>` : ''
+    }</span>`;
+  }).join('');
+  return `<span class="mat" style="grid-template-columns: repeat(${
+    m[0].length
+  }, auto)">${cells}</span>`;
+}
+
 /** Apply evalFormulaRows results to a formula block's DOM result spans. */
 export function applyEvalResults(
   formulaEl: HTMLElement,
@@ -199,6 +213,10 @@ export function applyEvalResults(
       r.textContent = 'err';
       r.title = stmt.error;
       r.className = 'formula-result formula-error';
+    } else if (stmt.matrix) {
+      r.innerHTML = matrixResultHtml(stmt.matrix);
+      r.title = `${stmt.matrix.length}×${stmt.matrix[0].length} matrix`;
+      r.className = 'formula-result';
     } else {
       const unitStr = formatUnit(stmt.unit);
       r.innerHTML = fmtNum(stmt.value) +

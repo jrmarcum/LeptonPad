@@ -542,6 +542,11 @@ export function evalPlotData(
   const xMaxExpr = expandDotNotation(cfg.xMaxExpr ?? String(cfg.xMax));
   const expr = expandDotNotation(cfg.expr);
   const xVar = stripGreekMarks(cfg.xVar).trim() || 'x';
+  const plotY = (scope: Scope): number => {
+    const q = evalExpr(expr, scope, globalFnScope);
+    if (q.m) throw new Error('A plot needs a single value, not a matrix');
+    return q.v;
+  };
   const xMinQty = resolveRangeQty(xMinExpr, cfg.xMin, baseScope, globalFnScope);
   const xMaxQty = resolveRangeQty(xMaxExpr, cfg.xMax, baseScope, globalFnScope);
   const resolvedXMin = isFinite(xMinQty.v) ? xMinQty.v : 0;
@@ -563,7 +568,7 @@ export function evalPlotData(
     const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg.nPts);
     const scope: Scope = { ...globalScope, [xVar]: { v: xv, u: xUnit } };
     try {
-      const yv = evalExpr(expr, scope, globalFnScope).v;
+      const yv = plotY(scope);
       points.push([xv, isFinite(yv) ? yv : NaN]);
       if (isFinite(yv)) {
         if (yv < yMin) yMin = yv;
@@ -595,7 +600,7 @@ export function evalPlotData(
     const scope: Scope = { ...globalScope, [xVar]: { v: xv, u: xUnit } };
     let yv: number;
     try {
-      yv = evalExpr(expr, scope, globalFnScope).v;
+      yv = plotY(scope);
     } catch {
       yv = NaN;
     }

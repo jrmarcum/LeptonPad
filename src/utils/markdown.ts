@@ -97,8 +97,8 @@ function sanitizeUrl(url: string): string {
 export function topLevelIdx(s: string, ch: string): number {
   let depth = 0;
   for (let i = 0; i <= s.length - ch.length; i++) {
-    if (s[i] === '(' || s[i] === '[') depth++;
-    else if (s[i] === ')' || s[i] === ']') depth--;
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && s.slice(i, i + ch.length) === ch) return i;
   }
   return -1;
@@ -126,8 +126,8 @@ export function stripOuter(s: string): string {
 function findAssignmentIdx(s: string): number {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(' || s[i] === '[') depth++;
-    else if (s[i] === ')' || s[i] === ']') depth--;
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && s[i] === '=') {
       if (i > 0 && /[<>!=]/.test(s[i - 1])) continue;
       if (i + 1 < s.length && s[i + 1] === '=') continue;
@@ -194,8 +194,8 @@ function splitTopLevelCommas(s: string): string[] {
   const out: string[] = [];
   let depth = 0, start = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(' || s[i] === '[') depth++;
-    else if (s[i] === ')' || s[i] === ']') depth--;
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && s[i] === ',') {
       out.push(s.slice(start, i));
       start = i + 1;
@@ -203,6 +203,41 @@ function splitTopLevelCommas(s: string): string[] {
   }
   out.push(s.slice(start));
   return out.map((p) => p.trim());
+}
+
+/** True when `s` is one `{…}` group — its opening brace closes at the very end. */
+function isBraceGroup(s: string): boolean {
+  if (!s.startsWith('{') || !s.endsWith('}')) return false;
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}' && --depth === 0 && i !== s.length - 1) return false;
+  }
+  return true;
+}
+
+/**
+ * A matrix literal as a bracketed grid: `{{a, b}, {c, d}}` → 2×2, a flat `{a, b, c}` → a column
+ * (same shapes as the evaluator's matrixLiteral). Returns null if `s` is not a well-formed literal,
+ * so malformed input falls through to plain text rather than a misleading grid.
+ */
+function renderMatrixLiteral(s: string): string | null {
+  if (!isBraceGroup(s)) return null;
+  const items = splitTopLevelCommas(s.slice(1, -1));
+  if (items.some((x) => !x)) return null;
+  let rows: string[][];
+  if (items.every(isBraceGroup)) {
+    rows = items.map((r) => splitTopLevelCommas(r.slice(1, -1)));
+    if (rows.some((r) => r.length !== rows[0].length || r.some((x) => !x))) return null;
+  } else if (items.some(isBraceGroup)) {
+    return null;
+  } else {
+    rows = items.map((x) => [x]);
+  }
+  const cells = rows.flat().map((x) => `<span>${renderExpr(x)}</span>`).join('');
+  return `<span class="mat" style="grid-template-columns: repeat(${
+    rows[0].length
+  }, auto)">${cells}</span>`;
 }
 
 const BIG_OP_SYM: Record<string, string> = { sum: 'Σ', prod: 'Π', integral: '∫' };
@@ -223,8 +258,8 @@ const CMP_DISPLAY: [string, string][] = [
 function findTopLevelCmp(s: string): { idx: number; op: string; sym: string } | null {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(' || s[i] === '[') depth++;
-    else if (s[i] === ')' || s[i] === ']') depth--;
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0) {
       for (const [op, sym] of CMP_DISPLAY) {
         if (s.startsWith(op, i)) return { idx: i, op, sym };
@@ -256,8 +291,8 @@ function renderBigOp(s: string): string | null {
   // Σ(a + b) needs parentheses to read correctly; Σ a·b does not.
   let hasAddSub = false;
   for (let i = 1, depth = 0; i < body.length; i++) {
-    if (body[i] === '(' || body[i] === '[') depth++;
-    else if (body[i] === ')' || body[i] === ']') depth--;
+    if (body[i] === '(' || body[i] === '[' || body[i] === '{') depth++;
+    else if (body[i] === ')' || body[i] === ']' || body[i] === '}') depth--;
     else if (depth === 0 && (body[i] === '+' || body[i] === '-')) hasAddSub = true;
   }
   const bodyHtml = hasAddSub ? `(${renderExpr(body)})` : renderExpr(body);
@@ -279,7 +314,7 @@ function renderBigOp(s: string): string | null {
 export function renderExpr(raw: string): string {
   const s = stripOuter(raw.trim());
   if (!s) return '';
-  const bigOp = renderBigOp(s);
+  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s);
   if (bigOp !== null) return bigOp;
 
   // A comparison splits first, so each side renders on its own: `a/b >= c` is a fraction ≥ c, not
@@ -295,8 +330,8 @@ export function renderExpr(raw: string): string {
   const addSplits: number[] = [];
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(' || s[i] === '[') depth++;
-    else if (s[i] === ')' || s[i] === ']') depth--;
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && i > 0 && (s[i] === '+' || s[i] === '-')) addSplits.push(i);
   }
 
@@ -345,8 +380,8 @@ export function renderExpr(raw: string): string {
   const mulSplits: number[] = [];
   depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(' || s[i] === '[') depth++;
-    else if (s[i] === ')' || s[i] === ']') depth--;
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && s[i] === '*') mulSplits.push(i);
   }
 
@@ -362,7 +397,7 @@ export function renderExpr(raw: string): string {
     return pieces.map((piece) => {
       const stripped = stripOuter(piece);
       if (stripped !== piece) return '(' + renderExpr(stripped) + ')';
-      return renderBigOp(piece) ?? transformPiece(piece);
+      return renderBigOp(piece) ?? renderMatrixLiteral(piece) ?? transformPiece(piece);
     }).join(' · ');
   }
 

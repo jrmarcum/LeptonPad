@@ -22,7 +22,7 @@ import {
 } from '../../state.ts';
 import { clamp } from '../../utils/units.ts';
 import { prettifyExpr, transformPiece, transformUnit } from '../../utils/markdown.ts';
-import { fmtNum } from '../formula.ts';
+import { fmtNum, matrixResultHtml } from '../formula.ts';
 import { reEvalAllFormulas } from '../formula.ts';
 import { canCreateSection, hasPack } from '../../auth.ts';
 
@@ -116,6 +116,7 @@ export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
     ? [...summaryVars].map(([k, typed]) => {
       const v = globalScope[prefix + k] ?? globalScope[k];
       if (!v) return null;
+      if (v.m) return `${transformPiece(typed)} = ${matrixResultHtml(v.m)}`;
       const unit = formatUnit(v.u);
       return `${transformPiece(typed)} = ${fmtNum(v.v)}${unit ? ' ' + transformUnit(unit) : ''}`;
     }).filter(Boolean) as string[]

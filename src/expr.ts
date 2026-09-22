@@ -25,10 +25,15 @@ import { UNIT_LOOKUP } from './utils/unit-defs.ts';
 /** Map of unit name → exponent. Empty object means dimensionless. */
 export type UnitMap = Readonly<Record<string, number>>;
 
-/** A numeric value paired with its unit. */
+/**
+ * A numeric value paired with its unit — or, when `m` is set, a matrix. A matrix is rows of scalar
+ * Quantities, each with its OWN unit (stiffness matrices mix kip/in, kip and kip·in); its own `v` is
+ * NaN and `u` is {}. Every scalar operation must reject a matrix (`noMatrix`) rather than read that NaN.
+ */
 export interface Quantity {
   v: number;
   u: UnitMap;
+  m?: Quantity[][];
 }
 
 /** Scope maps variable names to Quantities (value + unit). */
@@ -43,6 +48,7 @@ export interface Statement {
   expr: string; // right-hand side (or whole statement if bare)
   value: number;
   unit: UnitMap; // derived unit (empty = dimensionless)
+  matrix?: Quantity[][]; // set when the result is a matrix (value is then NaN)
   error?: string;
   isFn?: boolean; // true when this statement defines a user function
   fnParam?: string; // parameter name when isFn is true
@@ -105,6 +111,70 @@ function addU(a: UnitMap, b: UnitMap): UnitMap {
     throw new Error(`Unit mismatch: ${formatUnit(a)} ≠ ${formatUnit(b)}`);
   }
   return a;
+}
+
+// ---------------------------------------------------------------------------
+// Matrices (step 1, 2026-09-22): literals `{{a, b}, {c, d}}`, per-element units, element-wise
+// + − * / on same-shape matrices. Scalar×matrix (step 2) and matrix product `.*` (step 3) are not
+// implemented yet and raise a clear error — never a NaN or a plausible wrong number.
+// ---------------------------------------------------------------------------
+
+/** Throw if `q` is a matrix — for every operation that only makes sense on a single number. */
+function noMatrix(q: Quantity, what: string): Quantity {
+  if (q.m) {
+    throw new Error(`${what} needs a single value, not a ${q.m.length}×${q.m[0].length} matrix`);
+  }
+  return q;
+}
+
+function matrixOf(rows: Quantity[][]): Quantity {
+  return { v: NaN, u: {}, m: rows };
+}
+
+/** Scalar arithmetic with unit bookkeeping — the one place + − * / on two numbers is defined. */
+function scalarOp(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity {
+  switch (op) {
+    case '+':
+      return { v: a.v + b.v, u: addU(a.u, b.u) };
+    case '-':
+      return { v: a.v - b.v, u: addU(a.u, b.u) };
+    case '*':
+      return { v: a.v * b.v, u: mulU(a.u, b.u) };
+    case '/':
+      return { v: a.v / b.v, u: divU(a.u, b.u) };
+  }
+}
+
+/**
+ * + − * / for any pair: two numbers as before; two same-shape matrices element by element, each
+ * element keeping its own unit (so + and − check units per element). Mixing a matrix with a number
+ * is step 2 and is refused.
+ */
+function combine(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity {
+  if (!a.m && !b.m) return scalarOp(a, b, op);
+  if (!a.m || !b.m) {
+    throw new Error(`Matrix ${op} number is not supported yet — both sides must be matrices`);
+  }
+  const ar = a.m.length, ac = a.m[0].length, br = b.m.length, bc = b.m[0].length;
+  if (ar !== br || ac !== bc) {
+    throw new Error(
+      `Matrix sizes differ: ${ar}×${ac} ${op} ${br}×${bc} (element-wise needs the same size)`,
+    );
+  }
+  return matrixOf(a.m.map((row, i) =>
+    row.map((x, j) => {
+      try {
+        return scalarOp(x, b.m![i][j], op);
+      } catch (e) {
+        throw new Error(`Element (${i + 1},${j + 1}): ${(e as Error).message}`);
+      }
+    })
+  ));
+}
+
+/** Apply `f` to a number, or to every element of a matrix. */
+function mapQ(q: Quantity, f: (x: Quantity) => Quantity): Quantity {
+  return q.m ? matrixOf(q.m.map((row) => row.map(f))) : f(q);
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +314,8 @@ type TT =
   | 'LPAREN'
   | 'RPAREN'
   | 'COMMA'
+  | 'LBRACE'
+  | 'RBRACE'
   | 'UNIT'
   | 'EQ'
   | 'NEQ'
@@ -391,6 +463,8 @@ function lex(src: string): Tok[] {
       '/': 'SLASH',
       '^': 'CARET',
       '(': 'LPAREN',
+      '{': 'LBRACE', // matrix literal (\bar{…} braces were already rewritten by stripGreekMarks)
+      '}': 'RBRACE',
       ')': 'RPAREN',
     };
     if (ops[ch]) {
@@ -654,8 +728,8 @@ class Parser {
       const t = this.peek().t;
       if (t === 'EOF') throw new Error(`${name}(): missing ')' — ${usage}`);
       if (depth === 0 && (t === 'COMMA' || t === 'RPAREN')) break;
-      if (t === 'LPAREN') depth++;
-      else if (t === 'RPAREN') depth--;
+      if (t === 'LPAREN' || t === 'LBRACE') depth++;
+      else if (t === 'RPAREN' || t === 'RBRACE') depth--;
       this.eat();
     }
     const body = this.toks.slice(start, this.pos);
@@ -666,9 +740,9 @@ class Parser {
       throw new Error(`${name}(): 2nd argument must be the variable name — ${usage}`);
     }
     this.need('COMMA');
-    const lo = this.compare();
+    const lo = noMatrix(this.compare(), `${name}() limit`);
     this.need('COMMA');
-    const hi = this.compare();
+    const hi = noMatrix(this.compare(), `${name}() limit`);
     this.need('RPAREN');
 
     const at = (q: Quantity): Quantity => {
@@ -679,17 +753,59 @@ class Parser {
       );
       const r = p.compare();
       if (p.peek().t !== 'EOF') throw new Error(`${name}(): unexpected input in the expression`);
-      return r;
+      return noMatrix(r, `${name}()`);
     };
     return name === 'integral' ? integrate(at, lo, hi) : sumOrProd(name, at, lo, hi);
+  }
+
+  /**
+   * `{{a, b}, {c, d}}` — rows of elements, all rows the same length. A flat `{a, b, c}` is a COLUMN
+   * vector (3×1), the shape of u and F in K·u = F; a row vector is `{{a, b, c}}`. Elements are any
+   * single-valued expression, each with its own unit: `{{12 [kip/in], -6 [kip]}, …}`.
+   */
+  private matrixLiteral(): Quantity {
+    this.need('LBRACE');
+    if (this.peek().t === 'RBRACE') throw new Error('Empty matrix {}');
+    const readRow = (): Quantity[] => {
+      const row = [noMatrix(this.compare(), 'A matrix element')];
+      while (this.peek().t === 'COMMA') {
+        this.eat();
+        row.push(noMatrix(this.compare(), 'A matrix element'));
+      }
+      return row;
+    };
+    let rows: Quantity[][];
+    if (this.peek().t === 'LBRACE') {
+      rows = [];
+      for (;;) {
+        this.need('LBRACE');
+        rows.push(readRow());
+        this.need('RBRACE');
+        if (this.peek().t !== 'COMMA') break;
+        this.eat();
+      }
+      const n = rows[0].length;
+      const bad = rows.findIndex((r) => r.length !== n);
+      if (bad >= 0) {
+        const k = rows[bad].length;
+        throw new Error(
+          `Matrix row ${bad + 1} has ${k} element${k === 1 ? '' : 's'}; row 1 has ${n}`,
+        );
+      }
+    } else {
+      rows = readRow().map((x) => [x]); // flat list → column vector
+    }
+    this.need('RBRACE');
+    return matrixOf(rows);
   }
 
   // Top-level: comparison (returns 0 or 1) or plain arithmetic
   compare(): Quantity {
     const q = this.arithmetic();
     if (CMP_OPS.includes(this.peek().t)) {
+      noMatrix(q, 'A comparison');
       const op = this.eat().t;
-      const r = this.arithmetic();
+      const r = noMatrix(this.arithmetic(), 'A comparison');
       let result: boolean;
       const EPS = 1e-12;
       switch (op) {
@@ -724,8 +840,7 @@ class Parser {
     while (this.peek().t === 'PLUS' || this.peek().t === 'MINUS') {
       const op = this.eat().t;
       const r = this.addend();
-      const u = addU(q.u, r.u);
-      q = { v: op === 'PLUS' ? q.v + r.v : q.v - r.v, u };
+      q = combine(q, r, op === 'PLUS' ? '+' : '-');
     }
     return q;
   }
@@ -735,7 +850,7 @@ class Parser {
     while (this.peek().t === 'STAR' || this.peek().t === 'SLASH') {
       const op = this.eat().t;
       const r = this.tagged();
-      q = op === 'STAR' ? { v: q.v * r.v, u: mulU(q.u, r.u) } : { v: q.v / r.v, u: divU(q.u, r.u) };
+      q = combine(q, r, op === 'STAR' ? '*' : '/');
     }
     return q;
   }
@@ -746,15 +861,18 @@ class Parser {
     if (this.peek().t === 'MINUS') {
       this.eat();
       const q = this.tagged();
-      return { v: -q.v, u: q.u };
+      return mapQ(q, (x) => ({ v: -x.v, u: x.u })); // -A negates every element
     }
     const q = this.power();
     if (this.peek().t !== 'UNIT') return q;
-    const t: Quantity = { v: q.v, u: parseUnitExpr(this.eat().v) };
+    // `{…} [kip]` gives every element that unit (declares, no conversion — same as for a number)
+    const tagU = parseUnitExpr(this.eat().v);
+    const t = mapQ(q, (x) => ({ v: x.v, u: tagU }));
     // `3 [in]^2` — allow a power on the tagged quantity
     if (this.peek().t === 'CARET') {
       this.eat();
-      const exp = this.unary();
+      noMatrix(t, 'A power');
+      const exp = noMatrix(this.unary(), 'An exponent');
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
@@ -769,7 +887,7 @@ class Parser {
     if (this.peek().t === 'MINUS') {
       this.eat();
       const q = this.unary();
-      return { v: -q.v, u: q.u };
+      return mapQ(q, (x) => ({ v: -x.v, u: x.u }));
     }
     return this.power();
   }
@@ -779,7 +897,8 @@ class Parser {
     const base = this.atom();
     if (this.peek().t === 'CARET') {
       this.eat();
-      const exp = this.unary();
+      noMatrix(base, 'A power');
+      const exp = noMatrix(this.unary(), 'An exponent');
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
@@ -803,6 +922,8 @@ class Parser {
       return q;
     }
 
+    if (tok.t === 'LBRACE') return this.matrixLiteral();
+
     if (tok.t === 'ID') {
       this.eat();
       const name = tok.v;
@@ -824,6 +945,8 @@ class Parser {
           }
         }
         this.need('RPAREN');
+        // Functions (built-in and user-defined) take single values only, for now.
+        for (const a of args) noMatrix(a, `${name}()`);
 
         // ── Single-arg functions ────────────────────────────────────────────
         if (args.length === 1) {
@@ -980,6 +1103,14 @@ export function evalExpr(src: string, scope: Scope, fnScope: FnScope = {}): Quan
  *
  * Scope is mutated in-place so results flow forward into later statements.
  */
+/** A statement's trailing `[unit]` (declare) and `[[unit]]` (convert). A matrix takes the declared
+ *  unit on every element; converting a matrix is not supported yet and says so. */
+function applyStatementUnits(q: Quantity, tag?: UnitMap, target?: UnitMap): Quantity {
+  if (tag !== undefined) q = mapQ(q, (x) => ({ v: x.v, u: tag }));
+  if (target !== undefined) q = applyTargetUnit(noMatrix(q, 'Unit conversion [[…]]'), target);
+  return q;
+}
+
 export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {}): Statement[] {
   const results: Statement[] = [];
 
@@ -1048,10 +1179,9 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
       if (/^[a-zA-Z_]\w*$/.test(name)) {
         try {
           let q = evalExpr(expr, scope, fnScope);
-          if (tagUnit !== undefined) q = { v: q.v, u: tagUnit };
-          if (targetUnit !== undefined) q = applyTargetUnit(q, targetUnit);
+          q = applyStatementUnits(q, tagUnit, targetUnit);
           scope[name] = q;
-          results.push({ raw: s, name, expr, value: q.v, unit: q.u });
+          results.push({ raw: s, name, expr, value: q.v, unit: q.u, matrix: q.m });
         } catch (e) {
           results.push({ raw: s, name, expr, value: NaN, unit: {}, error: (e as Error).message });
         }
@@ -1062,9 +1192,8 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     // Bare expression
     try {
       let q = evalExpr(stmt, scope, fnScope);
-      if (tagUnit !== undefined) q = { v: q.v, u: tagUnit };
-      if (targetUnit !== undefined) q = applyTargetUnit(q, targetUnit);
-      results.push({ raw: s, name: '', expr: stmt, value: q.v, unit: q.u });
+      q = applyStatementUnits(q, tagUnit, targetUnit);
+      results.push({ raw: s, name: '', expr: stmt, value: q.v, unit: q.u, matrix: q.m });
     } catch (e) {
       results.push({
         raw: s,
@@ -1210,9 +1339,10 @@ function parseForHeader(
   }
   const startExpr = lhs.slice(eqIdx + 1).trim();
 
-  const startVal = evalExpr(startExpr, scope, fnScope).v;
-  const endVal = evalExpr(endExpr, scope, fnScope).v;
-  const stepVal = stepExpr ? evalExpr(stepExpr, scope, fnScope).v : (endVal >= startVal ? 1 : -1);
+  const num = (src: string) => noMatrix(evalExpr(src, scope, fnScope), 'A for-loop limit').v;
+  const startVal = num(startExpr);
+  const endVal = num(endExpr);
+  const stepVal = stepExpr ? num(stepExpr) : (endVal >= startVal ? 1 : -1);
 
   if (stepVal === 0) throw new Error('for loop step cannot be zero');
   return { varName, startVal, endVal, stepVal };
@@ -1255,7 +1385,7 @@ function execNodes(
         let condError: string | undefined;
         if (active) {
           try {
-            condVal = evalExpr(branch.cond || '0', scope, fnScope).v;
+            condVal = noMatrix(evalExpr(branch.cond || '0', scope, fnScope), 'An if condition').v;
           } catch (e) {
             condError = (e as Error).message;
           }

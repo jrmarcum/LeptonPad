@@ -191,6 +191,20 @@ doubled.
   across the whole range: `integral(1/x, x, 0, 1)` reports an error rather than a guess.
 - They nest (`sum(sum(i*j, j, 1, 3), i, 1, 3)`) and work inside `for` loops and plots.
 
+**Matrices** (in progress — step 1 of 3: element-wise operations) are written in braces, row by row:
+
+| You type                                                | Means                                              |
+| ------------------------------------------------------- | -------------------------------------------------- |
+| `A = {{1, 2}, {3, 4}}`                                  | 2×2 matrix                                         |
+| `u = {1, 2, 3}`                                         | column vector (3×1); a row vector is `{{1, 2, 3}}` |
+| `K = {{12, -6}, {-6, 4}} [kip/in]`                      | every element in kip/in                            |
+| `K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}` | each element its own unit                          |
+| `A + B`, `A - B`, `A * B`, `A / B`, `-A`                | element by element — same size required            |
+
+Units are checked element by element, so adding kip to kip/in is an error that names the element.
+Not yet available (they report an error, never a wrong number): number × matrix, matrix
+multiplication `A .* B` (row-by-column), functions of a matrix, comparisons and `[[…]]` conversion.
+
 **Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
 and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section
 summary checks. A comparison splits the line first, so `f_a/F_a <= 1.0` shows as a fraction ≤ 1.0.
