@@ -39,8 +39,8 @@ topic files and recorded in [`known-issues.md`](known-issues.md) so they do not 
    the 11-line browser loader shim.
 2. The plot block is **pure TypeScript SVG string building** (`src/blocks/plot.ts`), not "Plotters SVG
    via WASM." Plotters is a Rust crate; LeptonPad has never used it.
-3. The math evaluator (`src/expr.ts`, 1057 lines as of 2026-09-21) is **TypeScript, not WASM**. The only WASM in the
-   product is three trivial arithmetic functions in `dist/solver.wasm`.
+3. The math evaluator (`src/expr.ts`, 1,718 lines as of 2026-09-22) is **TypeScript, not WASM**. The
+   only WASM in the product is three trivial arithmetic functions in `dist/solver.wasm`.
 
 **What is true now, in one paragraph.** LeptonPad is a Deno 2.x browser PWA at **v2.3.10**
 (`deno.json`, 2026-09-22) — a drag-and-drop engineering calculation pad, live at
