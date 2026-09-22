@@ -11,7 +11,8 @@ A browser-based engineering calculation pad PWA. Users build calculation sheets 
 - **Auth**: Clerk (email + password)
 - **Database**: Neon Postgres, reached only through a small API (`api/main.ts`) on Deno Deploy
 - **Encryption**: Web Crypto API (AES-256-GCM) for purchased section template protection
-- **Deploy**: static site from `dist/` (Vercel) + the API (Deno Deploy)
+- **Deploy**: one Deno Deploy project serves the static site from `dist/` and the API — pushing
+  `main` deploys to https://leptonpad.com
 
 ## Development
 
@@ -92,11 +93,18 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 
 ## Formula block unit syntax
 
-| Syntax                   | Effect                                                                  |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `x = 150 [mm]`           | Declares the unit of `x` — no numeric conversion, labels the result     |
-| `x = F [kN] [[lbf]]`     | Converts the result to `lbf`; `x` is stored in `lbf` for downstream use |
-| `delta(x) = expr [[in]]` | Function definition — output is converted to `in` on every call         |
+| Syntax                    | Effect                                                                  |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `x = 150 [mm]`            | Declares the unit of `x` — no numeric conversion, labels the result     |
+| `d = a + 1 [in] + 2 [in]` | Inline tags — each `[unit]` applies to the term just before it          |
+| `A = 3 [in]^2`            | A power after a tag applies to the tagged quantity (`9 in²`)            |
+| `x = F [kN] [[lbf]]`      | Converts the result to `lbf`; `x` is stored in `lbf` for downstream use |
+| `delta(x) = expr [[in]]`  | Function definition — output is converted to `in` on every call         |
+
+When a statement has a **single** `[unit]` tag at the very end, it labels the whole result (so
+`A = b*h [mm^2]` means the result is in mm²). When a statement has **several** tags, every tag —
+including the last — applies only to the term right before it. `[[targetUnit]]` conversion must be
+the last thing on the line.
 
 `[[targetUnit]]` performs real numeric conversion using the unit catalog in `src/utils/unit-defs.ts`. It handles:
 
@@ -108,6 +116,36 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 The plot block automatically propagates the unit of the range bound to the sweep variable, so `delta(x)` plotted from `0` to `l [ft]` evaluates with `x` in `{ft}` — keeping polynomials like `l^3 - 2·l·x² + x³` dimensionally consistent.
 
 Compound units (pressure, energy, power, torque, etc.) are automatically expanded into their primitive components for dimensional analysis. For example, `E = 29000 [ksi]` is tracked internally as `kip/in²` so that `E * I [in^4]` correctly cancels to `kip·in²` rather than accumulating `ksi·in⁴`. Units that expand: `psi`, `ksi`, `psf`, `ksf`, `Pa`, `kPa`, `MPa`, `GPa`, `J`, `kJ`, `MJ`, `W`, `kW`, `MW`, and the torque/velocity/acceleration/density/momentum compound ids. Note: intermediate results display the expanded form (e.g. `kip/in²` instead of `ksi`).
+
+## Variable names, Greek letters and symbols
+
+**Variable names** start with a letter or `_` and may contain only letters, digits and `_`
+(case-sensitive). An underscore marks a subscript in the display: `M_n` → M<sub>n</sub>,
+`delta_1_2` → delta<sub>1,2</sub>. Avoid `__` in your own names — it is the section separator
+(`beam1__L`, written `beam1.L`) — and avoid `pi`, `e` and `tau`, which are built-in constants.
+
+**Greek letters and √ are written LaTeX-style, with a backslash — it is required.** The backslash
+only affects the display; the calculator removes it, so `\phiM_n` and `phiM_n` are the same
+variable.
+
+| You type            | Displays as    | Variable name    |
+| ------------------- | -------------- | ---------------- |
+| `\phi_ty`           | φ<sub>ty</sub> | `phi_ty`         |
+| `\phiM_n`           | φM<sub>n</sub> | `phiM_n`         |
+| `\phi\alpha\beta`   | φαβ            | `phialphabeta`   |
+| `M_\phi`            | M<sub>φ</sub>  | `M_phi`          |
+| `\Delta`, `\Omega`  | Δ, Ω           | `Delta`, `Omega` |
+| `\sqrt(A/\pi)`      | √(A/π)         | (calls `sqrt`)   |
+| `phi_ty`, `sqrt(x)` | shown as typed | —                |
+
+All 24 Greek letters are available in lower and upper case (`\alpha` … `\omega`, `\Alpha` …
+`\Omega`). Unit tags are never converted: `5 [psi]` always shows `psi`. The same rules apply in
+plot labels and in `$...$` math inside text blocks.
+
+**In hand-written or AI-generated project files**, JSON requires every backslash to be doubled:
+`"\\phi_ty = 0.90"`. LeptonPad repairs single backslashes that JSON rejects (`\p`, `\a`, `\u…`)
+when loading, but `\b`, `\f`, `\n`, `\r` and `\t` are valid JSON escapes and silently become
+control characters — so `\beta`, `\nu`, `\rho`, `\tau` and `\theta` must be written doubled.
 
 ## Section template encryption
 

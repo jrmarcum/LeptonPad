@@ -159,7 +159,7 @@ export async function importToolsFromFile() {
       // deno-lint-ignore no-explicit-any
       const handle = pickerHandles[0] as any;
       const text = await (await handle.getFile()).text();
-      const proj = JSON.parse(text) as Record<string, unknown>;
+      const proj = parseProjectJson(text);
       const tools = proj.custom_tools as import('./types.ts').CustomModule[] | undefined;
       if (!tools || !Array.isArray(tools) || tools.length === 0) {
         alert(
@@ -177,7 +177,7 @@ export async function importToolsFromFile() {
         if (!file) return;
         try {
           const text = await file.text();
-          const proj = JSON.parse(text) as Record<string, unknown>;
+          const proj = parseProjectJson(text);
           const tools = proj.custom_tools as import('./types.ts').CustomModule[] | undefined;
           if (!tools || !Array.isArray(tools) || tools.length === 0) {
             alert(
@@ -252,6 +252,32 @@ export function showSavePromptDialog(): Promise<'save' | 'discard' | 'cancel'> {
   });
 }
 
+/**
+ * Parse a project file. Hand-written and AI-generated files often carry a bare backslash —
+ * `\phiM_n` in a formula, `$\phi P_n$` in text — which JSON rejects ("Bad escaped character").
+ * On that failure only, retry with every backslash that is not a valid JSON escape doubled,
+ * so `\p` loads as the literal `\p` the author meant. A file that already parses is never
+ * touched. Valid-escape collisions (`\beta` = backspace + "eta", `\nu`, `\theta`, `\rho`,
+ * `\tau`) cannot be told apart from intent and are left alone.
+ */
+export function parseProjectJson(text: string): Record<string, unknown> {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // A \u not followed by 4 hex digits (\upsilon) is as invalid as \p and is repaired too.
+    const repaired = text.replace(
+      /\\(u[0-9A-Fa-f]{4}|[\s\S])/g,
+      (m, c: string) => ('"\\/bfnrt'.includes(c) || c.length === 5 ? m : '\\\\' + c),
+    );
+    if (repaired === text) throw e;
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      throw e; // report the original position, not one in the repaired text
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Project state management
 // ---------------------------------------------------------------------------
@@ -318,7 +344,7 @@ export async function newFromTemplate() {
     // deno-lint-ignore no-explicit-any
     const handle = pickerHandles[0] as any;
     try {
-      loadProject(JSON.parse(await (await handle.getFile()).text()));
+      loadProject(parseProjectJson(await (await handle.getFile()).text()));
     } catch {
       alert('Invalid template file.');
       return;
@@ -332,7 +358,7 @@ export async function newFromTemplate() {
       const file = inp.files?.[0];
       if (!file) return;
       try {
-        loadProject(JSON.parse(await file.text()));
+        loadProject(parseProjectJson(await file.text()));
         setFileHandle(null);
       } catch {
         alert('Invalid template file.');

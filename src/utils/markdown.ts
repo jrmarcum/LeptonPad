@@ -3,52 +3,59 @@
 // All functions are pure (string in → string out), no state access — TS-only.
 // ---------------------------------------------------------------------------
 
-// A Greek name also matches as a camelCase prefix: phiM_n → φM<sub>n</sub>, but not phase.
-const GREEK_TABLE: [RegExp, string][] = [
-  [/\bepsilon(?![a-z0-9_])/g, 'ε'],
-  [/\bEpsilon(?![a-z0-9_])/g, 'ε'],
-  [/\blambda(?![a-z0-9_])/g, 'λ'],
-  [/\bLambda(?![a-z0-9_])/g, 'Λ'],
-  [/\balpha(?![a-z0-9_])/g, 'α'],
-  [/\bAlpha(?![a-z0-9_])/g, 'α'],
-  [/\btheta(?![a-z0-9_])/g, 'θ'],
-  [/\bTheta(?![a-z0-9_])/g, 'Θ'],
-  [/\bdelta(?![a-z0-9_])/g, 'δ'],
-  [/\bDelta(?![a-z0-9_])/g, 'Δ'],
-  [/\bgamma(?![a-z0-9_])/g, 'γ'],
-  [/\bGamma(?![a-z0-9_])/g, 'Γ'],
-  [/\bomega(?![a-z0-9_])/g, 'ω'],
-  [/\bOmega(?![a-z0-9_])/g, 'Ω'],
-  [/\bsigma(?![a-z0-9_])/g, 'σ'],
-  [/\bSigma(?![a-z0-9_])/g, 'Σ'],
-  [/\bbeta(?![a-z0-9_])/g, 'β'],
-  [/\bBeta(?![a-z0-9_])/g, 'Β'],
-  [/\bphi(?![a-z0-9_])/g, 'φ'],
-  [/\bPhi(?![a-z0-9_])/g, 'Φ'],
-  [/\bpsi(?![a-z0-9_])/g, 'ψ'],
-  [/\bPsi(?![a-z0-9_])/g, 'Ψ'],
-  [/\bchi(?![a-z0-9_])/g, 'χ'],
-  [/\bChi(?![a-z0-9_])/g, 'Χ'],
-  [/\bxi(?![a-z0-9_])/g, 'ξ'],
-  [/\bXi(?![a-z0-9_])/g, 'Ξ'],
-  [/\beta(?![a-z0-9_])/g, 'η'],
-  [/\bEta(?![a-z0-9_])/g, 'Η'],
-  [/\bmu(?![a-z0-9_])/g, 'μ'],
-  [/\bMu(?![a-z0-9_])/g, 'Μ'],
-  [/\bnu(?![a-z0-9_])/g, 'ν'],
-  [/\bNu(?![a-z0-9_])/g, 'Ν'],
-  [/\brho(?![a-z0-9_])/g, 'ρ'],
-  [/\bRho(?![a-z0-9_])/g, 'Ρ'],
-  [/\btau(?![a-z0-9_])/g, 'τ'],
-  [/\bTau(?![a-z0-9_])/g, 'Τ'],
-  [/\bpi(?![a-z0-9_])/g, 'π'],
-  [/\bPi(?![a-z0-9_])/g, 'Π'],
-];
-
-// Greek name → symbol, recovered from the table sources (`\bphi(?!…)` → `phi`).
-const GREEK_SYM = new Map(
-  GREEK_TABLE.map(([re, sym]) => [re.source.slice(2).replace(/\(.*$/, ''), sym]),
-);
+// Greek letters render ONLY when written with a backslash: \phi → φ, \Delta → Δ. A bare `phi`
+// displays as typed. The backslash is display-only — the evaluator strips it (stripGreekMarks),
+// so \phiM_n and phiM_n are the same variable.
+const GREEK_SYM = new Map<string, string>([
+  ['alpha', 'α'],
+  ['Alpha', 'Α'],
+  ['beta', 'β'],
+  ['Beta', 'Β'],
+  ['gamma', 'γ'],
+  ['Gamma', 'Γ'],
+  ['delta', 'δ'],
+  ['Delta', 'Δ'],
+  ['epsilon', 'ε'],
+  ['Epsilon', 'Ε'],
+  ['zeta', 'ζ'],
+  ['Zeta', 'Ζ'],
+  ['eta', 'η'],
+  ['Eta', 'Η'],
+  ['theta', 'θ'],
+  ['Theta', 'Θ'],
+  ['iota', 'ι'],
+  ['Iota', 'Ι'],
+  ['kappa', 'κ'],
+  ['Kappa', 'Κ'],
+  ['lambda', 'λ'],
+  ['Lambda', 'Λ'],
+  ['mu', 'μ'],
+  ['Mu', 'Μ'],
+  ['nu', 'ν'],
+  ['Nu', 'Ν'],
+  ['xi', 'ξ'],
+  ['Xi', 'Ξ'],
+  ['omicron', 'ο'],
+  ['Omicron', 'Ο'],
+  ['pi', 'π'],
+  ['Pi', 'Π'],
+  ['rho', 'ρ'],
+  ['Rho', 'Ρ'],
+  ['sigma', 'σ'],
+  ['Sigma', 'Σ'],
+  ['tau', 'τ'],
+  ['Tau', 'Τ'],
+  ['upsilon', 'υ'],
+  ['Upsilon', 'Υ'],
+  ['phi', 'φ'],
+  ['Phi', 'Φ'],
+  ['chi', 'χ'],
+  ['Chi', 'Χ'],
+  ['psi', 'ψ'],
+  ['Psi', 'Ψ'],
+  ['omega', 'ω'],
+  ['Omega', 'Ω'],
+]);
 // `\name` — longest names first so \epsilon never matches as \eps…, \beta never as \eta.
 const GREEK_MARK_RE = new RegExp(
   '\\\\(' + [...GREEK_SYM.keys()].sort((a, b) => b.length - a.length).join('|') + ')',
@@ -130,22 +137,17 @@ export function transformPiece(raw: string): string {
     ).join(' ').replace(/\s+/g, ' ').trim();
   }
   let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  s = s.replace(/\bsqrt\s*\(/g, '√(');
-  // Explicit Greek marker: \phiM_n, \phin, \phi2, M_\phi — converts the name right after
-  // the backslash whatever follows it. The evaluator ignores the backslash (stripGreekMarks).
+  // Symbols require the backslash, LaTeX-style: \sqrt( → √(, \phi → φ. Bare sqrt / phi display
+  // as typed. The name after \ converts whatever follows it: \phiM_n, \phin, \phi2, M_\phi.
+  s = s.replace(/\\sqrt\s*\(/g, '√(');
   s = s.replace(GREEK_MARK_RE, (_m, name) => GREEK_SYM.get(name)!);
-  // Subscripted identifiers first (before Greek) so full base name is captured.
   // Multiple underscores become comma-separated subscripts:
-  //   delta_1 → δ<sub>1</sub>,  delta_1_2 → δ<sub>1,2</sub>
+  //   \delta_1 → δ<sub>1</sub>,  \delta_1_2 → δ<sub>1,2</sub>
   // Bases and subscripts may contain Greek letters produced by the marker pass above.
   s = s.replace(GREEK_SUB_RE, (_m, base, subs) => {
-    let baseHtml = base;
-    for (const [re, sym] of GREEK_TABLE) baseHtml = baseHtml.replace(re, sym);
     const subParts = subs.split('_').filter(Boolean).join(',');
-    return `${baseHtml}<sub>${subParts}</sub>`;
+    return `${base}<sub>${subParts}</sub>`;
   });
-  // Greek substitution on remaining plain identifiers
-  for (const [re, sym] of GREEK_TABLE) s = s.replace(re, sym);
   s = s.replace(/\^(\d+)/g, '<sup>$1</sup>');
   s = s.replace(/\^([A-Za-z])\b/g, '<sup>$1</sup>');
   s = s.replace(/\s*\*\s*/g, ' · ');

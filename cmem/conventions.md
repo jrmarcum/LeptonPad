@@ -151,5 +151,11 @@ what you mean is that it compiled. — [`testing.md`](testing.md)
 counts in these files go stale silently, and a stale number is worse than none because it reads as
 current.
 
+**Check the live system before trusting a note about it.** On 2026-09-21 a memory note said pushing
+`main` does not deploy; it had become false, so a user's "still broken" was misread as "not live
+yet" when the real cause was a poisoned service-worker cache. One `GET https://leptonpad.com/sw.js`
+settled it. Notes describe what was true; production says what is. —
+[`build-and-deploy.md`](build-and-deploy.md)
+
 **Grep before calling anything dead.** A symbol may be reached only through the `solver` import-map
 alias, a callback slot in `state.ts`, or a `data-*` attribute referenced from `main.css`.

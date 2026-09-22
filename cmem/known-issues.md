@@ -115,3 +115,22 @@ over the entitlement chain, which caught two real bugs on its first run.
 regression net, and a failure mode of **a wrong number that looks right** on a calculation sheet an
 engineer stamps. See [`testing.md`](testing.md) for why it is also the easiest module in the codebase
 to test: pure functions in, `Quantity` out, no DOM.
+
+---
+
+## 11. Built-in constants silently shadow user variables named `pi`, `e`, `tau` — OPEN
+
+Found 2026-09-21. `Parser.atom()` checks `CONST[name]` **before** `this.scope[name]`, so after
+`e = 0.5 [in]` (an eccentricity) every later `e` still evaluates to 2.718… with no error — a
+silent wrong number, the worst failure mode. Offered to Jon as either "error on assignment" or "user
+definition wins"; not yet decided. The readme tells users to avoid the three names meanwhile.
+
+---
+
+## 12. Pre-2.2.5 sheets lost their Greek display — ACCEPTED
+
+From 2.2.5 Greek renders only with a backslash (`\phi`). Sheets and purchased section templates that
+use bare `phi_ty` now display `phi_ty`. Jon declined auto-migration on load — see
+[`design-decisions.md`](design-decisions.md). Values are unaffected. Also: section summary lines
+(`updateSectionSummary`) show variable names and comparison text as **plain text**, so a
+`\phi_P_nr >= P_u` check appears there with its backslash.

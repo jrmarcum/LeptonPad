@@ -53,6 +53,15 @@ Which makes the bump in `deno.json` not a formality but _the_ release action. Wh
 did not take, **check the cache name in the deployed `sw.js` first** — that has been the answer
 before.
 
+⚠️ **A new cache name was not enough on its own (fixed 2.2.5, 2026-09-21).** The host sends **no
+`Cache-Control`** on `/main.js` or `/sw.js`, so browsers apply heuristic HTTP caching. The install
+handler's plain `c.addAll(PRECACHE)` could be answered from that HTTP cache — filling the brand-new
+`leptonpad-v2.2.4` cache with the **2.2.3-or-older `main.js`**. Symptom: live `main.js` verified to
+contain the fix, Jon's browser still running old code. Install now uses
+`addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })))`. Do not revert to plain
+`addAll`. Immediate workaround for a stuck browser: **Ctrl+Shift+R**, or DevTools → Application →
+Clear site data.
+
 **Never remove `Cache-Control: no-store` from `dev.ts`.** Without it the browser caches stale CSS/JS
 across dev restarts and you spend an hour debugging code that is not running.
 
@@ -76,15 +85,23 @@ are about to publish through `serve.ts` without rebuilding.
 
 ## Deploy
 
-## ⚠️ Deno Deploy follows the newest RELEASE TAG, not the default branch
+## ⚠️ Pushing `main` deploys to production (verified 2026-09-21)
 
-**Pushing `main` does not deploy anything.** Verified 2026-08-13: `main` carried 2.2.0 while the
-newest tag was still `2.1.4`, and Deno Deploy kept serving 2.1.4 until the `2.2.0` tag existed.
+**A push to `main` goes live.** Verified 2026-09-21: 2.2.3 and 2.2.4 were pushed to `main` with **no
+tag**, and `https://leptonpad.com/sw.js` served `leptonpad-v2.2.4` with the new `main.js` shortly
+after. Treat every push to `main` as a production release.
 
-Releases are **git tags named `X.Y.Z`**, each with a matching branch of the same name — see `1.0.1`,
-`2.1.4`, `2.2.0`. There is **no `.github/workflows` and no `vercel.json`**; the pipeline is entirely
-Deno Deploy's GitHub integration, configured in its dashboard rather than in the repo. (Earlier notes
-here claimed "GitHub Actions → Vercel". That was inherited from the old `CLAUDE.md` and was wrong.)
+This reverses the 2026-08-13 observation — then, `main` carried 2.2.0 while Deno Deploy kept serving
+the `2.1.4` tag until a `2.2.0` tag existed. The Deno Deploy dashboard setting has evidently changed
+since; if deploys ever stop following `main`, check that setting first. A wrong "it isn't live yet"
+from this stale note cost a debugging round on 2026-09-21 — **verify against the live `sw.js`, never
+this file alone.**
+
+Releases have historically also been **git tags named `X.Y.Z`**, each with a matching branch — see
+`1.0.1`, `2.1.4`, `2.2.0`, `2.2.1`, `2.2.2`. Tagging is now bookkeeping, not the deploy trigger. There
+is **no `.github/workflows` and no `vercel.json`**; the pipeline is entirely Deno Deploy's GitHub
+integration, configured in its dashboard rather than in the repo. (Earlier notes here claimed "GitHub
+Actions → Vercel". That was inherited from the old `CLAUDE.md` and was wrong.)
 
 A git tag is not the same as a **GitHub Release** object. If the deploy is following Releases rather
 than raw tags, publishing the Release for the tag is a separate step — web UI, or `gh release create`
@@ -101,7 +118,8 @@ convention, so disambiguate with `refs/tags/X.Y.Z` when it matters.
 
 ## ONE Deno Deploy project serves both the site and the API
 
-Production is `https://leptonpad.jrmarcum.deno.net`. The root `main.ts` routes:
+Production is `https://leptonpad.com` (also `https://leptonpad.jrmarcum.deno.net`; `www.` does not
+resolve). The root `main.ts` routes:
 
 ```
 /api/*  →  handleApiRequest()  from api/main.ts
@@ -162,7 +180,7 @@ CORS with no useful error in the app.
    deploy will be invisible to returning users.
 6. `dist/config.js` needs no check — Deno Deploy regenerates it, and with no `.env` present it
    defaults `apiBaseUrl` to the relative `/api`.
-7. Commit, then push `main`.
-8. **Tag it** — `git tag -a X.Y.Z`, matching branch, push both. Without this the deploy keeps serving
-   the previous release no matter what is on `main`.
-9. Verify in a browser with an existing cache, not just a hard-refresh.
+7. Commit, then push `main` — **this deploys to production.**
+8. Optionally tag it (`git tag -a X.Y.Z`, matching branch) to keep the release history.
+9. Confirm `https://leptonpad.com/sw.js` shows the new `leptonpad-vX.Y.Z`, then verify in a browser
+   with an existing cache, not just a hard-refresh.

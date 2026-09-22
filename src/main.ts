@@ -49,6 +49,7 @@ import {
   loadProject,
   newFromTemplate,
   newProject,
+  parseProjectJson,
   saveProject,
 } from './persistence.ts';
 import {
@@ -605,7 +606,7 @@ function renderSidebar() {
         });
         setFileHandle(handle);
         const file = await handle.getFile();
-        loadProject(JSON.parse(await file.text()));
+        loadProject(parseProjectJson(await file.text()));
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           alert('Failed to load: ' + (e as Error).message);
@@ -622,7 +623,7 @@ function renderSidebar() {
       if (!file) return;
       try {
         setFileHandle(null);
-        loadProject(JSON.parse(await file.text()));
+        loadProject(parseProjectJson(await file.text()));
       } catch (e) {
         alert('Failed to load: ' + (e as Error).message);
       }

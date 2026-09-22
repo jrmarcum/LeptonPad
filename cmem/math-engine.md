@@ -55,6 +55,48 @@ never changes the numeric value — only the bookkeeping.
 | `x = F [kN] [[lbf]]`     | **Converts** the result to `lbf`. `x` is then stored in `lbf` for everything downstream.        |
 | `delta(x) = expr [[in]]` | Function definition — the conversion is applied **on every call**, not at definition time.      |
 
+### Inline `[unit]` tags (v2.2.3, 2026-09-21)
+
+Before 2.2.3 only **one trailing** `[unit]` was recognised; `evalStatements` stripped it and the lexer
+threw `Unknown character '['` on any other bracket — so `d_hole = d_bolt + 0.0625 [in] + 0.0625 [in]`
+failed. Now:
+
+- The lexer emits a `UNIT` token for `[...]`; `[[` mid-expression throws "must be at the end".
+- Grammar gained `tagged → power (UNIT ('^' power)?)?`, sitting between `addend` and `power`, so
+  `x^2 [in^2]` tags `x^2` (not the exponent) and `3 [in]^2` = `9 in²`. A tag **declares** (overrides)
+  the unit; it never converts.
+- **Backward-compat rule:** `evalStatements` strips the trailing tag as a whole-result override **only
+  when it is the sole tag** (`!stmt.slice(0, idx).includes('[')`). With several tags, all stay inline.
+  `prettifyExpr` applies the identical rule so display and evaluation agree.
+- ⚠️ **Accepted legacy trap:** a single trailing tag still relabels without converting —
+  `d_bolt [in] + 1 [mm]` written as `d_bolt + 1 [mm]` gives `1.75 mm`. Changing it would change every
+  existing `A = b*h [mm^2]` sheet, so it was left; `addU` stays strict for the inline form.
+
+### Greek letters and `\sqrt` — the display-only backslash (v2.2.5, 2026-09-21)
+
+**The backslash is mandatory for symbols and display-only.** `\phi` → φ, `\Delta` → Δ, `\sqrt(` → √(;
+bare `phi` / `sqrt` render exactly as typed. `stripGreekMarks()` (exported from `expr.ts`) removes any
+`\` before a letter in `lex()`, `evalStatements()` (the `raw` field keeps it for display) and
+`parseForHeader()` — so `\phiM_n`, `\phi\alpha\beta` and `phiM_n`, `phialphabeta` are the same
+variables. Rendering lives in `transformPiece()` (`src/utils/markdown.ts`): `GREEK_SYM` (all 24
+letters, both cases) → `GREEK_MARK_RE` (longest name first) → `GREEK_SUB_RE`, whose bases and
+subscripts accept Greek code points so `\phi_c` and `M_\phi` subscript correctly.
+
+History: 2.2.3 briefly auto-converted a Greek name followed by a capital (`phiM_n` → φM<sub>n</sub>)
+with `\` as an optional override. Jon made `\` mandatory in 2.2.5 "so there is absolutely no
+confusion" — see [`design-decisions.md`](design-decisions.md). Existing sheets were deliberately
+**not** migrated; they show plain names until edited.
+
+### Hand-written project JSON and backslashes
+
+`parseProjectJson()` (`src/persistence.ts`) is used by every file-open path (Load Project, New from
+Template, Import Tools). If `JSON.parse` fails it retries once with every backslash that is not a
+valid JSON escape doubled — including `\u` not followed by four hex digits (`\upsilon`). A file that
+already parses is never altered. **It cannot fix `\b \f \n \r \t`** — `\beta`, `\nu`, `\rho`, `\tau`,
+`\theta` are valid escapes that silently become control characters; the formula then errors (the lexer
+rejects the control char or the name is undefined) rather than yielding a wrong number. Files saved
+by LeptonPad itself are always correctly escaped by `JSON.stringify`.
+
 `applyTargetUnit(q, targetUmap)` does the work, via `unitMapSiFactor()` — each side is reduced to its
 SI factor and the ratio is the multiplier. That is how `F/A [N/mm^2] [[psi]]` converts through the
 shared SI base (Pa) without either side knowing about the other.

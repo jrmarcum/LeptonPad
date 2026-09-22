@@ -1,4 +1,4 @@
-const CACHE = 'leptonpad-v2.2.4';
+const CACHE = 'leptonpad-v2.2.5';
 const PRECACHE = [
   '/',
   '/main.js',
@@ -10,7 +10,14 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
+  // cache: 'reload' bypasses the browser HTTP cache. The host sends no Cache-Control, so a
+  // plain addAll() can be answered from a heuristically-fresh HTTP cache entry — filling the
+  // new versioned cache with the PREVIOUS release's main.js.
+  e.waitUntil(
+    caches.open(CACHE).then((c) =>
+      c.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })))
+    ),
+  );
   self.skipWaiting();
 });
 

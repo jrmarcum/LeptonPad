@@ -125,6 +125,18 @@ serialized.
 a user-chosen section name can never forge the namespace separator and collide into another section's
 variables.
 
+## Greek and √ require a backslash; old sheets are not migrated (2026-09-21, v2.2.5)
+
+Guessing rules for Greek (`phi` whole-word, then `phiM_n` camelCase prefix) could never cover
+`phin`, `phi2` or `phialphabeta`, and left users unsure when a name would convert. Jon chose
+**LaTeX-style, mandatory**: `\phi` renders φ, `phi` renders `phi`; `\sqrt(` renders √(, `sqrt(`
+renders `sqrt(` — "so that there is absolutely no confusion." The backslash is display-only
+(stripped before evaluation), so it never changes a variable's identity or value.
+
+Two options were offered and declined: **auto-inserting `\` into existing projects on load** (would
+have preserved every sheet's appearance) and **keeping `sqrt` → √ automatic**. Consequence, accepted:
+projects and purchased section templates written before 2.2.5 display plain names until edited.
+
 ## The plot is an SVG string, the crosshair is DOM nodes
 
 `plot.ts` concatenates the static plot as an SVG string (cheap to rebuild wholesale on any config
