@@ -241,6 +241,30 @@ function renderMatrixLiteral(s: string): string | null {
   }, auto)">${cells}</span>`;
 }
 
+// Matrix functions typed by name, displayed in textbook notation: transpose(A) → Aᵀ.
+const POSTFIX_FN_SUP: Record<string, string> = { transpose: 'T' };
+
+/**
+ * `transpose(X)` → Xᵀ. X is shown bare when it is a plain name or a matrix literal, otherwise in
+ * parentheses — (A × B)ᵀ — so the superscript clearly applies to the whole argument. Returns null
+ * unless `s` is exactly one such call with one argument.
+ */
+function renderPostfixFn(s: string): string | null {
+  const m = s.match(/^\\?(transpose)\s*\(/);
+  if (!m || !s.endsWith(')')) return null;
+  let depth = 0;
+  for (let i = m[0].length - 1; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')' && --depth === 0 && i !== s.length - 1) return null;
+  }
+  const args = splitTopLevelCommas(s.slice(m[0].length, -1));
+  if (args.length !== 1 || !args[0]) return null;
+  const arg = args[0];
+  const simple = /^\\?[A-Za-z][A-Za-z0-9_\\]*$/.test(arg) || isBraceGroup(arg);
+  const body = simple ? renderExpr(arg) : `(${renderExpr(arg)})`;
+  return `${body}<sup>${POSTFIX_FN_SUP[m[1]]}</sup>`;
+}
+
 const BIG_OP_SYM: Record<string, string> = { sum: 'Σ', prod: 'Π', integral: '∫' };
 
 // Comparison operators and their display glyphs. Two-character operators are tried first so `>=`
@@ -315,7 +339,7 @@ function renderBigOp(s: string): string | null {
 export function renderExpr(raw: string): string {
   const s = stripOuter(raw.trim());
   if (!s) return '';
-  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s);
+  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s) ?? renderPostfixFn(s);
   if (bigOp !== null) return bigOp;
 
   // A comparison splits first, so each side renders on its own: `a/b >= c` is a fraction ≥ c, not
@@ -394,7 +418,8 @@ export function renderExpr(raw: string): string {
     const renderPiece = (piece: string) => {
       const stripped = stripOuter(piece);
       if (stripped !== piece) return '(' + renderExpr(stripped) + ')';
-      return renderBigOp(piece) ?? renderMatrixLiteral(piece) ?? transformPiece(piece);
+      return renderBigOp(piece) ?? renderMatrixLiteral(piece) ?? renderPostfixFn(piece) ??
+        transformPiece(piece);
     };
     let html = '';
     let start = 0;

@@ -193,16 +193,18 @@ doubled.
 
 **Matrices** are written in braces, row by row:
 
-| You type                                                | Means                                              |
-| ------------------------------------------------------- | -------------------------------------------------- |
-| `A = {{1, 2}, {3, 4}}`                                  | 2×2 matrix                                         |
-| `u = {1, 2, 3}`                                         | column vector (3×1); a row vector is `{{1, 2, 3}}` |
-| `K = {{12, -6}, {-6, 4}} [kip/in]`                      | every element in kip/in                            |
-| `K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}` | each element its own unit                          |
-| `A + B`, `A - B`, `A * B`, `A / B`, `-A`                | element by element — same size required            |
-| `2 * A`, `A * 2`, `A / 2`, `L * A`                      | every element scaled; units multiply through       |
-| `F = K .* u`                                            | matrix product (row by column), shown as K × u     |
-| `{{1, 2, 3}} .* {4, 5, 6}`                              | row × column = a single number (32)                |
+| You type                                                | Means                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| `A = {{1, 2}, {3, 4}}`                                  | 2×2 matrix                                                  |
+| `u = {1, 2, 3}`                                         | column vector (3×1); a row vector is `{{1, 2, 3}}`          |
+| `K = {{12, -6}, {-6, 4}} [kip/in]`                      | every element in kip/in                                     |
+| `K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}` | each element its own unit                                   |
+| `A + B`, `A - B`, `A * B`, `A / B`, `-A`                | element by element — same size required                     |
+| `2 * A`, `A * 2`, `A / 2`, `L * A`                      | every element scaled; units multiply through                |
+| `F = K .* u`                                            | matrix product (row by column), shown as K × u              |
+| `{{1, 2, 3}} .* {4, 5, 6}`                              | row × column = a single number (32)                         |
+| `transpose(A)`                                          | rows ↔ columns, shown as Aᵀ; units move with their elements |
+| `transpose(u) .* u`                                     | dot product of a column vector with itself                  |
 
 Units are checked element by element, so adding kip to kip/in is an error that names the element.
 `A + 1` is an error (not defined for matrices), and so is `2 / A` (dividing by a matrix means
@@ -212,7 +214,8 @@ number — `Km / (2 [in])`, not `Km / 2 [in]`, which would relabel every element
 into an element must have the same unit — a stiffness matrix in kip/in | kip | kip·in times a
 displacement vector in in | rad gives forces in kip and kip·in. Note `A * B` is element by element;
 `A .* B` is the matrix product. Not yet available (they report an error, never a wrong number):
-transpose, inverse, element access, functions of a matrix, comparisons and `[[…]]` conversion.
+`det`, `inv`, `solve`, element access, other functions of a matrix, comparisons and `[[…]]`
+conversion.
 
 **Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
 and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section

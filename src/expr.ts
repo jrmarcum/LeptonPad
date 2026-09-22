@@ -222,6 +222,21 @@ function matMul(a: Quantity, b: Quantity): Quantity {
   return ar === 1 && bc === 1 ? rows[0][0] : matrixOf(rows);
 }
 
+/**
+ * transpose(A) — rows become columns; every element keeps its own unit. A column vector becomes a
+ * row vector, so transpose(u) .* u is a dot product. A number is its own transpose.
+ */
+function transpose(a: Quantity): Quantity {
+  if (!a.m) return a;
+  const m = a.m;
+  return matrixOf(m[0].map((_, j) => m.map((row) => row[j])));
+}
+
+/** Functions that take matrices, dispatched before the scalar-only argument guard in atom(). */
+const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Quantity }> = {
+  transpose: { arity: 1, run: ([a]) => transpose(a) },
+};
+
 /** Apply `f` to a number, or to every element of a matrix. */
 function mapQ(q: Quantity, f: (x: Quantity) => Quantity): Quantity {
   return q.m ? matrixOf(q.m.map((row) => row.map(f))) : f(q);
@@ -1003,7 +1018,17 @@ class Parser {
           }
         }
         this.need('RPAREN');
-        // Functions (built-in and user-defined) take single values only, for now.
+
+        // ── Matrix functions (unless the sheet defines its own of that name) ──
+        if (name in MATRIX_FNS && !(name in this.fnScope)) {
+          const fn = MATRIX_FNS[name];
+          if (args.length !== fn.arity) {
+            throw new Error(`${name}() takes ${fn.arity} argument${fn.arity === 1 ? '' : 's'}`);
+          }
+          return fn.run(args);
+        }
+
+        // All other functions (built-in and user-defined) take single values only.
         for (const a of args) noMatrix(a, `${name}()`);
 
         // ── Single-arg functions ────────────────────────────────────────────

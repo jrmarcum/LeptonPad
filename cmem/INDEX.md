@@ -42,7 +42,7 @@ topic files and recorded in [`known-issues.md`](known-issues.md) so they do not 
 3. The math evaluator (`src/expr.ts`, 1057 lines as of 2026-09-21) is **TypeScript, not WASM**. The only WASM in the
    product is three trivial arithmetic functions in `dist/solver.wasm`.
 
-**What is true now, in one paragraph.** LeptonPad is a Deno 2.x browser PWA at **v2.3.5**
+**What is true now, in one paragraph.** LeptonPad is a Deno 2.x browser PWA at **v2.3.6**
 (`deno.json`, 2026-09-22) — a drag-and-drop engineering calculation pad, live at
 `https://leptonpad.com`; **pushing `main` deploys it**. `deno bundle --platform browser` emits
 `dist/main.js` (~410 KB) from `src/main.ts`; all math, units, markdown, and plotting are TypeScript

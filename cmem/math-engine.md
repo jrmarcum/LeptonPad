@@ -137,8 +137,19 @@ Verified: the article's 1×3 · 3×1 = 58, A×B ≠ B×A, 2×3 · 3×2, outer pr
 (in|rad) = F (kip|kip·in). **Jon confirmed step 3 in the browser, 2026-09-22 — the planned three-step
 matrix build is complete.**
 
-**Next candidates, not yet requested:** transpose, inverse / `solve(K, F)`, determinant, element
-access. All currently error via `noMatrix` or are simply absent.
+**Matrix functions, second staged build (Jon, 2026-09-22):** transpose → det → inverse, each tested
+before the next. **Functions only** — `transpose(A)`, `det(A)`, `inv(A)`; `^` stays numbers-only
+(offered and declined: `A^T` / `A^-1` shorthands). The display still shows textbook notation: Aᵀ,
+A⁻¹, `det(A)` (not |A|, which reads as absolute value). With the inverse, add **`solve(K, F)`** for
+solving, and keep `inv(K) .* F` working for general calculation — Jon wants both.
+
+Implementation: `MATRIX_FNS` in `expr.ts` is dispatched in `atom()` **before** the scalar-only
+`noMatrix` argument guard (a sheet's own function of the same name still wins). Display:
+`renderPostfixFn()` in `markdown.ts` (`POSTFIX_FN_SUP`), wrapping a compound argument in parentheses:
+(A × B)ᵀ.
+
+- Transpose (v2.3.6): rows ↔ columns, each element keeps its unit; a number is its own transpose.
+  Verified: 2×3 → 3×2, uᵀ·u = 14, u·uᵀ outer product, A·Aᵀ, (Aᵀ)ᵀ = A, mixed-unit M.
 
 ### Comparison display (2.3.1, 2026-09-22)
 
