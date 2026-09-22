@@ -185,7 +185,7 @@ export function transformPiece(raw: string): string {
   });
   s = s.replace(/\^(\d+)/g, '<sup>$1</sup>');
   s = s.replace(/\^([A-Za-z])\b/g, '<sup>$1</sup>');
-  s = s.replace(/\s*\.\*\s*/g, ' • '); // matrix product (nested in a call; top level is split above)
+  s = s.replace(/\s*\.\*\s*/g, ' × '); // matrix product (nested in a call; top level is split above)
   s = s.replace(/\s*\*\s*/g, ' · ');
   return s;
 }
@@ -378,7 +378,7 @@ export function renderExpr(raw: string): string {
 
   // No top-level / — split at top-level * and recurse into (groups) so that
   // sub-expressions like (w*x/2)*(l-x) render their inner fractions correctly.
-  // `*` shows as ·; `.*` (matrix product) as a bold • so the two are never confused.
+  // `*` shows as ·; `.*` (matrix product) as × (Jon's choice) so the two are never confused.
   const mulSplits: { idx: number; len: number; sym: string }[] = [];
   depth = 0;
   for (let i = 0; i < s.length; i++) {
@@ -386,7 +386,7 @@ export function renderExpr(raw: string): string {
     else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && s[i] === '*') {
       const dot = i > 0 && s[i - 1] === '.';
-      mulSplits.push(dot ? { idx: i - 1, len: 2, sym: '•' } : { idx: i, len: 1, sym: '·' });
+      mulSplits.push(dot ? { idx: i - 1, len: 2, sym: '×' } : { idx: i, len: 1, sym: '·' });
     }
   }
 

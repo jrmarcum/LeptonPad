@@ -128,12 +128,14 @@ units, pointing to `Km / (2 [in])`; `{{12, -6}, …} [kip/in]` (unitless element
 **Jon confirmed step 2 in the browser, 2026-09-22.**
 
 Step 3 (v2.3.4): `A .* B` — lexer token `DOTSTAR`, same precedence as `*`/`/` (left-assoc);
-`matMul()`: (m×n)•(n×p) → m×p, each element Σⱼ aᵢⱼ·bⱼₖ summed with strict `addU` so a unit-inconsistent
-sum names the element; **a 1×1 result collapses to a plain number** (row • column = scalar, usable in
+`matMul()`: (m×n)(n×p) → m×p, each element Σⱼ aᵢⱼ·bⱼₖ summed with strict `addU` so a unit-inconsistent
+sum names the element; **a 1×1 result collapses to a plain number** (row × column = scalar, usable in
 ordinary formulas); a number on either side is plain scaling. `2.*A` lexes as `2.` then `*` — same
-result. Display: `.*` renders as a bold **•** (`renderExpr` mul split and `transformPiece`), `*` stays
-**·**. Verified: the article's 1×3•3×1 = 58, A•B ≠ B•A, 2×3•3×2, outer product, K(kip/in|kip|kip·in)•u
-(in|rad) = F (kip|kip·in).
+result. Display: `.*` renders as **×** (`renderExpr` mul split and `transformPiece`), `*` stays **·**.
+It was a bold • in v2.3.4; Jon changed it to × on 2026-09-22 for a clearer visual distinction.
+Verified: the article's 1×3 · 3×1 = 58, A×B ≠ B×A, 2×3 · 3×2, outer product, K(kip/in|kip|kip·in) × u
+(in|rad) = F (kip|kip·in). **Jon confirmed step 3 in the browser, 2026-09-22 — the planned three-step
+matrix build is complete.**
 
 **Next candidates, not yet requested:** transpose, inverse / `solve(K, F)`, determinant, element
 access. All currently error via `noMatrix` or are simply absent.
