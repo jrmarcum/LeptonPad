@@ -97,6 +97,15 @@ and `\bar{…}`.
   marks (U+0300–036F) so `\ell_b` and `\bar{y}_c` subscript.
 - `\pm` was considered and **rejected** by Jon — a calculator cannot return two values from one row.
 
+### Comparison display (2.3.1, 2026-09-22)
+
+`renderExpr` splits at the first **top-level** comparison (`findTopLevelCmp`, two-char operators
+first) before the `+`/`-` and `/` passes, then renders each side — previously `a/b >= c` rendered as a
+over "b >= c", because the `/` pass saw the comparison as part of the denominator. Glyphs: `>=` ≥,
+`<=` ≤, `!=`/`<>` ≠, `==` =. `transformPiece` applies the same glyphs to comparisons nested in calls
+(`if(x >= 0, …)`). `if`/`elseif` rows now render through `prettifyExpr` (only `for` headers stay plain
+text in `formula.ts`). Display-only — evaluation is unchanged.
+
 ### Sums, products, integrals (2.3.0)
 
 `sum(expr, i, a, b)`, `prod(expr, i, a, b)`, `integral(expr, x, a, b)` — `BIG_OPS` in `expr.ts`,

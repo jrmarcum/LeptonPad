@@ -161,6 +161,11 @@ export function transformPiece(raw: string): string {
     ).join(' ').replace(/\s+/g, ' ').trim();
   }
   let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Comparisons nested inside a call (`if(x >= 0, 1, 0)`) — top-level ones are split by renderExpr.
+  s = s.replace(/&lt;&gt;|!=/g, '≠').replace(/&gt;=/g, '≥').replace(/&lt;=/g, '≤').replace(
+    /==/g,
+    '=',
+  );
   // Symbols require the backslash, LaTeX-style: \sqrt( → √(, \phi → φ. Bare sqrt / phi display
   // as typed. The name after \ converts whatever follows it: \phiM_n, \phin, \phi2, M_\phi.
   s = s.replace(/\\sqrt\s*\(/g, '√(');
@@ -201,6 +206,33 @@ function splitTopLevelCommas(s: string): string[] {
 }
 
 const BIG_OP_SYM: Record<string, string> = { sum: 'Σ', prod: 'Π', integral: '∫' };
+
+// Comparison operators and their display glyphs. Two-character operators are tried first so `>=`
+// is never read as `>` followed by `=`.
+const CMP_DISPLAY: [string, string][] = [
+  ['>=', '≥'],
+  ['<=', '≤'],
+  ['!=', '≠'],
+  ['<>', '≠'],
+  ['==', '='],
+  ['<', '&lt;'],
+  ['>', '&gt;'],
+];
+
+/** First top-level (outside () and []) comparison operator in `s`, or null. */
+function findTopLevelCmp(s: string): { idx: number; op: string; sym: string } | null {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(' || s[i] === '[') depth++;
+    else if (s[i] === ')' || s[i] === ']') depth--;
+    else if (depth === 0) {
+      for (const [op, sym] of CMP_DISPLAY) {
+        if (s.startsWith(op, i)) return { idx: i, op, sym };
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * `sum(expr, i, a, b)` → Σ with i = a below and b above, then the expression; `prod` → Π;
@@ -249,6 +281,15 @@ export function renderExpr(raw: string): string {
   if (!s) return '';
   const bigOp = renderBigOp(s);
   if (bigOp !== null) return bigOp;
+
+  // A comparison splits first, so each side renders on its own: `a/b >= c` is a fraction ≥ c, not
+  // a over "b >= c". Shown as ≥ ≤ ≠; `==` shows as =.
+  const cmp = findTopLevelCmp(s);
+  if (cmp) {
+    return `${renderExpr(s.slice(0, cmp.idx))} <span class="fp-cmp">${cmp.sym}</span> ${
+      renderExpr(s.slice(cmp.idx + cmp.op.length))
+    }`;
+  }
 
   // Find top-level + and - (unary minus at position 0 is not a split point)
   const addSplits: number[] = [];

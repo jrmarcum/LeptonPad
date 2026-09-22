@@ -625,7 +625,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         cell.style.display = 'none';
       } else {
         cell.contentEditable = 'true';
-        const PLAIN_TYPES = new Set(['if', 'elseif', 'for']);
+        // `for` headers (`i = 1 to n step 2`) stay plain text; if/elseif conditions render like any
+        // expression so `x >= 0` shows as x ≥ 0.
+        const PLAIN_TYPES = new Set(['for']);
         const renderMath = () => {
           if (PLAIN_TYPES.has(row.dataset.rowType ?? '')) {
             cell.textContent = row.dataset.raw ?? '';

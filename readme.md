@@ -191,6 +191,10 @@ doubled.
   across the whole range: `integral(1/x, x, 0, 1)` reports an error rather than a guess.
 - They nest (`sum(sum(i*j, j, 1, 3), i, 1, 3)`) and work inside `for` loops and plots.
 
+**Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
+and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section
+summary checks. A comparison splits the line first, so `f_a/F_a <= 1.0` shows as a fraction ≤ 1.0.
+
 **Order of operations:** `^` binds tighter than a leading minus — `-x^2` is −(x²) and `-2^2` is −4,
 as in Mathcad and MATLAB (Excel differs). Write `(-x)^2` for the square of −x.
 
