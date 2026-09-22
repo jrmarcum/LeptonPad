@@ -191,8 +191,7 @@ doubled.
   across the whole range: `integral(1/x, x, 0, 1)` reports an error rather than a guess.
 - They nest (`sum(sum(i*j, j, 1, 3), i, 1, 3)`) and work inside `for` loops and plots.
 
-**Matrices** (in progress — steps 1–2 of 3 done: element-wise and number × matrix) are written in
-braces, row by row:
+**Matrices** are written in braces, row by row:
 
 | You type                                                | Means                                              |
 | ------------------------------------------------------- | -------------------------------------------------- |
@@ -202,13 +201,18 @@ braces, row by row:
 | `K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}` | each element its own unit                          |
 | `A + B`, `A - B`, `A * B`, `A / B`, `-A`                | element by element — same size required            |
 | `2 * A`, `A * 2`, `A / 2`, `L * A`                      | every element scaled; units multiply through       |
+| `F = K .* u`                                            | matrix product (row × column), shown as K • u      |
+| `{{1, 2, 3}} .* {4, 5, 6}`                              | row • column = a single number (32)                |
 
 Units are checked element by element, so adding kip to kip/in is an error that names the element.
 `A + 1` is an error (not defined for matrices), and so is `2 / A` (dividing by a matrix means
 multiplying by its inverse). On a matrix that already has units, write a scaling unit next to its
 number — `Km / (2 [in])`, not `Km / 2 [in]`, which would relabel every element and is refused.
-Not yet available (they report an error, never a wrong number): matrix multiplication `A .* B`
-(row-by-column), inverse, functions of a matrix, comparisons and `[[…]]` conversion.
+`A .* B` needs the columns of A to equal the rows of B ((m×n) • (n×p) → m×p), and every term summed
+into an element must have the same unit — a stiffness matrix in kip/in | kip | kip·in times a
+displacement vector in in | rad gives forces in kip and kip·in. Note `A * B` is element by element;
+`A .* B` is the matrix product. Not yet available (they report an error, never a wrong number):
+transpose, inverse, element access, functions of a matrix, comparisons and `[[…]]` conversion.
 
 **Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
 and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section

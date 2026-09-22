@@ -125,6 +125,18 @@ multiply by the inverse, per Jon — no element-wise reciprocal). **Trap found w
 legacy single-trailing-tag rule made `Km / 2 [in]` relabel _every_ element of a mixed-unit matrix as
 `in`. `applyStatementUnits` now refuses a whole-result tag on a matrix whose elements already carry
 units, pointing to `Km / (2 [in])`; `{{12, -6}, …} [kip/in]` (unitless elements) still works.
+**Jon confirmed step 2 in the browser, 2026-09-22.**
+
+Step 3 (v2.3.4): `A .* B` — lexer token `DOTSTAR`, same precedence as `*`/`/` (left-assoc);
+`matMul()`: (m×n)•(n×p) → m×p, each element Σⱼ aᵢⱼ·bⱼₖ summed with strict `addU` so a unit-inconsistent
+sum names the element; **a 1×1 result collapses to a plain number** (row • column = scalar, usable in
+ordinary formulas); a number on either side is plain scaling. `2.*A` lexes as `2.` then `*` — same
+result. Display: `.*` renders as a bold **•** (`renderExpr` mul split and `transformPiece`), `*` stays
+**·**. Verified: the article's 1×3•3×1 = 58, A•B ≠ B•A, 2×3•3×2, outer product, K(kip/in|kip|kip·in)•u
+(in|rad) = F (kip|kip·in).
+
+**Next candidates, not yet requested:** transpose, inverse / `solve(K, F)`, determinant, element
+access. All currently error via `noMatrix` or are simply absent.
 
 ### Comparison display (2.3.1, 2026-09-22)
 

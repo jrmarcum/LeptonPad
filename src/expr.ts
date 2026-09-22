@@ -188,6 +188,40 @@ function combine(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity 
   ));
 }
 
+/**
+ * `A .* B` — matrix product, the "dot product" of the algebra1course article Jon cited: row of A
+ * times column of B, summed. (m×n) .* (n×p) → m×p [step 3]. Each result element Σⱼ aᵢⱼ·bⱼₖ must be
+ * unit-consistent across j (K·u with K in kip/in|kip and u in in|rad gives kip in every term); an
+ * inconsistent sum names the element. A 1×1 result is returned as a plain number (a row .* column is
+ * a scalar). With a number on either side it is ordinary scaling, same as `*`.
+ */
+function matMul(a: Quantity, b: Quantity): Quantity {
+  if (!a.m || !b.m) return combine(a, b, '*');
+  const ar = a.m.length, ac = a.m[0].length, br = b.m.length, bc = b.m[0].length;
+  if (ac !== br) {
+    throw new Error(
+      `Matrix product ${ar}×${ac} .* ${br}×${bc}: columns of the left (${ac}) must equal rows of the right (${br})`,
+    );
+  }
+  const rows: Quantity[][] = [];
+  for (let i = 0; i < ar; i++) {
+    const row: Quantity[] = [];
+    for (let k = 0; k < bc; k++) {
+      let acc = scalarOp(a.m[i][0], b.m[0][k], '*');
+      for (let j = 1; j < ac; j++) {
+        try {
+          acc = scalarOp(acc, scalarOp(a.m[i][j], b.m[j][k], '*'), '+');
+        } catch (e) {
+          throw new Error(`Element (${i + 1},${k + 1}) of the product: ${(e as Error).message}`);
+        }
+      }
+      row.push(acc);
+    }
+    rows.push(row);
+  }
+  return ar === 1 && bc === 1 ? rows[0][0] : matrixOf(rows);
+}
+
 /** Apply `f` to a number, or to every element of a matrix. */
 function mapQ(q: Quantity, f: (x: Quantity) => Quantity): Quantity {
   return q.m ? matrixOf(q.m.map((row) => row.map(f))) : f(q);
@@ -332,6 +366,7 @@ type TT =
   | 'COMMA'
   | 'LBRACE'
   | 'RBRACE'
+  | 'DOTSTAR'
   | 'UNIT'
   | 'EQ'
   | 'NEQ'
@@ -468,6 +503,13 @@ function lex(src: string): Tok[] {
         out.push({ t: 'GT', v: '>' });
         i++;
       }
+      continue;
+    }
+
+    // `.*` — matrix product. (`2.*A` lexes as the number `2.` then `*`, which is the same scaling.)
+    if (ch === '.' && src[i + 1] === '*') {
+      out.push({ t: 'DOTSTAR', v: '.*' });
+      i += 2;
       continue;
     }
 
@@ -706,7 +748,7 @@ function integrate(at: (q: Quantity) => Quantity, lo: Quantity, hi: Quantity): Q
 // Grammar (highest precedence last):
 //   compare → arithmetic (CMP_OP arithmetic)?   ← returns 0 or 1 (dimensionless)
 //   arithmetic → addend  (('+' | '-') addend)*
-//   addend  → tagged     (('*' | '/') tagged)*
+//   addend  → tagged     (('*' | '/' | '.*') tagged)*   ← '.*' = matrix product
 //   tagged  → '-' tagged | power (UNIT ('^' unary)?)?  ← [unit] declares the unit; -x^2 = -(x^2)
 //   unary   → '-' unary  | power                 ← exponents only: 2^-1
 //   power   → atom       ('^' unary)?            ← right-associative
@@ -863,10 +905,10 @@ class Parser {
 
   addend(): Quantity {
     let q = this.tagged();
-    while (this.peek().t === 'STAR' || this.peek().t === 'SLASH') {
+    while (this.peek().t === 'STAR' || this.peek().t === 'SLASH' || this.peek().t === 'DOTSTAR') {
       const op = this.eat().t;
       const r = this.tagged();
-      q = combine(q, r, op === 'STAR' ? '*' : '/');
+      q = op === 'DOTSTAR' ? matMul(q, r) : combine(q, r, op === 'STAR' ? '*' : '/');
     }
     return q;
   }
