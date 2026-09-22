@@ -163,6 +163,18 @@ Implementation: `MATRIX_FNS` in `expr.ts` is dispatched in `atom()` **before** t
     are reported as exactly 0.
   - Fixed on the way: `[1/kip]` used to create a **phantom unit named "1"** that never cancelled
     (`4 [kip] * 2 [1/kip]` was not dimensionless). `parseUnitExpr` now skips a `1` term.
+  - **Jon confirmed det in the browser, 2026-09-22.**
+- Inverse and solve (v2.3.8): one `luSolve()` (Gauss-Jordan, partial pivoting) serves both; a pivot
+  at or below `1e-12 ×` the matrix scale is singular and errors. `squareFactors()` shares det's
+  row×column unit split.
+  - `inv(A)` element (i,j) carries **1/(r(j)·c(i))** — the units that make A⁻¹·A dimensionless.
+    Inverting K (kip/in | kip | kip·in) gives in/kip, 1/kip, 1/(kip·in).
+  - `solve(K, F)`: every F row must give the same `f = unit(F(i))/r(i)`; then `unit(u(k)) = f/c(k)`.
+    K·u = F with F in kip | kip·in yields u in **in** and a dimensionless rotation. A right-hand side
+    that is not unit-consistent says which row disagrees.
+  - `matMul` now rounds a summed element to 0 when it is ≤ `1e-12 ×` the sum of |terms|, so
+    `K .* inv(K)` reads as the identity instead of 1 and −1.1e-16.
+  - Display: `inv(X)` → X⁻¹ (`POSTFIX_FN_SUP`), `solve(K, F)` stays a named call.
 
 ### Comparison display (2.3.1, 2026-09-22)
 

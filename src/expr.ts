@@ -208,13 +208,19 @@ function matMul(a: Quantity, b: Quantity): Quantity {
     const row: Quantity[] = [];
     for (let k = 0; k < bc; k++) {
       let acc = scalarOp(a.m[i][0], b.m[0][k], '*');
+      let sumAbs = Math.abs(acc.v);
       for (let j = 1; j < ac; j++) {
         try {
-          acc = scalarOp(acc, scalarOp(a.m[i][j], b.m[j][k], '*'), '+');
+          const term = scalarOp(a.m[i][j], b.m[j][k], '*');
+          sumAbs += Math.abs(term.v);
+          acc = scalarOp(acc, term, '+');
         } catch (e) {
           throw new Error(`Element (${i + 1},${k + 1}) of the product: ${(e as Error).message}`);
         }
       }
+      // Terms that cancel leave ~1e-16 of the sum behind — K .* inv(K) should read as the identity,
+      // not as 1 and -1.1e-16. The tolerance is relative to the terms actually added.
+      if (Math.abs(acc.v) <= 1e-12 * sumAbs) acc = { v: 0, u: acc.u };
       row.push(acc);
     }
     rows.push(row);
@@ -314,6 +320,8 @@ function detUnit(m: Quantity[][]): UnitMap {
   return [...f.r, ...f.c].reduce(mulU, {});
 }
 
+// `inv`/`solve` share the same split, checked by squareFactors() below.
+
 /**
  * det(A) — Gaussian elimination with partial pivoting (product of the pivots, sign from the row
  * swaps). Square matrices only; a 1×1 determinant is its element.
@@ -347,10 +355,109 @@ function det(a: Quantity): Quantity {
   return { v: Math.abs(v) <= 1e-12 * scale ? 0 : sign * v, u };
 }
 
+/**
+ * Solve A·X = B for the numbers alone — Gauss-Jordan with partial pivoting. Returns null when A is
+ * singular (a pivot vanishes relative to the column's size). Units are handled by the callers.
+ */
+function luSolve(a: number[][], b: number[][]): number[][] | null {
+  const n = a.length, p = b[0].length;
+  const m = a.map((row, i) => [...row, ...b[i]]);
+  const scale = Math.max(...a.flat().map(Math.abs), 1);
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let i = col + 1; i < n; i++) if (Math.abs(m[i][col]) > Math.abs(m[piv][col])) piv = i;
+    if (Math.abs(m[piv][col]) <= 1e-12 * scale) return null; // singular
+    if (piv !== col) [m[col], m[piv]] = [m[piv], m[col]];
+    const d = m[col][col];
+    for (let j = col; j < n + p; j++) m[col][j] /= d;
+    for (let i = 0; i < n; i++) {
+      if (i === col || m[i][col] === 0) continue;
+      const f = m[i][col];
+      for (let j = col; j < n + p; j++) m[i][j] -= f * m[col][j];
+    }
+  }
+  return m.map((row) => row.slice(n));
+}
+
+/** A square matrix's unit factors, with the checks det/inv/solve all need. */
+function squareFactors(m: Quantity[][], fn: string): { r: UnitMap[]; c: UnitMap[] } {
+  const n = m.length;
+  if (m[0].length !== n) throw new Error(`${fn}() needs a square matrix (got ${n}×${m[0].length})`);
+  const f = unitFactors(m);
+  if (!f || f.components.some((comp) => comp.rows.length !== comp.cols.length)) {
+    throw new Error(
+      `${fn}(): this matrix's units are not consistent — each element's unit must be a row unit ` +
+        'times a column unit (as in a stiffness or flexibility matrix)',
+    );
+  }
+  return f;
+}
+
+/**
+ * inv(A) — the inverse. Element (i,j) of the inverse carries 1/(r(j)·c(i)), the units that make
+ * A⁻¹·A dimensionless: inverting K in kip/in | kip | kip·in gives in/kip, 1/kip and 1/(kip·in).
+ */
+function inv(a: Quantity): Quantity {
+  if (!a.m) throw new Error('inv() needs a square matrix');
+  const { r, c } = squareFactors(a.m, 'inv');
+  const n = a.m.length;
+  const id = Array.from(
+    { length: n },
+    (_, i) => Array.from({ length: n }, (_, j) => i === j ? 1 : 0),
+  );
+  const x = luSolve(a.m.map((row) => row.map((q) => q.v)), id);
+  if (!x) throw new Error('inv(): the matrix is singular — it has no inverse');
+  return matrixOf(
+    x.map((row, i) => row.map((v, j) => ({ v, u: divU({}, mulU(r[j], c[i])) }))),
+  );
+}
+
+/**
+ * solve(K, F) — the u of K·u = F, by elimination rather than by forming the inverse.
+ * Units: with K split as r·c, every F element must give the same f = unit(F(i)) / r(i); then
+ * unit(u(k)) = f / c(k). For a stiffness matrix in kip/in | kip | kip·in and forces in kip | kip·in
+ * that yields a displacement in in and a rotation that is dimensionless.
+ */
+function solveSystem(k: Quantity, f: Quantity): Quantity {
+  if (!k.m) throw new Error('solve() needs a square matrix as its first argument');
+  if (!f.m) throw new Error('solve() needs a vector or matrix as its second argument');
+  const { r, c } = squareFactors(k.m, 'solve');
+  const n = k.m.length;
+  if (f.m.length !== n) {
+    throw new Error(
+      `solve(): the right-hand side has ${f.m.length} row${f.m.length === 1 ? '' : 's'}, ` +
+        `the matrix has ${n}`,
+    );
+  }
+  // One common factor for the whole right-hand side, from the rows that carry a unit.
+  let rhs: UnitMap | null = null;
+  for (let i = 0; i < n; i++) {
+    for (const cell of f.m[i]) {
+      if (cell.v === 0 && Object.keys(cell.u).length === 0) continue;
+      const cand = divU(cell.u, r[i]);
+      if (rhs === null) rhs = cand;
+      else if (!eqU(rhs, cand)) {
+        throw new Error(
+          `solve(): the right-hand side is not unit-consistent with the matrix ` +
+            `(row ${i + 1} implies ${formatUnit(cand) || 'no unit'}, earlier rows ${
+              formatUnit(rhs) || 'no unit'
+            })`,
+        );
+      }
+    }
+  }
+  const x = luSolve(k.m.map((row) => row.map((q) => q.v)), f.m.map((row) => row.map((q) => q.v)));
+  if (!x) throw new Error('solve(): the matrix is singular — the system has no unique solution');
+  const u = rhs ?? {};
+  return matrixOf(x.map((row, i) => row.map((v) => ({ v, u: divU(u, c[i]) }))));
+}
+
 /** Functions that take matrices, dispatched before the scalar-only argument guard in atom(). */
 const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Quantity }> = {
   transpose: { arity: 1, run: ([a]) => transpose(a) },
   det: { arity: 1, run: ([a]) => det(a) },
+  inv: { arity: 1, run: ([a]) => inv(a) },
+  solve: { arity: 2, run: ([k, f]) => solveSystem(k, f) },
 };
 
 /** Apply `f` to a number, or to every element of a matrix. */

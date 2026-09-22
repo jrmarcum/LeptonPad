@@ -206,6 +206,8 @@ doubled.
 | `transpose(A)`                                          | rows ↔ columns, shown as Aᵀ; units move with their elements  |
 | `transpose(u) .* u`                                     | dot product of a column vector with itself                   |
 | `det(K)`                                                | determinant (square only); K in kip/in·kip·kip·in gives kip² |
+| `inv(K)`                                                | inverse, shown as K⁻¹; K in kip/in gives in/kip              |
+| `solve(K, F)`                                           | the u of K·u = F, without forming the inverse                |
 
 Units are checked element by element, so adding kip to kip/in is an error that names the element.
 `A + 1` is an error (not defined for matrices), and so is `2 / A` (dividing by a matrix means
@@ -214,10 +216,24 @@ number — `Km / (2 [in])`, not `Km / 2 [in]`, which would relabel every element
 `A .* B` needs the columns of A to equal the rows of B ((m×n) × (n×p) → m×p), and every term summed
 into an element must have the same unit — a stiffness matrix in kip/in | kip | kip·in times a
 displacement vector in in | rad gives forces in kip and kip·in. Note `A * B` is element by element;
-`A .* B` is the matrix product. `det(A)` needs a square matrix whose units give the determinant a
-single unit — true of stiffness and flexibility matrices, and a plain `0` element is fine. Not yet
-available (they report an error, never a wrong number): `inv`, `solve`, element access, other
-functions of a matrix, comparisons and `[[…]]` conversion.
+`A .* B` is the matrix product. `det`, `inv` and `solve` need a square matrix whose element units
+split into a row unit times a column unit — true of stiffness and flexibility matrices — and a plain
+`0` element is fine. A singular matrix is an error, not a huge number. `solve(K, F)` is the accurate
+way to get displacements; `inv(K) .* F` gives the same answer for well-behaved systems.
+
+A frame example, units and all:
+
+```
+K = {{12 [kip/in], -6 [kip]}, {-6 [kip], 4 [kip*in]}}
+F = {5.94 [kip], -2.96 [kip*in]}
+u = solve(K, F)          → [0.5 in; 0.01]   (a displacement and a rotation)
+K .* u                   → back to F
+inv(K)                   → [0.333 in/kip, 0.5 1/kip; 0.5 1/kip, 1 1/(kip·in)]
+det(K)                   → 12 kip²
+```
+
+Not yet available (they report an error, never a wrong number): element access, other functions of a
+matrix, comparisons and `[[…]]` conversion.
 
 **Comparisons display as symbols:** type `>=`, `<=`, `!=` (or `<>`) and `==`; they show as ≥, ≤, ≠
 and =, including in `if`/`elseif` conditions, inside `if(…)`, in text-block math and in section

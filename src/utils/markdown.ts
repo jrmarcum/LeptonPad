@@ -242,15 +242,15 @@ function renderMatrixLiteral(s: string): string | null {
 }
 
 // Matrix functions typed by name, displayed in textbook notation: transpose(A) → Aᵀ.
-const POSTFIX_FN_SUP: Record<string, string> = { transpose: 'T' };
+const POSTFIX_FN_SUP: Record<string, string> = { transpose: 'T', inv: '−1' };
 
 /**
- * `transpose(X)` → Xᵀ. X is shown bare when it is a plain name or a matrix literal, otherwise in
- * parentheses — (A × B)ᵀ — so the superscript clearly applies to the whole argument. Returns null
- * unless `s` is exactly one such call with one argument.
+ * `transpose(X)` → Xᵀ, `inv(X)` → X⁻¹. X is shown bare when it is a plain name or a matrix literal,
+ * otherwise in parentheses — (A × B)ᵀ — so the superscript clearly applies to the whole argument.
+ * Returns null unless `s` is exactly one such call with one argument.
  */
 function renderPostfixFn(s: string): string | null {
-  const m = s.match(/^\\?(transpose)\s*\(/);
+  const m = s.match(/^\\?(transpose|inv)\s*\(/);
   if (!m || !s.endsWith(')')) return null;
   let depth = 0;
   for (let i = m[0].length - 1; i < s.length; i++) {
