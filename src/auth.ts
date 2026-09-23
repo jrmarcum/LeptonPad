@@ -16,7 +16,8 @@
 
 import { type Backend, type BackendUser, getBackend } from './backend.ts';
 import { importPackKey } from './crypto.ts';
-import type { UserRole } from './types.ts';
+import { packSectionOf } from './state.ts';
+import type { Block, UserRole } from './types.ts';
 
 // ---------------------------------------------------------------------------
 // Exported auth state (read-only externally — mutated only inside this module)
@@ -59,6 +60,38 @@ export function canCreateSection(): boolean {
 /** Returns true if the user owns a section pack (or is super). */
 export function hasPack(packId: string): boolean {
   return currentRole === 'super' || ownedPackIds.has(packId);
+}
+
+/**
+ * Whether this block may be moved, resized or retitled by the person at the keyboard.
+ *
+ * Everything outside a purchased pack is theirs to arrange. Inside one, the layout is part of the
+ * template: a buyer gets the blocks where the author put them, because a calculation sheet that
+ * has been rearranged is no longer the sheet that was reviewed and sold. **The pack's author keeps
+ * full rights over their own template**, matched on the Clerk user id recorded in `packAuthorId`.
+ *
+ * **Matching the author id is necessary but not sufficient.** The author must be signed in with
+ * live pro access: an id sitting in a file proves nothing on its own, and an offline or
+ * unverified session is not permission. This follows the rule the rest of the gating already
+ * uses — being unable to verify is not the same as being allowed, or going offline would grant
+ * Pro. See `design-decisions.md` § A failed entitlement sync is shown, never silently downgraded.
+ *
+ * ⚠️ Like `canCreateSection()`, this is a UI gate and not a security boundary — `packAuthorId`
+ * sits in a file the user holds and could be forged. The consequence of forging it is only that
+ * someone rearranges a template they already licensed; it grants no access to content they do not
+ * own, because that boundary is `get_pack_key` and the encryption. Do not extend this function
+ * into anything load-bearing.
+ *
+ * A pack with no recorded author is locked for everyone but `super` — failing closed, since an
+ * unattributed template is more likely malformed than public property.
+ */
+export function canRearrange(block: Block): boolean {
+  const section = packSectionOf(block);
+  if (!section) return true; // not in a pack — the user's own sheet, theirs to arrange
+  if (currentRole === 'super') return true;
+  // Signed in, verified, and holding pro-level access — every one of them required.
+  if (!currentUser || entitlementsStale || !canCreateSection()) return false;
+  return !!section.packAuthorId && section.packAuthorId === currentUser.id;
 }
 
 /** Display string for the current role. */

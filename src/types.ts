@@ -40,6 +40,11 @@ export interface Block {
   inputs?: Record<string, string>;
   // Purchased template pack fields (section blocks only)
   packId?: string; // pack slug if this block came from a purchased template
+  // Clerk user id of whoever authored the pack. The author keeps full editing rights over their
+  // own template — moving, resizing and retitling the blocks inside it — while a buyer gets the
+  // layout as the author arranged it. Everyone else is compared against this, so a pack with no
+  // packAuthorId is locked for everybody, which is the safe direction to fail.
+  packAuthorId?: string;
   encrypted?: boolean; // true = content is encrypted; encIv + encContent hold the data
   encIv?: string; // AES-GCM IV, base64
   encContent?: string; // AES-GCM ciphertext, base64

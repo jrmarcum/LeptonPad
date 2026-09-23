@@ -17,6 +17,7 @@ import {
   titleBlockH,
 } from './state.ts';
 import { clamp } from './utils/units.ts';
+import { canRearrange } from './auth.ts';
 import { buildSectionBlock } from './blocks/pro/section.ts';
 import { buildPlotBlock } from './blocks/plot.ts';
 import { buildFormulaBlock } from './blocks/formula.ts';
@@ -147,6 +148,10 @@ export class Canvas {
     const el = document.createElement('div');
     el.id = block.id;
     el.className = 'block';
+    // Marks a block whose geometry belongs to a purchased template rather than to this sheet.
+    // CSS hides its resize handles; the drag handler and the label refuse separately, because a
+    // class alone stops nothing — it only stops the affordance being offered.
+    if (!canRearrange(block)) el.classList.add('block--fixed');
     applyBlockLineSpacing(el, block);
 
     // Child blocks are positioned relative to section content — skip margin offset
@@ -235,6 +240,10 @@ export class Canvas {
       }
       // Section blocks are dragged via their own header handler
       if (block.type === 'section') return;
+      // A block inside a purchased pack section does not move. Its position is part of the
+      // template the buyer licensed, not of their sheet. The pack's own author, signed in with
+      // live pro access, still can — see canRearrange.
+      if (!canRearrange(block)) return;
       e.stopPropagation(); // prevent bubbling into a parent section's drag handler
       if (e.shiftKey) {
         onAddToSelection?.(el);

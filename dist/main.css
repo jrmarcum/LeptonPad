@@ -769,6 +769,18 @@ main {
   background: none;
 }
 
+/* A block whose geometry belongs to a purchased template: no resize handles, and no grab
+   cursor, because neither does anything. The drag handler and the label refuse independently —
+   this rule removes the affordance, it is not what enforces the lock. */
+/* Matches all six: formula/figure/text -resize-handle, plot -right-/-bottom-handle,
+   figure -bottom-handle. A suffix selector missed half of them. */
+.block--fixed [class*='-handle'] {
+  display: none !important;
+}
+.block--fixed {
+  cursor: default;
+}
+
 /* A labelled dropdown in the context menu — used where there are too many choices for the
    side-by-side button rows below (the two dozen unit kinds an input row can require). */
 .ctx-field {

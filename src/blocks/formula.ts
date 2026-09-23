@@ -16,6 +16,7 @@ import {
   type Statement,
   validateInputValue,
 } from '../expr.ts';
+import { canRearrange } from '../auth.ts';
 import { type Block, sectionPrefix } from '../types.ts';
 import {
   canvas,
@@ -413,10 +414,19 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
 
   const labelEl = document.createElement('div');
   labelEl.className = 'formula-label';
-  labelEl.contentEditable = 'true';
+  // The title of a block inside a purchased template is the author's, not the buyer's — a
+  // retitled block in a stamped calculation package no longer matches the sheet that was
+  // reviewed. The author keeps it editable; see canRearrange.
+  const rearrangeable = canRearrange(block);
+  labelEl.contentEditable = String(rearrangeable);
+  if (!rearrangeable) {
+    labelEl.classList.add('formula-cell--readonly');
+    labelEl.title = 'Set by the purchased template';
+  }
   labelEl.textContent = block.label ?? 'Formula';
   labelEl.dataset.placeholder = 'Label…';
   labelEl.addEventListener('blur', () => {
+    if (!rearrangeable) return;
     block.label = labelEl.textContent ?? '';
   });
   el.appendChild(labelEl);

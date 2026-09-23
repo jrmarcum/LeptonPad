@@ -107,6 +107,21 @@ export const sectionSummaryComparisons = new Map<
 // Never persisted — derived from Block.parentSectionId at runtime.
 export const childToSection: Map<string, string> = new Map();
 
+/**
+ * The purchased-pack section this block sits INSIDE, or undefined.
+ *
+ * A pack section is not its own child: the buyer places it on their sheet and may move, resize and
+ * rename it freely. Its contents are a different matter — the layout of a purchased template is
+ * part of the template, so a recipient must not be able to drag its blocks around, resize them or
+ * retitle them. This is what every such check keys off.
+ */
+export function packSectionOf(block: Block): Block | undefined {
+  const parentId = block.parentSectionId ?? childToSection.get(block.id);
+  if (!parentId) return undefined;
+  const parent = state.blocks.find((b) => b.id === parentId);
+  return parent?.packId ? parent : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Undo
 // ---------------------------------------------------------------------------
