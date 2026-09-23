@@ -86,6 +86,11 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] Open the same file signed in as a different account — renders the not-owned placeholder, not
       the content.
 
+**Project open / new**
+
+- [ ] With a multi-page project open and the cursor on a late page, **New Project** (and loading a
+      one-page file) puts the grid cursor back on page 1 and scrolls the canvas to the top.
+
 **Build/deploy**
 
 - [ ] After a version bump + build, `dist/sw.js` carries the new `leptonpad-vX.Y.Z`.

@@ -282,6 +282,17 @@ export function parseProjectJson(text: string): Record<string, unknown> {
 // Project state management
 // ---------------------------------------------------------------------------
 
+/**
+ * Put the grid cursor on the first page and scroll the canvas back to the top — what every "this is
+ * a different sheet now" moment needs: New Project, New from Template, and loading a file. Without
+ * it the cursor keeps the previous project's position, which may be several pages below a shorter
+ * new sheet (reported 2026-09-23).
+ */
+function resetViewToFirstPage() {
+  moveGridCursor(margins.left, margins.top + titleBlockH());
+  document.querySelector('main')?.scrollTo({ top: 0, left: 0 });
+}
+
 export function clearProjectState() {
   canvas.domElement.querySelectorAll('.block').forEach((el) => el.remove());
   canvas.domElement.querySelectorAll('.title-block-overlay').forEach((el) => el.remove());
@@ -302,6 +313,9 @@ export function clearProjectState() {
   setCANVAS_H(PAGE_H);
   canvas.domElement.style.height = `${CANVAS_H}px`;
   syncPageSeparators();
+  // The new sheet has one page; a cursor left on page 8 of the previous project would sit far off
+  // it. Put it back on the first page — same reset loadProject does.
+  resetViewToFirstPage();
 
   setCustomModules([]);
   saveCustomModules();
@@ -495,7 +509,7 @@ export function loadProject(proj: Record<string, unknown>) {
   updatePageCount();
   syncTitleBlocks();
   canvas.updateMarginGuide();
-  moveGridCursor(margins.left, margins.top + titleBlockH());
+  resetViewToFirstPage();
 
   const savedTools = proj.custom_tools as import('./types.ts').CustomModule[] | undefined;
   if (savedTools && Array.isArray(savedTools)) {
