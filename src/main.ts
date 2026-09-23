@@ -47,6 +47,7 @@ import {
   resolveOverlapsRight,
   selectBlock,
   shiftBlocksVertical,
+  syncPageNumberingToggle,
   syncPageSeparators,
   syncTitleBlocks,
   updatePageCount,
@@ -707,17 +708,12 @@ function renderSidebar() {
     if (!titleBlockEnabled) {
       // Only remove the DOM overlays — keep state.titleBlock so settings survive toggle off/on
       canvas.domElement.querySelectorAll('.title-block-overlay').forEach((e) => e.remove());
-      pnCheckbox.disabled = false;
-      pnToggleLabel.style.opacity = '1';
-      pnToggleLabel.style.pointerEvents = '';
     } else {
       syncTitleBlocks();
-      pnCheckbox.checked = false;
-      setPageNumberingEnabled(false);
-      pnCheckbox.disabled = true;
-      pnToggleLabel.style.opacity = '0.4';
-      pnToggleLabel.style.pointerEvents = 'none';
     }
+    // Reflect the preference; never overwrite it. The title block suppresses page numbers in
+    // syncPageSeparators, so the setting survives being toggled off and back on.
+    syncPageNumberingToggle();
     syncPageSeparators();
     canvas.updateMarginGuide();
     // Reset grid cursor to effective content top

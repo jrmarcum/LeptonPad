@@ -14,6 +14,7 @@ import {
   margins,
   numPages,
   PAGE_H,
+  pageNumberingEnabled,
   selectedEl,
   selectedEls,
   setCANVAS_H,
@@ -170,6 +171,27 @@ export function syncTitleBlocks() {
   }
 }
 
+/**
+ * Reflect the page-numbering preference and the title block's suppression of it in the sidebar.
+ *
+ * ONE definition, because main.ts's title-block handler and persistence.ts's project load each
+ * had their own copy — and both copies did the same wrong thing: they set the preference itself
+ * to false when the title block came on, so toggling the title block off left Page Numbering
+ * unchecked with no way to tell it had been changed for you. The checkbox now always shows the
+ * preference; only `disabled` reflects the title block.
+ */
+export function syncPageNumberingToggle() {
+  const cb = document.getElementById('page-numbering-toggle') as HTMLInputElement | null;
+  if (!cb) return;
+  cb.checked = pageNumberingEnabled;
+  cb.disabled = titleBlockEnabled;
+  const label = cb.parentElement as HTMLElement | null;
+  if (label) {
+    label.style.opacity = titleBlockEnabled ? '0.4' : '1';
+    label.style.pointerEvents = titleBlockEnabled ? 'none' : '';
+  }
+}
+
 // Rebuild page-separator bars and per-page margin guides to match numPages.
 export function syncPageSeparators() {
   canvas.domElement.querySelectorAll('.page-sep, .page-guide, .page-num').forEach((e) =>
@@ -192,8 +214,15 @@ export function syncPageSeparators() {
     canvas.domElement.appendChild(sep);
   }
   // Page number labels — one per page, bottom-right, print-only.
-  // Suppressed when the title block is active (sheet no. shown there instead).
-  if (!titleBlockEnabled) {
+  //
+  // TWO independent conditions, and this used to test only the second: the checkbox had no
+  // effect at all, because `pageNumberingEnabled` was never read here. Unchecking Page Numbering
+  // appeared to do nothing while the title block was off.
+  //   • pageNumberingEnabled — the user's preference.
+  //   • titleBlockEnabled    — suppression, because the title block carries its own sheet number.
+  // The title block must suppress the DISPLAY without overwriting the preference, or turning it
+  // on and off again silently loses the user's setting.
+  if (pageNumberingEnabled && !titleBlockEnabled) {
     for (let i = 1; i <= numPages; i++) {
       const pn = document.createElement('div');
       pn.className = 'page-num';

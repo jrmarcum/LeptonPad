@@ -24,6 +24,7 @@ import {
   onAppendCustomModuleToSidebar,
   onRefreshCustomModulesList,
   PAGE_H,
+  pageNumberingEnabled,
   saveCustomModules,
   setCANVAS_H,
   setCustomModules,
@@ -38,6 +39,7 @@ import {
   clearSelection,
   moveGridCursor,
   renderBlock,
+  syncPageNumberingToggle,
   syncPageSeparators,
   syncTitleBlocks,
   updatePageCount,
@@ -395,35 +397,21 @@ export function loadProject(proj: Record<string, unknown>) {
   setTitleBlockEnabled(false);
 
   const rawTb = proj.title_block as TitleBlockData | undefined;
-  if (rawTb) {
-    state.titleBlock = rawTb;
-    setTitleBlockEnabled(true);
-    const tbToggle = document.getElementById('title-block-toggle') as HTMLInputElement | null;
-    if (tbToggle) tbToggle.checked = true;
-    const pnCheckbox = document.getElementById('page-numbering-toggle') as HTMLInputElement | null;
-    if (pnCheckbox) {
-      pnCheckbox.checked = false;
-      pnCheckbox.disabled = true;
-      const pnLabel = pnCheckbox.parentElement as HTMLElement | null;
-      if (pnLabel) {
-        pnLabel.style.opacity = '0.4';
-        pnLabel.style.pointerEvents = 'none';
-      }
-    }
-    setPageNumberingEnabled(false);
-  } else {
-    setTitleBlockEnabled(false);
-    const tbToggle = document.getElementById('title-block-toggle') as HTMLInputElement | null;
-    if (tbToggle) tbToggle.checked = false;
-    const pnCheckbox = document.getElementById('page-numbering-toggle') as HTMLInputElement | null;
-    if (pnCheckbox) {
-      pnCheckbox.disabled = false;
-      const pnLabel = pnCheckbox.parentElement as HTMLElement | null;
-      if (pnLabel) {
-        pnLabel.style.opacity = '1';
-        pnLabel.style.pointerEvents = '';
-      }
-    }
+  if (rawTb) state.titleBlock = rawTb;
+  setTitleBlockEnabled(!!rawTb);
+  const tbToggle = document.getElementById('title-block-toggle') as HTMLInputElement | null;
+  if (tbToggle) tbToggle.checked = !!rawTb;
+  // Loading a project with a title block used to also set pageNumberingEnabled = false — it
+  // overwrote a preference the file says nothing about, and the user then found Page Numbering
+  // off for no visible reason. The title block suppresses the display in syncPageSeparators;
+  // this only reflects state in the sidebar.
+  syncPageNumberingToggle();
+
+  // The preference the user chose for THIS project, when the file records one. Older files do
+  // not, so the current setting stands rather than being reset to a default.
+  if (typeof proj.page_numbering === 'boolean') {
+    setPageNumberingEnabled(proj.page_numbering);
+    syncPageNumberingToggle();
   }
 
   // REPLACE, not merge. `Object.assign` left the previous project's constants in scope, so
@@ -577,6 +565,9 @@ export function serializeProject(): string {
     custom_tools: customModules,
   };
   if (state.titleBlock) out.title_block = state.titleBlock;
+  // Saved so the choice survives a reload. It was previously not persisted at all, which is part
+  // of why silently flipping it went unnoticed — there was nothing to compare against.
+  out.page_numbering = pageNumberingEnabled;
   return JSON.stringify(out, null, 2);
 }
 
