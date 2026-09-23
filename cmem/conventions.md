@@ -101,6 +101,11 @@ entirely, for years, in the same file.
 **An unknown unit id is an error, not a new unit.** `parseUnitExpr` rejects anything outside the
 catalog. There is deliberately no way to define one. — [`design-decisions.md`](design-decisions.md)
 
+**Validate at the boundary: a malformed literal must raise, never round.** The lexer accepted any
+run of digits and dots so `1.2.3` became `1.2`, and `Number('')` made `[mm^]` dimensionless. Both
+turned a typo into a plausible number. Anything parsed from user text needs a well-formedness check,
+not just a `Number()` call. — [`known-issues.md`](known-issues.md) § 19
+
 **`baseUnits` costs a unit its name on screen — add it for cancellation, never for compatibility.**
 An expanded unit can never display as itself again. Cross-category conversion comes from
 `CATEGORY_DIMENSION` now, not from expansion. — [`units.md`](units.md)
@@ -197,6 +202,25 @@ current.
 ignored units _entirely_: `6 [in] > 0.5 [ft]` returned true. The reported symptom was the mild
 corner of a much larger defect, and fixing only what was described would have left it. Print the
 actual values for the reported case **and its neighbours** before touching anything.
+
+**Two copies of the same logic are usually wrong the same way, not drifted apart.** Twice on
+2026-09-23: the section prefix had a different fallback in the evaluator and the summary renderer
+(`'section1'` vs `'section'`), and the page-numbering DOM sync existed in both `main.ts` and
+`persistence.ts` — **both copies overwrote the preference identically**. The fix in each case was
+one exported definition (`sectionPrefix()`, `syncPageNumberingToggle()`) in a module both sides
+already import. When you find duplicated logic, check the other copy for the same bug before
+assuming only one is broken. — [`known-issues.md`](known-issues.md) §§ 19–20
+
+**A flag nobody reads is not a feature — trace the consumer, not the setter.**
+`pageNumberingEnabled` had a checkbox, a setter and a state field, and the renderer never looked at
+it, so the control did nothing at all. `grep` for who _reads_ a setting before believing it works.
+
+**Prefer Edit over a clever shell substitution for multi-line structural changes.** A `perl -0pi`
+with `|` as the delimiter, run to strip some callback slots, silently mangled an unrelated line in
+`state.ts` into invalid syntax. It was caught only by reading the full `git diff` of the file
+afterwards. This repo already bans heredocs for the same class of reason — shell quoting and regex
+delimiters are where edits go wrong invisibly. **Read the whole diff of any file a scripted edit
+touched.** — [`conventions.md`](conventions.md) § Agent tooling
 
 **Before binding a modifier key, find out who already owns it.** Alt+Arrow was the only free
 combination for cell navigation: plain arrows move the caret, Shift+Arrow selects text, Ctrl+Arrow

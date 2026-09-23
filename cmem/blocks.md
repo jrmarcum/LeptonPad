@@ -54,6 +54,12 @@ numbers being shifted down". Two mitigations: every math element sets
 classic Georgia does not), and the default moved to **Cambria** with the offending faces kept but
 labelled "low digits". The result column adds `tabular-nums` so successive results align.
 
+**Significant digits are per row too** (`FormulaRow.sd`, v2.3.32) — right-click a row, or the
+block label to stamp every row, choosing 3 / 4 / 6 / 8 / 10. `SIG_DEFAULT` is 6 and is never
+stored. **Display only**: `fmtNum` rounds the rendering, the stored value stays a full double, and
+the result's tooltip shows it unrounded. `fmtNum` also groups thousands uniformly now — it used to
+group only whole numbers, so `1234567.891` rendered as `1234570`.
+
 **What the result column shows.** A result is set in the same serif face, size and colour as the
 expression that produced it — it is part of the calculation, not a separate kind of thing. Only a
 status earns a colour: `err` in red, and a comparison as a green **OK** or a red **NG**, driven by

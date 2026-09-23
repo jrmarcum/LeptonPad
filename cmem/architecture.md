@@ -114,7 +114,26 @@ that would otherwise clear a selection right after a band drag ends.
   serializer re-derives the encrypted form from the retained `encIv`/`encContent`.
 - Also handles `newProject()`, `newFromTemplate()`, the save-prompt dialog, and custom-tool import.
 - Uses the **File System Access API** when available (`state.fileHandle`), which is why saving over
-  the same file works in Chromium and falls back elsewhere.
+  the same file works in Chromium and falls back elsewhere. A failed write now **says so** and
+  clears the stale handle before falling back to a download — it used to degrade silently, so the
+  user believed the file on disk had been updated.
+
+### The project file (2026-09-23)
+
+- **Extension: `.leptonpad`** for new saves; the Open dialog accepts `.leptonpad` **and** `.json`,
+  because every project saved before that date uses the old one. `PROJECT_EXT`,
+  `PROJECT_PICKER_TYPES` and `PROJECT_ACCEPT_ATTR` live in `types.ts` — one definition, so save and
+  open cannot drift. The contents are unchanged: still JSON.
+- **Top-level keys:** `project_metadata`, `blocks`, `global_constants`, `custom_tools`,
+  `title_block` (only when set), and `page_numbering`.
+- **`global_constants` is REPLACED on load, not merged**, and a bare `E` is stripped from it. The
+  merge let project A's constants stay in scope for project B; the `E` strip retires the old
+  hardcoded Young's-modulus seed. See [`design-decisions.md`](design-decisions.md) and
+  [`known-issues.md`](known-issues.md) § 19.
+- **Per-row fields on a formula block** live inside `content` (itself JSON): `e`, `d`, `type`,
+  `ref`, `sp` (line spacing) and `sd` (significant digits). **Anything added here must also be
+  written back by `syncContent()`** or it is destroyed on the next keystroke — § 16, and there is a
+  source-guard test for exactly this.
 
 ## PWA layer
 

@@ -2,16 +2,16 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**80 steps across 5 files** at v2.3.30, all against the real engine (pure functions in, `Quantity`
+**97 steps across 6 files** at v2.3.34, all against the real engine (pure functions in, `Quantity`
 out, no DOM).
 
-| File                         | Covers                                                                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/_helpers.ts`          | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.           |
-| `tests/expr_units_test.ts`   | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                |
-| `tests/expr_matrix_test.ts`  | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot. |
-| `tests/markdown_test.ts`     | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                 |
-| `tests/formula_rows_test.ts` | `parseFormulaRows` round-trips, plus the **source guard** on `syncContent` described below.                                        |
+| File                         | Covers                                                                                                                                                                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests/_helpers.ts`          | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.                                                                                                                                                             |
+| `tests/expr_units_test.ts`   | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                                                                                                                                                                  |
+| `tests/expr_matrix_test.ts`  | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot.                                                                                                                                                   |
+| `tests/markdown_test.ts`     | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                                                                                                                                                                   |
+| `tests/formula_rows_test.ts` | `parseFormulaRows` round-trips and `fmtNum` formatting, plus the **source guard** on `syncContent` below. Also `tests/unit_catalog_test.ts`: no id shared across categories of different dimension, every category has a `CATEGORY_DIMENSION`, every `baseUnits` key is a real unit. |
 
 **Every fixed bug has a case**, named after it: the `-x^2` precedence, `==` as a comparison, the
 comparison's trailing unit, the phantom `1` unit, the singular determinant returning exactly 0, the
@@ -82,6 +82,22 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 
 - [ ] Run `deno task dev` (or `serve`), then `git status` — `dist/index.html` must be **unchanged**.
       Both servers inject their live-reload client into the response only.
+
+**The 2026-09-23 audit fixes** (v2.3.31 – v2.3.34)
+
+- [ ] `x = E` errors — there is no implicit Young's modulus. Beam Deflection still prefills its own.
+- [ ] `M/S/1000` draws `(M/S)` over `1000` and the drawn equation matches the printed result.
+- [ ] A Section whose Summary lists a variable the section redefines shows the SECTION's value; a
+      variable that does not exist shows a red `?` rather than vanishing.
+- [ ] `1.2.3` and `[mm^]` both error instead of quietly becoming `1.2` and dimensionless.
+- [ ] `max(1 [ft], 6 [in])` = 1 ft; `mod(7 [ft], 3 [in])` = 0 ft.
+- [ ] Right-click a row → Significant digits 3 / 10; the tooltip still shows the full value.
+- [ ] Save produces a `.leptonpad` file; Open still lists an old `.json` project.
+- [ ] Page Numbering off with the Title Block off actually removes the numbers; turning the Title
+      Block on and off again leaves the checkbox where the user left it.
+- [ ] Redeem a code, then sign out — the auth panel refreshes once, not N+1 squared times.
+- [ ] Section colours restart at the first colour after New Project.
+- [ ] Margins list Left, Right, Top, Bottom.
 
 **Formula rows** (2026-09-23 features)
 

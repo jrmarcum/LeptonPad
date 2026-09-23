@@ -1,6 +1,6 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.3.30 (2026-09-23)
+## Where the project stands — v2.3.34 (2026-09-23)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
 unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG plotting with unit-propagating
@@ -49,39 +49,53 @@ The trajectory is clear: **the unit and presentation layer is where the effort g
 where an engineering calculation pad either earns trust or loses it. The backend is a gate, kept
 deliberately small.
 
-### The 2026-09-23 session — tests, then the unit-correctness series (v2.3.17 → v2.3.27)
+### The 2026-09-23 session — tests, the unit-correctness series, then a code audit (v2.3.17 → v2.3.34)
 
 The test suite landed first, at Jon's direction, and then found or enabled everything after it.
 
-| Rel    | What                                                                                      |
-| ------ | ----------------------------------------------------------------------------------------- |
-| 2.3.17 | `tests/` + `deno task check` runs it. Fixed: function definitions dropped their unit tag. |
-| 2.3.18 | Line spacing 1 / 1.5 / 2, per block and per row.                                          |
-| 2.3.19 | Rows own their spacing; the block control overwrites every row (Jon's design).            |
-| 2.3.20 | Fixed: `syncContent` erased spacing on every keystroke — § 16 of known-issues.            |
-| 2.3.21 | Alt+Arrow navigation between cells; readme gained a keyboard section.                     |
-| 2.3.22 | Ink-coloured rules; results in the calculation face; comparisons render **OK** / **NG**.  |
-| 2.3.23 | **Comparisons ignored units entirely** — `6 [in] > 0.5 [ft]` was true.                    |
-| 2.3.24 | Same-kind units convert in `+`, `−` and comparisons; `CATEGORY_DIMENSION` added.          |
-| 2.3.25 | `kN-mm` added (`J`, `lbm`, `kg` were already there).                                      |
-| 2.3.26 | `[[unit]]` refuses different kinds — `5 [kip] [[in]]` had reported 875634 in.             |
-| 2.3.27 | Unknown unit ids rejected with a did-you-mean; no phantom units, no user-defined units.   |
-| 2.3.28 | Math Display font list; lining figures, after Georgia's old-style digits were reported.   |
-| 2.3.29 | A trailing `[unit]` converts instead of relabelling — the last of the three agreed items. |
-| 2.3.30 | `J`/`W` display as themselves; `serve.ts` and `dev.ts` stop writing into `dist/`.         |
+| Rel    | What                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------- |
+| 2.3.17 | `tests/` + `deno task check` runs it. Fixed: function definitions dropped their unit tag.     |
+| 2.3.18 | Line spacing 1 / 1.5 / 2, per block and per row.                                              |
+| 2.3.19 | Rows own their spacing; the block control overwrites every row (Jon's design).                |
+| 2.3.20 | Fixed: `syncContent` erased spacing on every keystroke — § 16 of known-issues.                |
+| 2.3.21 | Alt+Arrow navigation between cells; readme gained a keyboard section.                         |
+| 2.3.22 | Ink-coloured rules; results in the calculation face; comparisons render **OK** / **NG**.      |
+| 2.3.23 | **Comparisons ignored units entirely** — `6 [in] > 0.5 [ft]` was true.                        |
+| 2.3.24 | Same-kind units convert in `+`, `−` and comparisons; `CATEGORY_DIMENSION` added.              |
+| 2.3.25 | `kN-mm` added (`J`, `lbm`, `kg` were already there).                                          |
+| 2.3.26 | `[[unit]]` refuses different kinds — `5 [kip] [[in]]` had reported 875634 in.                 |
+| 2.3.27 | Unknown unit ids rejected with a did-you-mean; no phantom units, no user-defined units.       |
+| 2.3.28 | Math Display font list; lining figures, after Georgia's old-style digits were reported.       |
+| 2.3.29 | A trailing `[unit]` converts instead of relabelling — the last of the three agreed items.     |
+| 2.3.30 | `J`/`W` display as themselves; `serve.ts` and `dev.ts` stop writing into `dist/`.             |
+| 2.3.31 | The code audit: malformed literals, the fraction divergence, implicit `E`, section summaries. |
+| 2.3.32 | Per-row significant digits; projects save as `.leptonpad`.                                    |
+| 2.3.33 | Page Numbering did nothing, and the Title Block erased it.                                    |
+| 2.3.34 | Margins listed Left, Right, Top, Bottom.                                                      |
 
-**Five of these were silent wrong answers**, not crashes — the failure mode this product cares most
-about: comparisons ignoring units, `[[unit]]` converting across kinds, a trailing tag relabelling
-instead of converting, phantom units, and line spacing being erased on every keystroke. The first
-four had been in unit handling for the engine's whole life; the fifth was introduced and caught the
-same day. Detail in [`math-engine.md`](math-engine.md), [`units.md`](units.md) and
-[`known-issues.md`](known-issues.md) §§ 16–17.
+**A dozen of these were silent wrong answers**, not crashes — the failure mode this product cares
+most about. Comparisons ignoring units; `[[unit]]` converting across kinds; a trailing tag
+relabelling instead of converting; phantom units; line spacing erased on every keystroke; `[mm^]`
+becoming dimensionless and then absorbing any unit; `1.2.3` parsing as `1.2`; a rendered equation
+that disagreed with its own printed result; an implicit `E = 200000`; a section summary printing
+another scope's value; `mod()` discarding units; and a Page Numbering checkbox that did nothing.
+Almost all had been there for the engine's whole life. Detail in
+[`math-engine.md`](math-engine.md), [`units.md`](units.md) and
+[`known-issues.md`](known-issues.md) §§ 16–20.
 
 The order mattered. The test suite came first at Jon's direction, and `CATEGORY_DIMENSION` — added
 only to answer "are these the same kind?" — later made both the `[[unit]]` kind check and
 "J displays as J" small changes rather than impossible ones.
 
 ## Open items
+
+**0. Six audit leads that were never reproduced.** Reported by the 2026-09-23 sweeps, each needs a
+browser and none was confirmed, so they are leads rather than findings: the plot range silently
+falling back to a default span; `sect-prop`/`beam-def` inputs not persisting and leaving a stale
+result on screen; a failed pack decrypt rendering blank; pack edits discarded on save; an unknown
+`block.type` overwriting its own content; and summary comparisons silently dropped. Full list with
+the reasoning in [`known-issues.md`](known-issues.md) § 19.
 
 **1. A custom domain + Clerk production instance — the one thing blocking live sign-in.**
 The deployed site runs fine and the API is healthy, but Clerk is a DEVELOPMENT instance and its
@@ -94,7 +108,7 @@ save/load — already works live, because the backend is only a gate. — [`auth
 bundled and MIT requires its notice to travel with distributed copies. A link in an about panel is
 the usual answer. — [`licensing.md`](licensing.md)
 
-**3. ~~Tests for `expr.ts`.~~ DONE 2026-09-23** — `tests/`, 79 steps, wired into `deno task check`.
+**3. ~~Tests for `expr.ts`.~~ DONE 2026-09-23** — `tests/`, 97 steps, wired into `deno task check`.
 It paid for itself immediately, exposing a dropped unit tag on function definitions and then
 underpinning the whole unit-correctness series below. What is still uncovered is anything with a
 DOM. — [`testing.md`](testing.md)

@@ -176,6 +176,42 @@ It applies to `+`, `−` **and** comparisons together, deliberately: two rules w
 which operation had which. What does **not** convert is a different kind — see
 [`units.md`](units.md) on why force is primitive, which is what keeps `lbf` and `lbm` apart.
 
+## There is no global `E` — Young's modulus belongs to a material (2026-09-23, v2.3.31)
+
+`state.constants` seeded `{ E: 200000 }` into every sheet: Young's modulus for **steel, in MPa**,
+dimensionless. Every other undefined name throws; `E` alone silently answered, and because it
+carried no unit the dimensional checker could not see it — a US engineer working in ksi got a
+plausible deflection that was out by a factor of ~7.
+
+Jon: _"E in engineering is Young's modulus and is different for different materials … E would need
+to be defined for each specific material anyway."_ Removed, and **stripped from old files on load**
+at his direction — otherwise every project saved before this date would keep re-injecting it.
+
+There was never a UI for defining global constants; the field existed solely to carry that value.
+The Beam Deflection block keeps `200000` as a **prefill for its own E input**, which is a starting
+value in a form, not a name in scope — that distinction is the whole point.
+
+## Display precision is per row, and display only (2026-09-23, v2.3.32)
+
+Results were hard-coded to six significant digits. Jon chose the same arrangement line spacing
+uses: **the row owns it (`FormulaRow.sd`), the block control overwrites every row** — one source of
+truth, no cascade. It saves with the project, so a reviewer sees the digits the author chose.
+
+**The stored value is never rounded**; only the rendering is, and a result's tooltip shows the full
+double. That is what makes this safe to change at any time — no calculation can depend on it.
+
+Fixing it also exposed an inconsistency in `fmtNum`: whole numbers went through `toLocaleString`
+and got thousands separators while everything else went through `toString` and got none, so `29000`
+read as "29,000" but `1234567.891` read as `1234570` — rounded away at the **integer** part and
+ungrouped. A moment in lb·ft lands exactly there.
+
+## Projects save as `.leptonpad`, and `.json` opens forever (2026-09-23, v2.3.32)
+
+The contents are unchanged — still JSON. The Open dialog accepts **both**, because every project
+saved before this date carries `.json` and silently failing to list a user's own files would be the
+worst possible outcome of a cosmetic rename. The extension, the picker filter and the
+`<input accept>` string are defined once in `types.ts` so save and open cannot drift apart.
+
 ## A trailing `[unit]` declares a plain number and converts a dimensioned one (2026-09-23, v2.3.29)
 
 It used to relabel in both cases: `l = 12 [ft]; x = l [in]` reported `12 in` — the unit changed and

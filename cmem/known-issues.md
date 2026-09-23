@@ -119,7 +119,7 @@ suppression that trains people to ignore the linter.
 **Partially addressed 2026-08-13:** the backend now has one — `deno task db:check`, ten assertions
 over the entitlement chain, which caught two real bugs on its first run.
 
-**`src/expr.ts` now has one too (2026-09-23):** `tests/` with 80 steps, run by `deno task test` and
+**`src/expr.ts` now has one too (2026-09-23):** `tests/` with 97 steps across 6 files, run by `deno task test` and
 included in `deno task check`, covering unit algebra, conversions, precedence, constants, every
 built-in, matrices, the big operators and the rendering rules — with a named case for each bug fixed
 in this week's sessions. Writing it found one more: a trailing unit tag on a **function definition**
@@ -349,3 +349,79 @@ Two things the fix exposed:
   takes every row down with it.**
 - An old sheet containing a phantom unit now shows an error on that row. Intended — it was always
   wrong — but it is a visible change to existing files.
+
+---
+
+## 19. The 2026-09-23 code audit — what it found and what is still open
+
+Jon invoked the "look for code issues" trigger twice. Four sweeps ran: stale workarounds, dead
+code, silent fall-throughs, and initialisation order. **Every claim below was re-verified directly
+before acting on it** — several agent findings were right about the line and wrong about the
+consequence, and one ("`convert()` has 13 references") turned out to be the _word_ `convert`
+inside error strings.
+
+### Fixed — each was a wrong-but-plausible number, not a crash (v2.3.31)
+
+| What                                  | The wrong answer it gave                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Malformed unit exponent               | `[mm^]` became **dimensionless** (`Number('')` is 0, `cleanU` strips it) and then absorbed anything: `500 [mm^] + 3 [kg]` = 503 kg                                                               |
+| Malformed number literal              | The lexer takes any run of digits and dots, so `1.2.3` → `1.2` and `2e` → `2`. A double-tap on the decimal key changed a dimension                                                               |
+| Fraction rendering                    | `/` is left-associative but the renderer split at the FIRST `/`, drawing `a/(b/c)`. `M/S/1000` **drew an equation meaning 200000 beside a printed 0.2**                                          |
+| Implicit `E = 200000`                 | Young's modulus for steel, in MPa, seeded into every sheet — dimensionless, invisible to the unit checker, and answering where every other undefined name throws                                 |
+| `loadProject` merged constants        | Project B evaluated with project A's leftovers                                                                                                                                                   |
+| Section summary                       | Fell back to a same-named **global**; a section redefining `L` printed the outer `L` while computing its own. Two different prefix defaults (`'section1'` vs `'section'`) made it fire routinely |
+| `mod()`                               | Discarded units entirely — `mod(7 [ft], 3 [ft])` returned a bare `1`                                                                                                                             |
+| `min`/`max`/`clamp`/`interp`/`round*` | Compared raw `.v` behind an exact-equality check. Relaxing the check alone would have returned the larger **number**, not the larger **quantity**                                                |
+
+### Also fixed — robustness rather than arithmetic
+
+`initAuth()` was re-entered on every code redemption (it is boot-once; each call added a Clerk
+instance and two never-removed listeners, so auth events fired (N+1)² callbacks). Any boot failure
+rendered a blank page under `'Wasm Load Error:'` — `start()` is one try/catch whose first two
+awaits precede all UI, and `auth.ts` read `localStorage` unguarded. Seven resize handles captured
+the pointer with no `pointercancel`. Block ids used `Date.now()` alone and collided within a
+millisecond — and they are DOM ids, so a child could reparent into the wrong section. A failed
+file-handle save degraded to a download silently. The figure block wrote a blank reconstruction
+over unparseable content. Corrupt formula JSON was shredded on `;` and written back. A
+multi-statement row reported only its first statement, hiding an error in any later one.
+
+### Still OPEN — reported by a sweep, never reproduced
+
+These need a browser and were **not** verified, so treat them as leads:
+
+1. Plot range silently falls back to a default span when a bound variable fails to resolve, with
+   axes relabelled and no error — a moment diagram read off a wrong span.
+2. `sect-prop` / `beam-def` inputs are never persisted, and a bad input leaves the _previous_
+   result on screen beside the new inputs.
+3. A failed pack decrypt renders a blank section — no lock badge, no error.
+4. Pack edits are discarded on save and the original ciphertext rewritten.
+5. An unknown `block.type` renders as a contenteditable div that overwrites `content` on blur
+   (`'table'` is declared with no implementation — § 8).
+6. Summary-block comparisons are silently dropped when they fail to evaluate, so a missing check
+   reads as "all pass".
+
+---
+
+## 20. The Page Numbering checkbox did nothing, and the Title Block erased it — FIXED 2026-09-23
+
+Reported as "the Page Numbering checkbox toggles active/inactive depending on the Title Block".
+Two defects, the second invisible from that description:
+
+1. **Turning the Title Block on overwrote the preference.** It called
+   `setPageNumberingEnabled(false)` rather than suppressing the effect, and turning it back off
+   re-enabled the control without restoring the value. `loadProject` did the same, in its own copy.
+2. **The checkbox had no effect at all.** `syncPageSeparators` drew page numbers on the condition
+   `!titleBlockEnabled` and **never read `pageNumberingEnabled`** — so with the title block off,
+   unchecking Page Numbering did nothing.
+
+The two concerns are now separate: `pageNumberingEnabled` is the user's preference and the title
+block never writes it; `titleBlockEnabled` suppresses the **display** (the title block carries its
+own sheet number). The draw condition is `pageNumberingEnabled && !titleBlockEnabled`, one exported
+`syncPageNumberingToggle()` reflects state in the sidebar, and the preference is now saved as
+`page_numbering` in the project file — it was not persisted before, which is part of why the silent
+flip went unnoticed.
+
+**The pattern worth remembering:** the same DOM manipulation existed in `main.ts` and
+`persistence.ts`, and _both copies were wrong in the same way_. That is the second time in one day
+— see the `'section1'`/`'section'` prefix split in § 19. Duplicated logic does not drift apart
+gradually; it is usually copied wrong once and then maintained in both places.
