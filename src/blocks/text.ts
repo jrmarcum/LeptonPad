@@ -172,7 +172,14 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
 
   // ── Show / hide ───────────────────────────────────────────────────────────
 
+  // While editing, the textarea grows past the block's resting height and would be covered by any
+  // block below it — every block sits at z-index 1, so the later one in the DOM wins. Lift this one
+  // for the duration of the edit only, above blocks and section backgrounds but below the title
+  // block overlays' own stacking and the selection band.
+  const EDIT_Z = '30';
+
   function showView() {
+    el.style.zIndex = '';
     const html = renderMarkdown(block.content || '');
     viewDiv.innerHTML = html || '<span class="md-placeholder">Click to add text…</span>';
     viewDiv.style.display = '';
@@ -199,6 +206,7 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
 
   function enterEdit() {
     const h = viewDiv.offsetHeight;
+    el.style.zIndex = EDIT_Z;
     editArea.value = block.content || '';
     editArea.style.display = 'block';
     toolbar.style.display = 'flex';
