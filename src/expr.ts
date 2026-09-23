@@ -1,4 +1,4 @@
-import { UNIT_LOOKUP } from './utils/unit-defs.ts';
+import { ANGLE_UNITS, UNIT_LOOKUP } from './utils/unit-defs.ts';
 
 // Recursive-descent expression evaluator with dimensional analysis.
 // Supports: + - * / ^ () identifiers function-calls numbers (incl. sci notation)
@@ -463,6 +463,71 @@ const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Qua
   el: { arity: 3, run: ([a, i, j]) => element(a, i, j) },
 };
 
+/**
+ * min/max over any number of arguments — `max(1.4*D, 1.2*D + 1.6*L, 0.9*D + 1.0*W)` is how load
+ * combinations are written — or over every element of one matrix: `max(F)`.
+ * Units must agree across the values, the same rule as addition.
+ */
+function minMax(name: string, args: Quantity[]): Quantity {
+  if (args.length === 0) throw new Error(`${name}() needs at least one value`);
+  const values = args.length === 1 && args[0].m ? args[0].m!.flat() : args;
+  for (const v of values) noMatrix(v, `${name}()`);
+  let best = values[0];
+  let unit = best.u;
+  for (const q of values.slice(1)) {
+    unit = addU(unit, q.u); // errors on a genuine mismatch, allows a bare 0
+    const take = name === 'max' ? q.v > best.v : q.v < best.v;
+    if (take) best = q;
+  }
+  return { v: best.v, u: addU(unit, best.u) };
+}
+
+/**
+ * Linear interpolation, in the two forms a calculation sheet needs:
+ *   interp(x, x1, y1, x2, y2) — between two points; extrapolates outside them, since it is just
+ *                               the line through them.
+ *   interp(x, X, Y)           — down a table: X and Y are equal-length vectors, X increasing.
+ *                               Outside the table it is an error, not a guess.
+ */
+function interp(args: Quantity[]): Quantity {
+  const lerp = (x: Quantity, x1: Quantity, y1: Quantity, x2: Quantity, y2: Quantity): Quantity => {
+    addU(addU(x.u, x1.u), x2.u); // x, x1 and x2 must share a unit — throws if they do not
+    const yu = addU(y1.u, y2.u);
+    if (x2.v === x1.v) throw new Error('interp(): the two x values are the same');
+    const t = (x.v - x1.v) / (x2.v - x1.v);
+    return { v: y1.v + t * (y2.v - y1.v), u: yu };
+  };
+
+  if (args.length === 5) {
+    const [x, x1, y1, x2, y2] = args.map((a) => noMatrix(a, 'interp()'));
+    return lerp(x, x1, y1, x2, y2);
+  }
+  if (args.length !== 3) {
+    throw new Error('Usage: interp(x, x1, y1, x2, y2) or interp(x, Xvector, Yvector)');
+  }
+  const [x, X, Y] = args;
+  noMatrix(x, 'interp() x');
+  if (!X.m || !Y.m) throw new Error('interp(x, X, Y): X and Y must be vectors');
+  const xs = X.m.flat(), ys = Y.m.flat();
+  if (xs.length !== ys.length) {
+    throw new Error(`interp(): X has ${xs.length} values, Y has ${ys.length}`);
+  }
+  if (xs.length < 2) throw new Error('interp(): the table needs at least two points');
+  for (let i = 1; i < xs.length; i++) {
+    if (xs[i].v <= xs[i - 1].v) {
+      throw new Error(`interp(): the X values must increase (position ${i + 1} does not)`);
+    }
+  }
+  if (x.v < xs[0].v || x.v > xs[xs.length - 1].v) {
+    throw new Error(
+      `interp(): ${x.v} is outside the table (${xs[0].v} … ${xs[xs.length - 1].v})`,
+    );
+  }
+  let i = xs.length - 2;
+  while (i > 0 && x.v < xs[i].v) i--;
+  return lerp(x, xs[i], ys[i], xs[i + 1], ys[i + 1]);
+}
+
 /** el(A, i, j) — one element of a matrix, 1-based, with its own unit. */
 function element(a: Quantity, i: Quantity, j: Quantity): Quantity {
   if (!a.m) throw new Error('el() needs a matrix as its first argument');
@@ -834,12 +899,36 @@ function _erf(x: number): number {
   return sign * y;
 }
 
-// Functions that require dimensionless input and produce dimensionless output
-const MATH_FN: Record<string, (x: number) => number> = {
-  // Basic trig
+/**
+ * An angle argument in radians. A plain number is already radians; a value carrying an angle unit
+ * (`30 [deg]`, `0.5 [rev]`) is converted. Anything else is an error — `sin(3 [ft])` is meaningless.
+ * Used by the trig functions and `degrees()`, so a sheet can say `sin(30 [deg])` directly.
+ */
+function asRadians(q: Quantity, fn: string): number {
+  const keys = Object.keys(q.u);
+  if (keys.length === 0) return q.v; // plain number = radians
+  if (keys.length === 1 && q.u[keys[0]] === 1 && ANGLE_UNITS.has(keys[0])) {
+    return q.v * ANGLE_UNITS.get(keys[0])!;
+  }
+  throw new Error(
+    `${fn}() needs an angle — a plain number (radians) or a unit like [deg], not ${
+      formatUnit(q.u)
+    }`,
+  );
+}
+
+/** Functions whose single argument is an angle (radians, or any angle unit). */
+const ANGLE_FN: Record<string, (x: number) => number> = {
   sin: Math.sin,
   cos: Math.cos,
   tan: Math.tan,
+  degrees: (x) => x * (180 / Math.PI),
+};
+
+// Functions that require dimensionless input and produce dimensionless output
+const MATH_FN: Record<string, (x: number) => number> = {
+  // sin / cos / tan / degrees take an angle — see ANGLE_FN above.
+  // Inverse trig RETURNS radians as a plain number; wrap in degrees() to read it in degrees.
   asin: Math.asin,
   acos: Math.acos,
   atan: Math.atan,
@@ -858,8 +947,7 @@ const MATH_FN: Record<string, (x: number) => number> = {
   log2: Math.log2,
   log10: Math.log10,
   log1p: Math.log1p,
-  // Angle conversion
-  degrees: (x) => x * (180 / Math.PI),
+  // Angle conversion (degrees() is in ANGLE_FN, so it also accepts a [deg]/[rad] value)
   radians: (x) => x * (Math.PI / 180),
   // Sign / logic
   sign: Math.sign,
@@ -884,7 +972,28 @@ const PRESERVE_FN: Record<string, (x: number) => number> = {
   ceil: Math.ceil,
   round: Math.round,
   trunc: Math.trunc,
+  roundup: Math.ceil, // roundup(x) / rounddown(x) are ceil/floor; the 2-arg forms take a step
+  rounddown: Math.floor,
 };
+
+/**
+ * round(x, n) · roundup(x, step) · rounddown(x, step) — the rounding a sheet actually needs.
+ *   second argument unitless and whole → decimal places: `round(1.23456, 2)` = 1.23
+ *   anything else                      → a step to land on, in x's own unit:
+ *                                        `roundup(d, 0.0625 [in])`, `round(x, 0.5)`
+ * The step must share x's unit, and must be positive.
+ */
+function roundTo(name: string, x: Quantity, spec: Quantity): Quantity {
+  const op = name === 'roundup' ? Math.ceil : name === 'rounddown' ? Math.floor : Math.round;
+  const specIsPlain = Object.keys(spec.u).length === 0;
+  if (name === 'round' && specIsPlain && Number.isInteger(spec.v)) {
+    const f = Math.pow(10, spec.v);
+    return { v: Math.round(x.v * f) / f, u: x.u };
+  }
+  addU(x.u, spec.u); // the step must be in the same unit as x
+  if (!(spec.v > 0)) throw new Error(`${name}(): the step must be greater than zero`);
+  return { v: op(x.v / spec.v) * spec.v, u: x.u };
+}
 
 // Constants (2026-09-22, revised 2026-09-23). Structural sheets use `e` (eccentricity) and `\tau`
 // (shear stress) as variables, and constants used to shadow them silently — `e = 0.5 [in]` was
@@ -1265,6 +1374,12 @@ class Parser {
         }
         this.need('RPAREN');
 
+        // ── Functions taking any number of arguments, or a matrix ─────────────
+        if (!(name in this.fnScope)) {
+          if (name === 'min' || name === 'max') return minMax(name, args);
+          if (name === 'interp') return interp(args);
+        }
+
         // ── Matrix functions (unless the sheet defines its own of that name) ──
         if (name in MATRIX_FNS && !(name in this.fnScope)) {
           const fn = MATRIX_FNS[name];
@@ -1292,6 +1407,9 @@ class Parser {
           }
           if (PRESERVE_FN[name]) {
             return { v: PRESERVE_FN[name](arg.v), u: arg.u };
+          }
+          if (ANGLE_FN[name]) {
+            return { v: ANGLE_FN[name](asRadians(arg, name)), u: {} };
           }
           if (MATH_FN[name]) {
             if (Object.keys(arg.u).length > 0) {
@@ -1326,6 +1444,9 @@ class Parser {
             return { v: Math.atan2(a.v, b.v), u: {} };
           }
           if (name === 'mod') return { v: ((a.v % b.v) + b.v) % b.v, u: {} };
+          if (name === 'round' || name === 'roundup' || name === 'rounddown') {
+            return roundTo(name, a, b);
+          }
           // log(x, base) = log_base(x). One-arg log(x) stays the natural log.
           if (name === 'log') {
             if (Object.keys(a.u).length > 0 || Object.keys(b.u).length > 0) {

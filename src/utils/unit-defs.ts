@@ -955,6 +955,12 @@ export function unitsBySystem(category: UnitCategory, system: UnitSystem): reado
  * When the same id appears in multiple categories (e.g. 'N_m' in both torque and
  * angular_momentum — they don't share ids), the first category wins.
  */
+/** Angle unit id → radians per unit. Lets the trig functions accept `sin(30 [deg])`, which is how
+ *  angles are written on a calculation sheet, while still taking a plain number as radians. */
+export const ANGLE_UNITS: ReadonlyMap<string, number> = new Map(
+  UNIT_CATEGORIES.angle.units.map((u) => [u.id, u.factor]),
+);
+
 export const UNIT_LOOKUP: ReadonlyMap<string, UnitDef> = (() => {
   const m = new Map<string, UnitDef>();
   for (const cat of Object.values(UNIT_CATEGORIES)) {

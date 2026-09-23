@@ -166,16 +166,36 @@ doubled.
 
 ## Built-in functions and constants
 
-| Kind        | Functions                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------- |
-| Logarithms  | `ln(x)` and `log(x)` = natural log · `log10(x)` · `log2(x)` · `log(x, base)` · `log1p(x)`         |
-| Exponential | `exp(x)` · `expm1(x)` · `pow(x, n)` · `x^n`                                                       |
-| Roots       | `sqrt(x)` · `cbrt(x)`                                                                             |
-| Trig        | `sin` `cos` `tan` `asin` `acos` `atan` `atan2(y, x)` (radians) · `degrees(x)` · `radians(x)`      |
-| Hyperbolic  | `sinh` `cosh` `tanh` `asinh` `acosh` `atanh`                                                      |
-| Rounding    | `abs` `floor` `ceil` `round` `trunc` `sign` · `min(a, b)` `max(a, b)` `clamp(x, lo, hi)`          |
-| Logic       | `if(cond, a, b)` · `and` `or` `xor` `not` · comparisons `==` `!=` `<` `>` `<=` `>=` (1 or 0)      |
-| Other       | `mod(a, b)` · `hypot(a, b)` · `factorial` `gamma` `lgamma` `erf` `erfc` `comb(n, k)` `perm(n, k)` |
+| Kind        | Functions                                                                                                                                                |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Logarithms  | `ln(x)` and `log(x)` = natural log · `log10(x)` · `log2(x)` · `log(x, base)` · `log1p(x)`                                                                |
+| Exponential | `exp(x)` · `expm1(x)` · `pow(x, n)` · `x^n`                                                                                                              |
+| Roots       | `sqrt(x)` · `cbrt(x)`                                                                                                                                    |
+| Trig        | `sin` `cos` `tan` — take radians **or an angle unit**: `sin(30 [deg])` · `asin` `acos` `atan` `atan2(y, x)` return radians · `degrees(x)` · `radians(x)` |
+| Hyperbolic  | `sinh` `cosh` `tanh` `asinh` `acosh` `atanh`                                                                                                             |
+| Rounding    | `abs` `floor` `ceil` `round` `trunc` `sign` · `round(x, 2)` decimals · `roundup(x, step)` `rounddown(x, step)` · `clamp(x, lo, hi)`                      |
+| Choosing    | `min(…)` `max(…)` — any number of values, or one vector: `max(1.4*D, 1.2*D + 1.6*L)`, `max(F)`                                                           |
+| Tables      | `interp(x, x1, y1, x2, y2)` between two points · `interp(x, Xvec, Yvec)` down a table                                                                    |
+| Logic       | `if(cond, a, b)` · `and` `or` `xor` `not` · comparisons `==` `!=` `<` `>` `<=` `>=` (1 or 0)                                                             |
+| Other       | `mod(a, b)` · `hypot(a, b)` · `factorial` `gamma` `lgamma` `erf` `erfc` `comb(n, k)` `perm(n, k)`                                                        |
+
+**Angles** may be written with a unit: `sin(30 [deg])`, or `theta = 30 [deg]` then `cos(theta)`. A
+plain number is still radians, so `sin(\pi/2)` = 1. Inverse trig returns radians — wrap it in
+`degrees(…)` to read degrees, and `degrees(0.5 [rad])` works too.
+
+**Rounding to a step** is how edge distances and plate sizes get sized:
+`roundup(d, 0.0625 [in])` rounds up to the next 1/16", `rounddown` goes the other way, and
+`round(x, step)` goes to the nearest. A plain step takes x's unit, so `roundup(d, 0.0625)` is the
+same thing. `round(x, 2)` — a whole, unitless second argument — means decimal places instead.
+
+**Load combinations** are what `min`/`max` with many arguments are for:
+`max(1.4*D, 1.2*D + 1.6*L, 0.9*D + 1.0*W)`. Units are checked across the values, and `max(F)` scans
+every element of a vector or matrix.
+
+**Interpolation** covers the two table cases: `interp(x, x1, y1, x2, y2)` between two points (it
+extrapolates outside them, since it is just the line through them), and `interp(x, Xvec, Yvec)` down
+a table of increasing X values — a wind-pressure column, say — which reports an error outside the
+table rather than guessing.
 
 **Sums, products and integrals** take the expression, the variable, and the two limits:
 

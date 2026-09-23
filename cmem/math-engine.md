@@ -215,6 +215,26 @@ bound variable added to scope — the only lazily-evaluated argument in the lang
 - Tested (script, 2026-09-22): Σi² = 385, 5! = 120, ∫sin 0…π = 2, ∫e^(−x²) = √π to 11 digits,
   triangular load W = 20 kip / centroid 2L/3, nested sums, sums inside `for` loops.
 
+### Sheet-practical functions (v2.3.13, 2026-09-23)
+
+From a review of what a real structural sheet reaches for; Jon picked these four, then root finding.
+
+- **Angles in trig.** `ANGLE_FN` (sin/cos/tan/degrees) resolves its argument through `asRadians()`:
+  a plain number is radians, a value carrying any **angle** unit is converted via the new
+  `ANGLE_UNITS` map exported from `unit-defs.ts` (`deg`, `rad`, `grad`, `arcmin`, `arcsec`, `rev`).
+  Anything else errors. Inverse trig still returns a plain number (radians) — wrap in `degrees()`.
+  The catalog had degrees all along; only the evaluator refused them.
+- **`min`/`max` over any count, or one matrix** (`minMax()`), dispatched before the scalar-only
+  argument guard. Units combine with `addU`, so a mismatch errors and a bare `0` is allowed.
+  This is the load-combination case: `max(1.4*D, 1.2*D + 1.6*L, 0.9*D + 1.0*W)`.
+- **`round(x, n)` / `roundup` / `rounddown`** (`roundTo()`): a whole unitless second argument means
+  decimal places; anything else is a **step** to land on, in x's unit — `roundup(d, 0.0625 [in])`.
+  A plain step is taken in x's unit (the lenient `addU` rule), so `roundup(d, 0.0625)` is the same.
+  1-arg `roundup`/`rounddown` are `ceil`/`floor`.
+- **`interp()`**: 5-arg two-point form **extrapolates** (it is the line through them); 3-arg
+  vector form requires strictly increasing X, equal lengths, and **errors outside the table** — a
+  code table should not be guessed past its last row.
+
 ### Logarithms (2.3.0)
 
 ⚠️ **`log(x)` is the natural log** (`Math.log`), not log₁₀ — a silent 2.3× error for anyone reading
