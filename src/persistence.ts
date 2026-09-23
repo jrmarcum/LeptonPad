@@ -467,6 +467,7 @@ export function loadProject(proj: Record<string, unknown>) {
       lineSpacing: raw.lineSpacing as number | undefined,
       inputs: raw.inputs as Record<string, string> | undefined,
       packId: raw.packId as string | undefined,
+      packAuthorId: raw.packAuthorId as string | undefined,
       encrypted: raw.encrypted as boolean | undefined,
       encIv: raw.encIv as string | undefined,
       encContent: raw.encContent as string | undefined,
@@ -575,6 +576,7 @@ export function serializeProject(): string {
     if (b.packId && b.encIv && b.encContent) {
       // Purchased template block — always save the ciphertext, NEVER the plaintext
       out.packId = b.packId;
+      if (b.packAuthorId) out.packAuthorId = b.packAuthorId;
       out.encrypted = true;
       out.encIv = b.encIv;
       out.encContent = b.encContent;
