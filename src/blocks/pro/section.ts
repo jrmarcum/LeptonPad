@@ -23,7 +23,9 @@ import { clamp } from '../../utils/units.ts';
 import { prettifyExpr, transformPiece, transformUnit } from '../../utils/markdown.ts';
 import { fmtNum, matrixResultHtml } from '../formula.ts';
 import { reEvalAllFormulas } from '../formula.ts';
-import { canCreateSection, hasPack } from '../../auth.ts';
+// `canCreateSection` is deliberately NOT imported here — sections render for everyone; only
+// creating one is gated, and that check lives at the placement sites in main.ts.
+import { hasPack } from '../../auth.ts';
 
 // ---------------------------------------------------------------------------
 // Section layout helpers
@@ -291,16 +293,19 @@ export function sanitizeSectionName(raw: string): string {
 // ---------------------------------------------------------------------------
 
 export function buildSectionBlock(el: HTMLElement, block: Block) {
-  // Gate: only pro+ users can create blank sections.
-  // Purchased template sections (packId set) are allowed for all users who own the pack.
-  if (!block.packId && !canCreateSection()) {
-    el.classList.add('section-block', 'section-locked');
-    el.style.cssText += 'display:flex;align-items:center;justify-content:center;' +
-      'min-height:60px;background:#f3f4f6;border:2px dashed #cbd5e1;' +
-      'border-radius:4px;color:#94a3b8;font-size:0.8rem;';
-    el.textContent = '[Pro required to create sections]';
-    return;
-  }
+  // NO pro gate on RENDERING.
+  //
+  // This used to refuse to draw any non-pack section for a user without creation rights,
+  // replacing the whole block with "[Pro required to create sections]" — so opening a file
+  // that already contained a section showed that banner instead of the work, and the sheet
+  // could not be read or printed. Receiving a calculation sheet is not creating one.
+  //
+  // Creation is gated where creation happens: the two placement paths in main.ts check
+  // `dataset.requiresPro && !canCreateSection()`, and the sidebar marks the module locked.
+  // Gating it a third time here bought nothing and cost every reader the content.
+  //
+  // A pack section the user does NOT own is still withheld below — that is licensing, not a
+  // feature tier, and the content genuinely is not theirs to see.
   if (block.packId && !hasPack(block.packId) && !block.encrypted) {
     el.classList.add('section-block', 'section-locked');
     el.style.cssText += 'display:flex;align-items:center;justify-content:center;' +
