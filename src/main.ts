@@ -746,6 +746,7 @@ function renderSidebar() {
   // ── Math Display: text and sub/superscript size ───────────────────────────
   // Both drive CSS variables (main.css `:root`), so formula rows, results, plot cells and $…$ math
   // in text blocks all follow. A per-browser preference, not part of the project file.
+  const MATH_FONT_KEY = 'lp-math-font';
   const MATH_TEXT_KEY = 'lp-math-text-scale';
   const MATH_SUP_KEY = 'lp-math-sup-size';
   const readPref = (key: string, fallback: string): string => {
@@ -798,6 +799,40 @@ function renderSidebar() {
   const setMathVar = (name: string, value: string) =>
     document.documentElement.style.setProperty(name, value);
 
+  // Every face here ships with Windows/macOS — no webfont, because the app has to render the same
+  // offline. The select previews each option in its own face so the list reads as what it does.
+  //
+  // Order matters: the faces with LINING figures come first, because a font with old-style figures
+  // hangs 3 4 5 7 9 below the baseline, which on a calculation sheet reads as broken. The two that
+  // do it are kept but labelled, since they are otherwise good text faces.
+  const MATH_FONTS: [string, string][] = [
+    ["'Cambria', 'Georgia', serif", 'Cambria'],
+    ["'Times New Roman', Times, serif", 'Times New Roman'],
+    ["'Constantia', 'Cambria', serif", 'Constantia'],
+    ["'Segoe UI', system-ui, sans-serif", 'Segoe UI'],
+    ["'Calibri', 'Segoe UI', sans-serif", 'Calibri'],
+    ['Arial, Helvetica, sans-serif', 'Arial'],
+    ["'Verdana', Geneva, sans-serif", 'Verdana'],
+    ["'Tahoma', Geneva, sans-serif", 'Tahoma'],
+    ["'Consolas', 'Courier New', monospace", 'Consolas'],
+    ["'Courier New', Courier, monospace", 'Courier New'],
+    ["'Georgia', serif", 'Georgia — low digits'],
+    ["'Palatino Linotype', 'Book Antiqua', Palatino, serif", 'Palatino — low digits'],
+  ];
+
+  const fontSel = mkSizeRow(
+    'Font',
+    MATH_FONT_KEY,
+    MATH_FONTS[0][0],
+    MATH_FONTS,
+    (v) => setMathVar('--math-font', v),
+  );
+  for (const o of Array.from(fontSel.options)) o.style.fontFamily = o.value;
+  fontSel.style.fontFamily = fontSel.value;
+  fontSel.addEventListener('change', () => {
+    fontSel.style.fontFamily = fontSel.value;
+  });
+
   const textSel = mkSizeRow('Text size', MATH_TEXT_KEY, '1', [
     ['0.9', 'Small'],
     ['1', 'Normal'],
@@ -814,6 +849,7 @@ function renderSidebar() {
     ['1em', 'Full size'],
   ], (v) => setMathVar('--math-sup-size', v));
 
+  setMathVar('--math-font', fontSel.value);
   setMathVar('--math-text-scale', textSel.value);
   setMathVar('--math-sup-size', supSel.value);
 

@@ -156,6 +156,16 @@ V_u <= \phi V_n              OK
 Every other result is set in the same face and colour as the formula that produced it; only `err`
 (red) and OK / NG carry a colour of their own.
 
+### Math display options
+
+The sidebar's **Math Display** section sets the **font**, **text size** and **sub/superscript size**
+for every rendered expression and result. These are per-browser preferences, not part of the project
+file. Only fonts already on your system are offered, so a sheet renders the same offline.
+
+Two entries are marked **"low digits"** — Georgia and Palatino draw 3, 4, 5, 7 and 9 below the
+baseline (old-style figures). They are good text faces but read oddly in a calculation; the default
+is Cambria.
+
 `[[targetUnit]]` performs real numeric conversion using the unit catalog in `src/utils/unit-defs.ts`. It handles:
 
 - **Simple scaling**: `200 [MPa] [[ksi]]` → `29.0 ksi`

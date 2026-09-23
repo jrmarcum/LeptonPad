@@ -42,6 +42,18 @@ it has to respect: `else`/`end` rows **hide** their expression cell, and an `if`
 keeps its description and reference **on the group wrapper, not on the row** — so cells are
 gathered from the group too and sorted by document position rather than append order.
 
+**The math face is a setting, and old-style figures are the trap.** The sidebar's Math Display
+section carries Font, Text size and Sub/superscript, all per browser (`localStorage`), all driving
+CSS variables on `:root` — `--math-font`, `--math-text-scale`, `--math-sup-size`. Only OS-resident
+faces are offered, because the app must render identically offline.
+
+**Georgia, Palatino and Constantia default to old-style (text) figures**, where 3 4 5 7 9 hang below
+the baseline. Handsome in prose, wrong on a calculation sheet — reported 2026-09-23 as "letters and
+numbers being shifted down". Two mitigations: every math element sets
+`font-variant-numeric: lining-nums` (which fixes any face carrying the `lnum` feature, though
+classic Georgia does not), and the default moved to **Cambria** with the offending faces kept but
+labelled "low digits". The result column adds `tabular-nums` so successive results align.
+
 **What the result column shows.** A result is set in the same serif face, size and colour as the
 expression that produced it — it is part of the calculation, not a separate kind of thing. Only a
 status earns a colour: `err` in red, and a comparison as a green **OK** or a red **NG**, driven by

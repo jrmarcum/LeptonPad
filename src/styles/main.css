@@ -284,16 +284,33 @@ main {
   vertical-align: middle;
 }
 
-/* Math display sizes — set from the sidebar (Math Display), stored per browser.
-   --math-text-scale scales formula text; --math-sup-size sizes every sup/sub. */
+/* Math display — set from the sidebar (Math Display), stored per browser.
+   --math-font is the face for every rendered expression and result; --math-text-scale scales
+   formula text; --math-sup-size sizes every sup/sub.
+   Only fonts that ship with the OS are offered: the app is an offline-capable PWA, so a webfont
+   would either need bundling or fail to load exactly when someone is working without a network. */
 :root {
+  --math-font: 'Cambria', 'Georgia', serif;
   --math-text-scale: 1;
   --math-sup-size: 0.65em;
 }
 
+/* Force LINING figures on every rendered expression and result.
+   Georgia, Palatino and Constantia default to old-style (text) figures, where 3 4 5 7 9 hang
+   below the baseline and 6 8 rise above it — handsome in prose, wrong on a calculation sheet,
+   and reported as "letters and numbers shifted down" (2026-09-23). This fixes any face that
+   carries the `lnum` OpenType feature; classic Georgia does not, which is why the default is now
+   Cambria and the font list marks the old-style faces. */
+.md-math,
+.formula-cell,
+.formula-result,
+.plot-cell {
+  font-variant-numeric: lining-nums;
+}
+
 /* Inline math rendered by prettifyExpr inside markdown */
 .md-math {
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--math-font);
   font-size: calc(0.9em * var(--math-text-scale));
 }
 .md-math sup,
@@ -920,7 +937,7 @@ main {
   padding: 0 2px;
 }
 .formula-desc-cell .md-math {
-  font-family: 'Georgia', serif;
+  font-family: var(--math-font);
   font-size: 0.85em;
 }
 
@@ -995,7 +1012,7 @@ main {
   overflow-wrap: break-word;
   overflow: visible;
   /* Unfocused: serif for rendered math */
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--math-font);
   font-size: calc(0.8rem * var(--math-text-scale));
 }
 .formula-cell:focus {
@@ -1097,12 +1114,15 @@ main {
 .formula-result {
   /* A result is part of the calculation, so it is set in the same serif face, size and colour as
      the expression that produced it. Only a status — err, OK, NG — earns a colour of its own. */
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--math-font);
   font-size: calc(0.8rem * var(--math-text-scale));
   color: inherit;
   white-space: nowrap;
   min-width: 56px;
   text-align: right;
+  /* Tabular as well as lining: this is a right-aligned column of numbers, so equal-width digits
+     make successive results line up on the decimal instead of drifting. */
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .formula-sep {
   font-family: 'Courier New', monospace;
@@ -1285,7 +1305,7 @@ main {
   outline: none;
   cursor: text;
   line-height: 1.5;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--math-font);
   font-size: calc(0.8rem * var(--math-text-scale));
 }
 .plot-cell:focus {
@@ -2341,6 +2361,8 @@ h2.custom-tools-heading {
   border-radius: 0.25rem;
   background: #ffffff;
   cursor: pointer;
+  /* The Font row previews each face in its own font, so widths vary — keep it inside the sidebar. */
+  max-width: 9.5rem;
 }
 
 /* Comparison operator inside rendered math (≥ ≤ ≠ =) */
