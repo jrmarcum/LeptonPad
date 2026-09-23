@@ -75,6 +75,32 @@ export interface FormulaRow {
 // Unit arithmetic helpers
 // ---------------------------------------------------------------------------
 
+/** A comparison operator anywhere in a statement. A lone `=` is assignment and is not one. */
+const CMP_OP_RE = /[<>]=?|[!=]=|<>/;
+
+/**
+ * Both sides of a comparison must carry the same unit.
+ *
+ * Until 2.3.23 a comparison compared the raw numbers and ignored units entirely, so
+ * `1 [ft] > 1 [in]` was false and `6 [in] > 0.5 [ft]` was true — a wrong pass/fail, silently, on
+ * a sheet someone stamps. `b > 8` where b is in inches is not a check at all, it is a
+ * coincidence of the number 6 against the number 8.
+ *
+ * The rule matches addition, which has always refused `1 [ft] + 1 [in]`: the units must be equal,
+ * not merely compatible. The one exception is a literal zero, which carries no dimension — so
+ * `M > 0` and `P != 0` stay idiomatic.
+ */
+function assertComparable(a: Quantity, b: Quantity): void {
+  if (eqU(a.u, b.u)) return;
+  const aBare = Object.keys(cleanU(a.u)).length === 0;
+  const bBare = Object.keys(cleanU(b.u)).length === 0;
+  if ((aBare && a.v === 0) || (bBare && b.v === 0)) return;
+  const name = (q: Quantity) => formatUnit(q.u) || 'no unit';
+  throw new Error(
+    `Unit mismatch: ${name(a)} ≠ ${name(b)} — both sides of a comparison need the same unit`,
+  );
+}
+
 function cleanU(u: Record<string, number>): UnitMap {
   const r: Record<string, number> = {};
   for (const [k, e] of Object.entries(u)) if (e !== 0) r[k] = e;
@@ -1298,6 +1324,7 @@ class Parser {
       noMatrix(q, 'A comparison');
       const op = this.eat().t;
       const r = noMatrix(this.arithmetic(), 'A comparison');
+      assertComparable(q, r);
       let result: boolean;
       const EPS = 1e-12;
       switch (op) {
@@ -1656,10 +1683,16 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     // Strip optional [unit] tag — single-bracket declares/overrides unit, no conversion.
     // Only when it is the sole tag: with inline tags (`a + 1 [in] + 2 [in]`) every tag,
     // including the last, binds to its own term and is left for the parser.
+    //
+    // Never for a comparison. In `b > 8 [in]` the unit belongs to the 8, but this used to take it
+    // as a whole-statement tag, which a comparison then discards (2.3.10) — so it silently became
+    // `b > 8`, comparing inches against a bare number. Leaving it for the parser makes it a
+    // tagged operand, which is what the user wrote.
     let tagUnit: UnitMap | undefined;
     let tagText = '';
     const unitMatch = stmt.match(/\[([^\]]+)\]\s*$/);
-    if (unitMatch && !stmt.slice(0, unitMatch.index!).includes('[')) {
+    const beforeTag = unitMatch ? stmt.slice(0, unitMatch.index!) : '';
+    if (unitMatch && !beforeTag.includes('[') && !CMP_OP_RE.test(beforeTag)) {
       tagUnit = parseUnitExpr(unitMatch[1]);
       tagText = unitMatch[0].trim();
       stmt = stmt.slice(0, unitMatch.index!).trim();

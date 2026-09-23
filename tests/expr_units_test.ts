@@ -99,6 +99,30 @@ Deno.test('comparisons', async (t) => {
     assertEquals(r.value, 1);
   });
 
+  await t.step('a trailing unit binds to the operand, not the whole comparison', () => {
+    // `b > 8 [in]` used to have its [in] stripped as a whole-statement tag, which a comparison
+    // then discards — so it silently became `b > 8`, inches against a bare number (2.3.23).
+    assertValue('b = 6 [in]; c = b > 8 [in]', 0, '');
+    assertValue('b = 6 [in]; c = b < 8 [in]', 1, '');
+    assertValue('b = 10 [in]; c = b >= 10 [in]', 1, '');
+  });
+
+  await t.step('both sides must carry the same unit', () => {
+    // Before 2.3.23 comparisons ignored units and compared the raw numbers, so these were
+    // answered — wrongly and silently. `1 [ft] > 1 [in]` was false; `6 [in] > 0.5 [ft]` was true.
+    assertError('b = 6 [in]; c = b > 8', /Unit mismatch: in ≠ no unit/);
+    assertError('b = 6 [in]; c = b < 8', /Unit mismatch/);
+    assertError('b = 6 [in]; c = b > 8 [kg]', /Unit mismatch: in ≠ kg/);
+    assertError('x = 1 [ft] == 12 [in]', /Unit mismatch: ft ≠ in/);
+    assertError('x = 1 [ft] > 1 [in]', /same unit/);
+  });
+
+  await t.step('a literal zero carries no dimension, so it compares against anything', () => {
+    assertValue('b = 6 [in]; c = b > 0', 1, '');
+    assertValue('M = -3 [in*kip]; c = M < 0', 1, '');
+    assertValue('P = 180 [kip]; c = P != 0', 1, '');
+  });
+
   await t.step('a comparison is flagged isTest, so it can render as OK / NG not 1 / 0', () => {
     // The renderer keys off this flag; without it a check shows a bare 1 or 0 (2.3.22).
     assertEquals(last('P = 180 [kip]; c = P >= 100 [kip]').isTest, true);
