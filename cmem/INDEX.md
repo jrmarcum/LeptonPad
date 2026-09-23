@@ -42,13 +42,14 @@ topic files and recorded in [`known-issues.md`](known-issues.md) so they do not 
 3. The math evaluator (`src/expr.ts`, 1,718 lines as of 2026-09-22) is **TypeScript, not WASM**. The
    only WASM in the product is three trivial arithmetic functions in `dist/solver.wasm`.
 
-**What is true now, in one paragraph.** LeptonPad is a Deno 2.x browser PWA at **v2.3.16**
-(`deno.json`, 2026-09-22) — a drag-and-drop engineering calculation pad, live at
+**What is true now, in one paragraph.** LeptonPad is a Deno 2.x browser PWA at **v2.3.17**
+(`deno.json`, 2026-09-23) — a drag-and-drop engineering calculation pad, live at
 `https://leptonpad.com`; **pushing `main` deploys it**. `deno bundle --platform browser` emits
 `dist/main.js` (~426 KB) from `src/main.ts`; all math, units, markdown, and plotting are TypeScript
 running in the browser. The math engine handles unit-checked scalars **and matrices** (K·u = F with
 mixed units), sums/products/integrals, and LaTeX-style notation where a backslash is mandatory
-(`\phi`, `\ell`, `\bar{x}`, `\sqrt(`, and `\e` for Euler's number). Identity is Clerk; roles, license codes, and section-pack ownership live in
+(`\phi`, `\ell`, `\bar{x}`, `\sqrt(`; Euler's number is the function `exp()`, and `\pi` is the one
+remaining marked constant). A `tests/` suite covers the engine. Identity is Clerk; roles, license codes, and section-pack ownership live in
 Neon Postgres behind a three-endpoint Deno Deploy API that is the sole security boundary. Purchased
 section templates are AES-256-GCM encrypted with a per-user, per-pack key derived server-side as
 `HMAC-SHA256(pack_secret, clerk_user_id)`. ~13k lines across `src/`, `api/`, `db/`, `solver/`, and
@@ -120,8 +121,11 @@ will not surface in today's browser testing but will bite a future change. Four 
    unhandled block `type`, a decrypt that returns `null` and renders as empty. **A calculation pad
    that shows a wrong number is worse than one that shows an error.**
 
-Because there is **no test suite** (see [`testing.md`](testing.md)), the verification bar is: state
-exactly what you changed, what you could not verify, and what Jon needs to click to confirm it.
+**Run `deno task check` before reporting** — it is `fmt && lint && test`, and the test suite
+(`tests/`, added 2026-09-23) covers the math engine and the rendering rules. It does **not** cover
+anything with a DOM, so the verification bar is unchanged for the rest: state exactly what you
+changed, what you could not verify, and what Jon needs to click to confirm it. See
+[`testing.md`](testing.md).
 
 ## Files
 
@@ -139,7 +143,7 @@ exactly what you changed, what you could not verify, and what Jon needs to click
 | [design-decisions.md](design-decisions.md)     | Why each non-obvious choice was made — TS-not-WASM for math, compound expansion and its display side effect, mutable module state, plot sweep-variable unit propagation, fixed `TITLE_BLOCK_H`, `globalThis` over `window`, mandatory `\` for Greek with no migration of old sheets, `\var` letters as the alternate shape, `\e` for Euler with plain `e` left to the user.                                                                                                                                                 |
 | [conventions.md](conventions.md)               | The coding rules that were paid for: no shell heredocs (Windows mangles backslashes), LF line endings only, `.block:hover` not `.formula-block:hover`, `transformUnit()` not `transformPiece()` for unit ids, `globalThis` not `window`, delete unused imports, never remove `Cache-Control: no-store`.                                                                                                                                                                                                                     |
 | [known-issues.md](known-issues.md)             | Live defects and traps: `public/config.js` is patched but never shipped (and holds real credentials), version drift, `CLAUDE.md` untracked, the `mathwasm-` localStorage key that cannot be renamed, Windows-only browser launch, `pi`/`e`/`tau` silently shadowing user variables (fixed 2.3.0 — `\e` is Euler's number, plain `e` a variable), pre-2.2.5 sheets losing Greek display (accepted), the 2.2.6 cross-block audit (`==`, plot dot-notation and sweep-variable fixes), the 2.2.8 title-block drift on pages 2+. |
-| [testing.md](testing.md)                       | The honest state: there is no automated test suite. What `deno task check` actually covers, what Jon verifies by hand in the browser, and the manual regression checklist — unit algebra, notation, matrices, sections, persistence, deploy.                                                                                                                                                                                                                                                                                |
+| [testing.md](testing.md)                       | The `tests/` suite (added 2026-09-23, run by `deno task test` and included in `deno task check`), the five rules for adding to it, and the manual checklist that is still the gate for everything with a DOM — blocks, sections, plot, persistence, deploy.                                                                                                                                                                                                                                                                                |
 | [licensing.md](licensing.md)                   | LeptonPad is proprietary, all rights reserved. What that means for dependency choice, and the two MIT components (`@std/*`, `@jrmarcum/wasmtk`) reproduced in `THIRD_PARTY_NOTICES.md`.                                                                                                                                                                                                                                                                                                                                     |
 | [collaboration.md](collaboration.md)           | How Jon works: browser-verified features, concise responses, engineering-terms feature requests, the bump-and-deploy cycle, the decide→build→test→push rhythm for a staged feature, and the rule that **every test table must be self-contained**. Read before the first reply of a session.                                                                                                                                                                                                                                |
 | [roadmap.md](roadmap.md)                       | Where the project stands at **v2.3.10 (2026-09-22)**, the 14-release math/notation session summarised, and what is queued — the `WASM-READY` markers, the section-pack storefront, and what is deliberately not being built.                                                                                                                                                                                                                                                                                                |

@@ -106,15 +106,19 @@ suppression that trains people to ignore the linter.
 
 ---
 
-## 10. No automated tests for the math engine
+## 10. No automated tests for the math engine — ADDRESSED 2026-09-23
 
 **Partially addressed 2026-08-13:** the backend now has one — `deno task db:check`, ten assertions
 over the entitlement chain, which caught two real bugs on its first run.
 
-**`src/expr.ts` still has none, and that is the larger risk.** 1,718 lines of unit algebra with no
-regression net, and a failure mode of **a wrong number that looks right** on a calculation sheet an
-engineer stamps. See [`testing.md`](testing.md) for why it is also the easiest module in the codebase
-to test: pure functions in, `Quantity` out, no DOM.
+**`src/expr.ts` now has one too (2026-09-23):** `tests/` with 63 steps, run by `deno task test` and
+included in `deno task check`, covering unit algebra, conversions, precedence, constants, every
+built-in, matrices, the big operators and the rendering rules — with a named case for each bug fixed
+in this week's sessions. Writing it found one more: a trailing unit tag on a **function definition**
+was silently dropped, so `f(x) = x * 12 [in/ft]` computed without the in/ft. Fixed with the suite.
+
+Still uncovered: everything that needs a DOM (blocks, drag, editing, layout, persistence, the service
+worker). See [`testing.md`](testing.md).
 
 ---
 

@@ -6,6 +6,7 @@
     "jsr:@jrmarcum/wasmtk@*": "2.0.0",
     "jsr:@neon/serverless@*": "1.0.1",
     "jsr:@neon/serverless@1": "1.0.1",
+    "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/cli@1": "1.0.22",
     "jsr:@std/cli@^1.0.21": "1.0.22",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
@@ -22,7 +23,7 @@
     "jsr:@std/streams@^1.0.10": "1.0.12",
     "npm:@clerk/backend@*": "3.16.4",
     "npm:@clerk/backend@3": "3.16.4",
-    "npm:@clerk/clerk-js@5": "5.127.2_react@19.2.8_react-dom@19.2.8__react@19.2.8_@babel+core@7.29.7_@solana+web3.js@1.98.4__typescript@7.0.2_bs58@6.0.0_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_typescript@7.0.2",
+    "npm:@clerk/clerk-js@5": "5.127.2_react@19.2.8_react-dom@19.2.8_@babel+core@7.29.7_@solana+web3.js@1.98.4_bs58@6.0.0_react-native@0.87.0_typescript@7.0.2",
     "npm:@types/node@^22.15.30": "22.20.1",
     "npm:@types/pg@^8.8.0": "8.21.0",
     "npm:events@^3.3.0": "3.3.0",
@@ -51,6 +52,12 @@
         "npm:@types/node",
         "npm:@types/pg",
         "npm:events"
+      ]
+    },
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
       ]
     },
     "@std/cli@1.0.22": {
@@ -249,12 +256,12 @@
         "tslib"
       ]
     },
-    "@clerk/clerk-js@5.127.2_react@19.2.8_react-dom@19.2.8__react@19.2.8_@babel+core@7.29.7_@solana+web3.js@1.98.4__typescript@7.0.2_bs58@6.0.0_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_typescript@7.0.2": {
+    "@clerk/clerk-js@5.127.2_react@19.2.8_react-dom@19.2.8_@babel+core@7.29.7_@solana+web3.js@1.98.4_bs58@6.0.0_react-native@0.87.0_typescript@7.0.2": {
       "integrity": "sha512-3utdpDMDJVGC3DH1K6qC0JwyxOFhud6l5NZ2iDJeg4Je/ybFV6964GDxP56mqVwgKkdh1g/2wakQHfqlXN08Ww==",
       "dependencies": [
         "@base-org/account",
         "@clerk/localizations",
-        "@clerk/shared@3.47.8_react@19.2.8_react-dom@19.2.8__react@19.2.8",
+        "@clerk/shared@3.47.8_react@19.2.8_react-dom@19.2.8",
         "@coinbase/wallet-sdk",
         "@emotion/cache",
         "@emotion/react",
@@ -283,13 +290,13 @@
         "regenerator-runtime@0.14.1"
       ]
     },
-    "@clerk/localizations@3.37.8_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@clerk/localizations@3.37.8_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-ib/8WciLkflXsg72IM9BjMZgENUv3nfXx1BrygKkpDqFPb1Dshron1+u+sG7dD+quQpZOLn6iie2Vno5YJy3zQ==",
       "dependencies": [
         "@clerk/types"
       ]
     },
-    "@clerk/shared@3.47.8_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@clerk/shared@3.47.8_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-cPURU1it/Eal4uXO9SOcHzw9sfE6Opi21W8EJUg+Ri80Q6JKtK8qBmyOpIyqgf09EanexhTzS4xrmYlvn2p7Iw==",
       "dependencies": [
         "csstype",
@@ -316,10 +323,10 @@
         "js-cookie"
       ]
     },
-    "@clerk/types@4.101.26_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@clerk/types@4.101.26_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-tUeiElAZoXu9Dxom9t6IjkEfsfP7aWSVf5x5mCoHnSr2w+wV4EtEwoLl9vexT5LL0di4qidROSfcrOnorzczIQ==",
       "dependencies": [
-        "@clerk/shared@3.47.8_react@19.2.8_react-dom@19.2.8__react@19.2.8"
+        "@clerk/shared@3.47.8_react@19.2.8_react-dom@19.2.8"
       ]
     },
     "@coinbase/wallet-sdk@4.3.0": {
@@ -421,7 +428,7 @@
         "@floating-ui/utils"
       ]
     },
-    "@floating-ui/react-dom@2.1.9_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@floating-ui/react-dom@2.1.9_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg==",
       "dependencies": [
         "@floating-ui/dom",
@@ -429,7 +436,7 @@
         "react-dom"
       ]
     },
-    "@floating-ui/react@0.27.12_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@floating-ui/react@0.27.12_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-kKlWNrpIQxF1B/a2MZvE0/uyKby4960yjO91W7nVyNKmmfNi62xU9HCjL1M1eWzx/LFj/VPSwJVbwQk9Pq/68A==",
       "dependencies": [
         "@floating-ui/react-dom",
@@ -514,7 +521,7 @@
     "@noble/hashes@1.8.0": {
       "integrity": "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="
     },
-    "@react-native-async-storage/async-storage@1.24.0_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_@babel+core@7.29.7_react@19.2.8": {
+    "@react-native-async-storage/async-storage@1.24.0_react-native@0.87.0_@babel+core@7.29.7_react@19.2.8": {
       "integrity": "sha512-W4/vbwUOYOjco0x3toB8QCr7EjIP6nE9G7o8PMguvvjYT5Awg09lyV4enACRx4s++PPulBiBSjL0KTFx2u0Z/g==",
       "dependencies": [
         "merge-options",
@@ -581,7 +588,7 @@
     "@react-native/normalize-colors@0.87.0": {
       "integrity": "sha512-7aEGyrrquUqpbp+aEgOCp2xr0cTLYhJFCMfUqI4IoJddfwosra9Y5qtbrJU5Z/vBLndCmSIzABrWnHK0lxpwcA=="
     },
-    "@react-native/virtualized-lists@0.87.0_react@19.2.8_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7": {
+    "@react-native/virtualized-lists@0.87.0_react@19.2.8_react-native@0.87.0": {
       "integrity": "sha512-rYQCtZupN7Iczm8fdGg3uKZUXhrxdZPRkg4BZK3RaQJ2HJ7n5tJNR2QPR3vSgpp5CATQggiGCuom1fNEC3T/8g==",
       "dependencies": [
         "invariant",
@@ -611,14 +618,14 @@
     "@sinclair/typebox@0.27.12": {
       "integrity": "sha512-hhyNJ+nbR6ZR7pToHvllEFun9TL0sbL+tk/ON75lo+Xas054uez98qRbsuNt7MBCyZKK4+8Yli/OAGZhmfBZ/g=="
     },
-    "@solana-mobile/mobile-wallet-adapter-protocol-web3js@2.2.9_@solana+web3.js@1.98.4__typescript@7.0.2_@babel+core@7.29.7_react@19.2.8_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_typescript@7.0.2": {
+    "@solana-mobile/mobile-wallet-adapter-protocol-web3js@2.2.9_@solana+web3.js@1.98.4_@babel+core@7.29.7_react@19.2.8_react-native@0.87.0_typescript@7.0.2": {
       "integrity": "sha512-TAMItAuOb7duwYQ+PZ6JNqw/6TEhCWLObHF5uOBGV9tjCozHGVunxa7lTeuHAWIgO68IAo86MZdE5kethDATpw==",
       "dependencies": [
         "@solana-mobile/mobile-wallet-adapter-protocol",
         "@solana/web3.js"
       ]
     },
-    "@solana-mobile/mobile-wallet-adapter-protocol@2.2.9_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_@babel+core@7.29.7_react@19.2.8_typescript@7.0.2": {
+    "@solana-mobile/mobile-wallet-adapter-protocol@2.2.9_react-native@0.87.0_@babel+core@7.29.7_react@19.2.8_typescript@7.0.2": {
       "integrity": "sha512-qtWJq0hzKgngVG0So2ViBRPYDculaxgj40WDSP1nzgdg85MXyAmTEjQqV10uSVbZRm9b1hl601HDJX1sHTgeiw==",
       "dependencies": [
         "@solana/kit",
@@ -628,7 +635,7 @@
         "react-native"
       ]
     },
-    "@solana-mobile/wallet-adapter-mobile@2.2.9_@solana+web3.js@1.98.4__typescript@7.0.2_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_@babel+core@7.29.7_react@19.2.8_typescript@7.0.2": {
+    "@solana-mobile/wallet-adapter-mobile@2.2.9_@solana+web3.js@1.98.4_react-native@0.87.0_@babel+core@7.29.7_react@19.2.8_typescript@7.0.2": {
       "integrity": "sha512-IWzI2pUmEqBsTNo+XqMTY38NL5TSdMetES59N0Cmuf+zYqiS56rHdMwD/R2IOy7E4yKa1CsuHfCh6CE6zk4ViQ==",
       "dependencies": [
         "@solana-mobile/mobile-wallet-adapter-protocol",
@@ -645,7 +652,7 @@
         "@react-native-async-storage/async-storage"
       ]
     },
-    "@solana-mobile/wallet-standard-mobile@0.5.3_@babel+core@7.29.7_react@19.2.8_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_typescript@7.0.2": {
+    "@solana-mobile/wallet-standard-mobile@0.5.3_@babel+core@7.29.7_react@19.2.8_react-native@0.87.0_typescript@7.0.2": {
       "integrity": "sha512-/Ea/CNIWHExpXsA6syVy7fUUhONtYob+VMsmF8flm8GEAZQyzX6UtKSy4NQMMTGBTAGlmmmbBVrZF+Tp5/fDxQ==",
       "dependencies": [
         "@solana-mobile/mobile-wallet-adapter-protocol",
@@ -1285,7 +1292,7 @@
         "typescript"
       ]
     },
-    "@solana/wallet-adapter-base@0.9.27_@solana+web3.js@1.98.4__typescript@7.0.2_typescript@7.0.2": {
+    "@solana/wallet-adapter-base@0.9.27_@solana+web3.js@1.98.4_typescript@7.0.2": {
       "integrity": "sha512-kXjeNfNFVs/NE9GPmysBRKQ/nf+foSaq3kfVSeMcO/iVgigyRmB551OjU3WyAolLG/1jeEfKLqF9fKwMCRkUqg==",
       "dependencies": [
         "@solana/wallet-standard-features",
@@ -1295,7 +1302,7 @@
         "eventemitter3"
       ]
     },
-    "@solana/wallet-adapter-react@0.15.39_@solana+web3.js@1.98.4__typescript@7.0.2_react@19.2.8_@babel+core@7.29.7_bs58@6.0.0_react-native@0.87.0__react@19.2.8__@babel+core@7.29.7_typescript@7.0.2": {
+    "@solana/wallet-adapter-react@0.15.39_@solana+web3.js@1.98.4_react@19.2.8_@babel+core@7.29.7_bs58@6.0.0_react-native@0.87.0_typescript@7.0.2": {
       "integrity": "sha512-WXtlo88ith5m22qB+qiGw301/Zb9r5pYr4QdXWmlXnRNqwST5MGmJWhG+/RVrzc+OG7kSb3z1gkVNv+2X/Y0Gg==",
       "dependencies": [
         "@solana-mobile/wallet-adapter-mobile",
@@ -1334,7 +1341,7 @@
         "@solana/wallet-standard-features"
       ]
     },
-    "@solana/wallet-standard-wallet-adapter-base@1.1.5_@solana+web3.js@1.98.4__typescript@7.0.2_bs58@6.0.0_typescript@7.0.2": {
+    "@solana/wallet-standard-wallet-adapter-base@1.1.5_@solana+web3.js@1.98.4_bs58@6.0.0_typescript@7.0.2": {
       "integrity": "sha512-dbk+4mJAsZ1a2R/v5/Qvp6SleviuSNWd9LnuQ0ekH0HRRJTOWyTBJsdQsVDdAymdPnLAaIN5J10ni1CT2Z+ERg==",
       "dependencies": [
         "@solana/wallet-adapter-base",
@@ -1349,7 +1356,7 @@
         "bs58@6.0.0"
       ]
     },
-    "@solana/wallet-standard-wallet-adapter-react@1.1.6_@solana+wallet-adapter-base@0.9.27__@solana+web3.js@1.98.4___typescript@7.0.2__typescript@7.0.2_react@19.2.8_@solana+web3.js@1.98.4__typescript@7.0.2_bs58@6.0.0_typescript@7.0.2": {
+    "@solana/wallet-standard-wallet-adapter-react@1.1.6_@solana+wallet-adapter-base@0.9.27_react@19.2.8_@solana+web3.js@1.98.4_bs58@6.0.0_typescript@7.0.2": {
       "integrity": "sha512-KOPrPFjFDyyDfOp2LqrNh2wZvFEYUtLpoX8ajyvtkGCCsid48OitxSp4EqmobZNTkzoBJoVHRp+KeK8YFB6jUA==",
       "dependencies": [
         "@solana/wallet-adapter-base",
@@ -1359,14 +1366,14 @@
         "react"
       ]
     },
-    "@solana/wallet-standard-wallet-adapter@1.1.6_@solana+wallet-adapter-base@0.9.27__@solana+web3.js@1.98.4___typescript@7.0.2__typescript@7.0.2_@solana+web3.js@1.98.4__typescript@7.0.2_bs58@6.0.0_react@19.2.8_typescript@7.0.2": {
+    "@solana/wallet-standard-wallet-adapter@1.1.6_@solana+wallet-adapter-base@0.9.27_@solana+web3.js@1.98.4_bs58@6.0.0_react@19.2.8_typescript@7.0.2": {
       "integrity": "sha512-A3OMEoKpLiACaL/TdjAF8LttmtfHRtv3O1IxWt/rnOGF0iuBrCqzflXNolqtBs6knCKoBn6US3CNhSgIr9So2A==",
       "dependencies": [
         "@solana/wallet-standard-wallet-adapter-base",
         "@solana/wallet-standard-wallet-adapter-react"
       ]
     },
-    "@solana/wallet-standard@1.1.4_@solana+wallet-adapter-base@0.9.27__@solana+web3.js@1.98.4___typescript@7.0.2__typescript@7.0.2_@solana+web3.js@1.98.4__typescript@7.0.2_bs58@6.0.0_react@19.2.8_typescript@7.0.2": {
+    "@solana/wallet-standard@1.1.4_@solana+wallet-adapter-base@0.9.27_@solana+web3.js@1.98.4_bs58@6.0.0_react@19.2.8_typescript@7.0.2": {
       "integrity": "sha512-NF+MI5tOxyvfTU4A+O5idh/gJFmjm52bMwsPpFGRSL79GECSN0XLmpVOO/jqTKJgac2uIeYDpQw/eMaQuWuUXw==",
       "dependencies": [
         "@solana/wallet-standard-core",
@@ -2160,7 +2167,7 @@
     "inherits@2.0.4": {
       "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="
     },
-    "input-otp@1.4.2_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "input-otp@1.4.2_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-l3jWwYNvrEa6NTCt7BECfCm48GvwuZzkoeG3gBL2w4CHeOXW3eKFmf9UNYkNfYc3mxMrthMnxjIE07MT0zLBQA==",
       "dependencies": [
         "react",
@@ -3298,6 +3305,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@std/assert@1",
       "npm:@clerk/clerk-js@5"
     ]
   }

@@ -1655,9 +1655,11 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     // Only when it is the sole tag: with inline tags (`a + 1 [in] + 2 [in]`) every tag,
     // including the last, binds to its own term and is left for the parser.
     let tagUnit: UnitMap | undefined;
+    let tagText = '';
     const unitMatch = stmt.match(/\[([^\]]+)\]\s*$/);
     if (unitMatch && !stmt.slice(0, unitMatch.index!).includes('[')) {
       tagUnit = parseUnitExpr(unitMatch[1]);
+      tagText = unitMatch[0].trim();
       stmt = stmt.slice(0, unitMatch.index!).trim();
     }
 
@@ -1665,12 +1667,16 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     // `=(?!=)` so the comparison `f(x) == 3` is not taken as defining f.
     const fnDefMatch = stmt.match(/^([a-zA-Z_]\w*)\s*\(([a-zA-Z_]\w*)\)\s*=(?!=)\s*(.+)$/);
     if (fnDefMatch) {
-      const [, fnName, param, fnExpr] = fnDefMatch;
-      fnScope[fnName] = { param, expr: fnExpr.trim(), ...(targetUnit && { targetUnit }) };
+      const [, fnName, param] = fnDefMatch;
+      // A trailing tag belongs to the BODY of a definition — `f(x) = x * 12 [in/ft]` must keep its
+      // in/ft. It used to be stripped as a whole-result tag and then dropped here, so the function
+      // silently computed without that unit (found by the test suite, 2026-09-23).
+      const fnExpr = (fnDefMatch[3] + (tagText ? ' ' + tagText : '')).trim();
+      fnScope[fnName] = { param, expr: fnExpr, ...(targetUnit && { targetUnit }) };
       results.push({
         raw: s,
         name: fnName,
-        expr: fnExpr.trim(),
+        expr: fnExpr,
         value: NaN,
         unit: {},
         isFn: true,

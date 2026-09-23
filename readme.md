@@ -22,6 +22,8 @@ deno task dev       # hot-reload dev server at http://localhost:5173
 deno task api:dev   # the entitlement API at http://localhost:8000 (run in a second terminal)
 deno task build     # production build → dist/
 deno task serve     # serve dist/ locally
+deno task test      # the math-engine and rendering test suite (tests/)
+deno task check     # fmt + lint + test — run this before a release
 deno task db:check  # regression-test the entitlement chain against Neon
 deno task promote   # list accounts; `promote <email> [role]` grants a role
 ```

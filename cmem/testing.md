@@ -1,15 +1,34 @@
 # Testing — the honest state
 
-**There is no automated test suite.** No `*_test.ts`, no `deno task test`, no CI test job. Verified
-2026-08-13.
+**There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
+check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
+63 steps at first commit, all against the real engine (pure functions in, `Quantity` out, no DOM).
 
-What exists:
+| File                        | Covers                                                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/_helpers.ts`         | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.           |
+| `tests/expr_units_test.ts`  | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                |
+| `tests/expr_matrix_test.ts` | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot. |
+| `tests/markdown_test.ts`    | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                 |
 
-| Mechanism                                   | What it actually catches                                                                                                                                   |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deno task check` (`deno fmt && deno lint`) | Formatting drift, unused imports/vars (errors, not warnings), `no-explicit-any` without a suppression, other `recommended`-tag lints. **Not** correctness. |
-| `deno bundle` during `build`/`dev`          | Type errors and unresolved imports.                                                                                                                        |
-| **Jon, in the browser**                     | Everything else.                                                                                                                                           |
+**Every fixed bug has a case**, named after it: the `-x^2` precedence, `==` as a comparison, the
+comparison's trailing unit, the phantom `1` unit, the singular determinant returning exactly 0, the
+identity product with no 1e-16 dust, and the unclosed-bracket crash.
+
+Writing the suite immediately found a new one: **a trailing unit tag on a function definition was
+silently dropped** (`f(x) = x * 12 [in/ft]` computed without the in/ft). Fixed the same day.
+
+What the rest of the toolchain still catches:
+
+| Mechanism                          | What it actually catches                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| `deno fmt && deno lint`            | Formatting drift, unused imports/vars (errors), `no-explicit-any`, other `recommended` lints. |
+| `deno bundle` during `build`/`dev` | Type errors and unresolved imports.                                                           |
+| **Jon, in the browser**            | Everything the DOM touches — blocks, drag, editing, layout, deploy.                           |
+
+**What is still only eyeball-verified:** anything needing a DOM — block placement and drag, the text
+block's editor, section layout, the plot's SVG and crosshair, persistence, and the service worker.
+The manual checklist below covers those and stays the release gate for them.
 
 ## Why this matters more here than in most projects
 
@@ -42,14 +61,15 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] An `if` block and a `for` block each evaluate and render.
 - [ ] `a == b`, `a <= b`, `f(x) == 3` evaluate (not read as assignments) and display as = ≤.
 - [ ] `sum(i^2, i, 1, 10)` = 385; `integral(sin(x), x, 0, \pi)` = 2; both draw Σ / ∫ with limits.
-- [ ] `log(8, 2)` = 3 and `ln(\e)` = 1; `log(x)` is still the natural log.
+- [ ] `log(8, 2)` = 3 and `ln(exp(1))` = 1; `log(x)` is still the natural log.
 
 **Notation (mandatory backslash)**
 
 - [ ] `\phi_ty` renders φ<sub>ty</sub>; bare `phi_ty` renders as typed.
 - [ ] `\ell_b`, `\bar{y}_c`, `\varphi` render ℓ<sub>b</sub>, ȳ<sub>c</sub>, ϕ.
-- [ ] `\e^2` = 7.389; plain `e` is a free variable (`e = 0.5 [in]` then `P * e` works).
-- [ ] `-2^2` = −4 (minus binds looser than `^`); `\e^(-x/2)` renders raised, not as `^`.
+- [ ] `exp(2)` = 7.389 and renders as e²; plain `e` is a free variable (`e = 0.5 [in]`, `P * e`).
+- [ ] `-2^2` = −4 (minus binds looser than `^`); `exp(-x/2)` renders raised, not as `^`.
+- [ ] Text size and Sub/superscript in the sidebar change rendered math, including ∫/Σ/Π limits.
 
 **Matrices** (all through the formula-block path, with every matrix defined in the same block)
 
@@ -117,10 +137,23 @@ with two fake user ids and a throwaway pack, then delete the test rows. Ten asse
 Assertions 1 and 6 exist because both failed the first time this was run. See
 [`backend-migration.md`](backend-migration.md).
 
-## If tests are ever added
+## Adding to the suite
 
-Start with `expr.ts`. It is the highest-value, easiest-to-test module in the codebase: pure functions
-in, `Quantity` out, no DOM. A table-driven `Deno.test` over `evalExpr(src, scope)` with expected
-`{value, unit}` pairs would cover the unit algebra, compound expansion, `[[targetUnit]]`, and affine
-temperature in a few hundred lines — and would retire the largest risk in the project. `unit-defs.ts`
-is the natural second (round-trip every unit through `toBase`/`fromBase`).
+**Rules that came out of writing it — follow them or the suite lies to you:**
+
+1. **Every test string is self-contained.** Build the whole scope in the statement under test
+   (`'K = {...}; F = {...}; u = solve(K, F)'`). Sharing a scope between cases is how a 2×3 ends up
+   multiplied by a 2×2 and nine names come back undefined.
+2. **Say whether a case is about the value or the display.** `assertValue` is the engine;
+   `markdown_test.ts` is the rendering. Never assert one to check the other.
+3. **Units are asserted in their expanded display form** — `ksi` reads back as `kip/in^2`, `psi` as
+   `lbf/in^2`. That expansion is correct behaviour, not a bug to work around.
+4. **Assert the error text, not just that it failed** — `assertError(src, /can't be added/)`. A
+   regex that matches a message the engine no longer produces silently passes for the wrong reason,
+   so copy the wording from the source.
+5. **When a behaviour is disputed, pin the current one with a comment saying so**, as the trailing-
+   unit case in `expr_units_test.ts` does. Then the change shows up in the diff on purpose.
+
+**Where to extend next:** `unit-defs.ts` (round-trip every unit through `toBase`/`fromBase` and
+assert no definition is unreachable), then `persistence.ts` (`parseProjectJson` on malformed input —
+it already has repair logic with no coverage).
