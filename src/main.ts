@@ -743,6 +743,80 @@ function renderSidebar() {
   pnToggleLabel.appendChild(document.createTextNode('Page Numbering'));
   container.appendChild(pnToggleLabel);
 
+  // ── Math Display: text and sub/superscript size ───────────────────────────
+  // Both drive CSS variables (main.css `:root`), so formula rows, results, plot cells and $…$ math
+  // in text blocks all follow. A per-browser preference, not part of the project file.
+  const MATH_TEXT_KEY = 'lp-math-text-scale';
+  const MATH_SUP_KEY = 'lp-math-sup-size';
+  const readPref = (key: string, fallback: string): string => {
+    try {
+      return globalThis.localStorage.getItem(key) ?? fallback;
+    } catch {
+      return fallback; // private mode / blocked storage — defaults are fine
+    }
+  };
+  const writePref = (key: string, value: string) => {
+    try {
+      globalThis.localStorage.setItem(key, value);
+    } catch { /* not worth interrupting the user over */ }
+  };
+
+  const mathHeading = document.createElement('h2');
+  mathHeading.textContent = 'Math Display';
+  container.appendChild(mathHeading);
+
+  const mkSizeRow = (
+    labelText: string,
+    key: string,
+    fallback: string,
+    opts: [string, string][],
+    onPick: (value: string) => void,
+  ) => {
+    const row = document.createElement('div');
+    row.className = 'math-size-row';
+    const lab = document.createElement('span');
+    lab.textContent = labelText;
+    const sel = document.createElement('select');
+    for (const [value, text] of opts) {
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = text;
+      sel.appendChild(o);
+    }
+    const saved = readPref(key, fallback);
+    sel.value = opts.some(([v]) => v === saved) ? saved : fallback;
+    sel.addEventListener('change', () => {
+      writePref(key, sel.value);
+      onPick(sel.value);
+    });
+    row.appendChild(lab);
+    row.appendChild(sel);
+    container.appendChild(row);
+    return sel;
+  };
+
+  const setMathVar = (name: string, value: string) =>
+    document.documentElement.style.setProperty(name, value);
+
+  const textSel = mkSizeRow('Text size', MATH_TEXT_KEY, '1', [
+    ['0.9', 'Small'],
+    ['1', 'Normal'],
+    ['1.15', 'Large'],
+    ['1.3', 'Larger'],
+    ['1.5', 'Largest'],
+  ], (v) => setMathVar('--math-text-scale', v));
+
+  const supSel = mkSizeRow('Sub/superscript', MATH_SUP_KEY, '0.65em', [
+    ['0.6em', 'Smallest'],
+    ['0.65em', 'Normal'],
+    ['0.75em', 'Large'],
+    ['0.85em', 'Larger'],
+    ['1em', 'Full size'],
+  ], (v) => setMathVar('--math-sup-size', v));
+
+  setMathVar('--math-text-scale', textSel.value);
+  setMathVar('--math-sup-size', supSel.value);
+
   // Margins heading with unit toggle
   const marginRow = document.createElement('div');
   marginRow.className = 'margin-heading-row';

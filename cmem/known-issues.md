@@ -126,7 +126,10 @@ wrong number, the worst failure mode. `\tau` for shear stress was shadowed the s
 
 Fixed 2026-09-22 — Jon chose an **explicit constant marker** (declined: "your definition wins"):
 
-- `\e` is Euler's number and the **only** spelling of it; plain `e` is an ordinary variable.
+- `\e` was Euler's number and the only spelling of it; plain `e` became an ordinary variable.
+  **Revised 2026-09-23 (v2.3.11):** Jon replaced `\e` with the function **`exp(x)`**, which the
+  renderer draws as eˣ. There is now no marked constant for Euler's number at all; `\e` is simply the
+  variable `e`. `MARKED_CONST` holds only `\pi`.
 - `\pi` is π; plain `pi` **also** stays π (too many `pi*d^2/4` sheets to break), and assigning to
   `pi`, `\pi` or `\e` is an explicit error.
 - `tau` is no longer a constant (2π = `2*\pi`).
@@ -146,6 +149,27 @@ grammar was `power → unary ('^' power)?`, `unary → '-' unary | atom`, so `-x
 minus outside the power and its unit tag, and `power → atom ('^' unary)?` (so `2^-1` still works):
 `-x^2` = −(x²), `-3 [in]^2` = −9 in². Matches Mathcad/MATLAB/Python; Excel is the outlier. **Sheets
 that relied on the old reading now evaluate differently** — correctly.
+
+---
+
+## 11b. A block drag stole clicks from the markdown text block — FIXED 2.3.11
+
+Reported 2026-09-23: the text block's toolbar and typing "misbehaved", and **the mouse could not place
+a caret in the textarea**. Cause: `canvas.ts`'s block-drag handler listens on **`pointerdown`** (which
+fires before `mousedown`) and calls `preventDefault()`. Its exemption list covered `INPUT` and
+contenteditable but **not `TEXTAREA`** — the markdown editor. Every press on the editor therefore
+started a drag and consumed the click, so there was no caret, no selection, and the toolbar's
+selection-based actions had nothing to act on. `text.ts` stopped propagation only for `mousedown`,
+which is too late.
+
+Fixed on both sides: the drag handler now ignores a press that lands on
+`textarea, input, select, button, [contenteditable="true"], .md-toolbar`, and the text block stops
+`pointerdown` as well as `mousedown`. **Rule:** a control the user types in must be exempted in every
+`pointerdown` handler that calls `preventDefault()`.
+
+Found while investigating: `transformPiece` recursed forever on a string containing an unclosed `[`
+(a link's `[](`, or mid-typing), blowing the stack in `prettifyExpr`. It now splits only when a
+complete `[…]` tag is present.
 
 ---
 

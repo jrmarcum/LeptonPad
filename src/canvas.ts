@@ -194,7 +194,15 @@ export class Canvas {
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return; // ignore right-click so contextmenu fires cleanly
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || (target as HTMLElement).isContentEditable) return;
+      // Never start a block drag from something the user is typing in or clicking. `pointerdown`
+      // fires before `mousedown`, and this handler calls preventDefault() — so a missing case here
+      // costs that control its caret, its text selection and its clicks. TEXTAREA was missing, which
+      // is what the markdown text block edits with (2026-09-23).
+      if (
+        target.closest('textarea, input, select, button, [contenteditable="true"], .md-toolbar')
+      ) {
+        return;
+      }
       // Section blocks are dragged via their own header handler
       if (block.type === 'section') return;
       e.stopPropagation(); // prevent bubbling into a parent section's drag handler

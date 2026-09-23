@@ -283,18 +283,33 @@ main {
   vertical-align: middle;
 }
 
+/* Math display sizes — set from the sidebar (Math Display), stored per browser.
+   --math-text-scale scales formula text; --math-sup-size sizes every sup/sub. */
+:root {
+  --math-text-scale: 1;
+  --math-sup-size: 0.65em;
+}
+
 /* Inline math rendered by prettifyExpr inside markdown */
 .md-math {
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 0.9em;
+  font-size: calc(0.9em * var(--math-text-scale));
+}
+.md-math sup,
+.formula-cell sup,
+.formula-result sup,
+.plot-cell sup,
+.md-math sub,
+.formula-cell sub,
+.formula-result sub,
+.plot-cell sub {
+  font-size: var(--math-sup-size);
 }
 .md-math sup {
-  font-size: 0.65em;
   vertical-align: super;
   line-height: 0;
 }
 .md-math sub {
-  font-size: 0.65em;
   vertical-align: sub;
   line-height: 0;
 }
@@ -948,7 +963,7 @@ main {
   overflow: visible;
   /* Unfocused: serif for rendered math */
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--math-text-scale));
 }
 .formula-cell:focus {
   /* Focused: monospace for editing raw text */
@@ -968,12 +983,10 @@ main {
   pointer-events: none;
 }
 .formula-cell sup {
-  font-size: 0.65em;
   vertical-align: super;
   line-height: 0;
 }
 .formula-cell sub {
-  font-size: 0.65em;
   vertical-align: sub;
   line-height: 0;
 }
@@ -1048,7 +1061,7 @@ main {
 
 .formula-result {
   font-family: 'Courier New', monospace;
-  font-size: 0.74rem;
+  font-size: calc(0.74rem * var(--math-text-scale));
   color: #059669;
   white-space: nowrap;
   min-width: 56px;
@@ -1227,7 +1240,7 @@ main {
   cursor: text;
   line-height: 1.5;
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--math-text-scale));
 }
 .plot-cell:focus {
   font-family: 'Courier New', monospace;
@@ -1242,12 +1255,10 @@ main {
   pointer-events: none;
 }
 .plot-cell sup {
-  font-size: 0.65em;
   vertical-align: super;
   line-height: 0;
 }
 .plot-cell sub {
-  font-size: 0.65em;
   vertical-align: sub;
   line-height: 0;
 }
@@ -2264,4 +2275,30 @@ h2.custom-tools-heading {
   background: #0284c7;
   color: #fff;
   white-space: nowrap;
+}
+
+/* Math Display controls (sidebar) */
+.math-size-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: #374151;
+}
+.math-size-row select {
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.25rem;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+/* Comparison operator inside rendered math (≥ ≤ ≠ =) */
+.fp-cmp {
+  font-style: normal;
+  padding: 0 0.15em;
 }

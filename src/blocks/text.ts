@@ -370,10 +370,13 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     document.body.style.cursor = 'ew-resize';
   });
 
-  // Prevent mousedown on content from starting a block drag
-  viewDiv.addEventListener('mousedown', (e) => e.stopPropagation());
-  editArea.addEventListener('mousedown', (e) => e.stopPropagation());
-  toolbar.addEventListener('mousedown', (e) => e.stopPropagation());
+  // Prevent a press on the block's content from starting a block drag. `pointerdown` matters as
+  // much as `mousedown`: it fires first, and the canvas drag handler preventDefault()s it.
+  for (const evt of ['mousedown', 'pointerdown']) {
+    viewDiv.addEventListener(evt, (e) => e.stopPropagation());
+    editArea.addEventListener(evt, (e) => e.stopPropagation());
+    toolbar.addEventListener(evt, (e) => e.stopPropagation());
+  }
   viewDiv.addEventListener('click', enterEdit);
 
   el.appendChild(toolbar);

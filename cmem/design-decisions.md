@@ -145,7 +145,14 @@ since 2.2.5 keep their look) and to make every `\var` form produce the **alterna
 `\varphi` → ϕ, `\varepsilon` → ϵ — so each name yields a glyph otherwise unavailable. Cost, accepted:
 pasted LaTeX that relies on the φ/ϕ distinction renders swapped for those two letters.
 
-## Euler's number is `\e`; plain `e` belongs to the user (2026-09-22, v2.3.0)
+## Euler's number is `exp(x)`; plain `e` belongs to the user (2026-09-22, revised 2026-09-23)
+
+**Final form (v2.3.11):** there is no letter for Euler's number — it is the function `exp(x)`, drawn
+as eˣ by `renderCall`. Jon's reason: a function reads correctly in a formula (`2*exp(-t/T)`), and it
+leaves `e` unambiguously free for eccentricity without a second spelling to remember. The `\e`
+marked constant below lasted one day.
+
+### The original decision, kept for the reasoning
 
 In structural work `e` is eccentricity and τ is shear stress, and the old constants silently won
 over both. Jon chose an explicit marker over "user definition wins": `\e` = Euler's number, plain `e`

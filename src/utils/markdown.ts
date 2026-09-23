@@ -11,7 +11,6 @@
 // \epsilon already draw curly φ and ε — the glyphs real LaTeX calls \varphi/\varepsilon — so here
 // \varphi → ϕ and \varepsilon → ϵ, the reverse of LaTeX for those two, keeping the AISC-style φ on \phi.
 const GREEK_SYM = new Map<string, string>([
-  ['e', 'e'], // \e — Euler's number; shown as a plain e (the backslash only tells the calculator)
   ['ell', 'ℓ'],
   ['varphi', 'ϕ'],
   ['varepsilon', 'ϵ'],
@@ -153,12 +152,17 @@ export function transformUnit(raw: string): string {
 /** Apply Greek/superscript/subscript/sqrt/× transforms to a raw text piece. */
 export function transformPiece(raw: string): string {
   // Inline [unit] tags render as units — never Greek-substituted (psi stays psi).
+  // Split only when a COMPLETE `[...]` is present: a lone `[` (mid-typing, or a link's `[](`)
+  // used to re-enter this function with the identical string and blow the stack.
   if (raw.includes('[')) {
-    return raw.split(/(\[[^\]]+\])/).map((part) =>
-      /^\[[^\]]+\]$/.test(part)
-        ? `<span class="fp-unit">${transformUnit(part.slice(1, -1))}</span>`
-        : transformPiece(part)
-    ).join(' ').replace(/\s+/g, ' ').trim();
+    const parts = raw.split(/(\[[^\]]+\])/);
+    if (parts.length > 1) {
+      return parts.map((part) =>
+        /^\[[^\]]+\]$/.test(part)
+          ? `<span class="fp-unit">${transformUnit(part.slice(1, -1))}</span>`
+          : transformPiece(part)
+      ).join(' ').replace(/\s+/g, ' ').trim();
+    }
   }
   let s = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   // Comparisons nested inside a call (`if(x >= 0, 1, 0)`) — top-level ones are split by renderExpr.
@@ -284,6 +288,8 @@ function renderCall(s: string): string | null {
   const body = args.map(renderExpr).join(', ');
   const name = m[1];
   if (name === '\\sqrt') return `√(${body})`; // bare `sqrt(` stays text — the backslash rule
+  // exp(x) is how Euler's number is written (there is no `\e`); draw it the way it is read.
+  if (name === 'exp' && args.length === 1) return `e<sup>${renderExpr(args[0])}</sup>`;
   return `${transformPiece(name)}(${body})`;
 }
 

@@ -3,7 +3,7 @@ import { UNIT_LOOKUP } from './utils/unit-defs.ts';
 // Recursive-descent expression evaluator with dimensional analysis.
 // Supports: + - * / ^ () identifiers function-calls numbers (incl. sci notation)
 // Comparison: = == != <> < > <= >=  (return 1 or 0)
-// Built-in constants : \e (Euler)  \pi  pi   — plain e and tau are ordinary variables
+// Built-in constants : \pi  pi  (Euler's number is the function exp(x)) — e and tau are variables
 // Built-in functions (1-arg): sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh
 //                              sqrt cbrt abs exp expm1 log ln log2 log10 log1p
 //                              floor ceil round trunc sign degrees radians not
@@ -645,13 +645,13 @@ interface Tok {
  *   `\phiM_n` → `phiM_n`, `\ell_b` → `ell_b`, `\bar{x}` → `xbar`, `\bar{\sigma}_c` → `sigmabar_c`.
  * The marks only tell the renderer what to draw (see transformPiece in markdown.ts). `\bar{}` is
  * rewritten first, while its braces still delimit the name — the lexer rejects `{` anywhere else.
- * Exception: a standalone `\e` or `\pi` is a constant, not a mark — its backslash is kept for the
- * lexer (MARKED_CONST). `\pi_1`, `\piR`, `\e2` are names and are stripped as usual.
+ * Exception: a standalone `\pi` is a constant, not a mark — its backslash is kept for the lexer
+ * (MARKED_CONST). `\pi_1` and `\piR` are names and are stripped as usual.
  */
 export function stripGreekMarks(src: string): string {
   return src
     .replace(/\\bar\{\s*\\?([A-Za-z][A-Za-z0-9]*)\s*\}/g, '$1bar')
-    .replace(/\\(?=[A-Za-z])(?!(?:e|pi)(?![A-Za-z0-9_]))/g, '');
+    .replace(/\\(?=[A-Za-z])(?!pi(?![A-Za-z0-9_]))/g, '');
 }
 
 /**
@@ -688,9 +688,9 @@ function lex(src: string): Tok[] {
       continue;
     }
 
-    // Marked constant: \e, \pi — kept as an ID *with* its backslash (see MARKED_CONST)
+    // Marked constant: \pi — kept as an ID *with* its backslash (see MARKED_CONST)
     if (ch === '\\') {
-      const m = src.slice(i).match(/^\\(e|pi)(?![A-Za-z0-9_])/);
+      const m = src.slice(i).match(/^\\(pi)(?![A-Za-z0-9_])/);
       if (!m) throw new Error(`Unknown character: '\\'`);
       out.push({ t: 'ID', v: m[0] });
       i += m[0].length;
@@ -886,15 +886,16 @@ const PRESERVE_FN: Record<string, (x: number) => number> = {
   trunc: Math.trunc,
 };
 
-// Constants (2026-09-22, v2.3.0). Structural sheets use `e` (eccentricity) and `\tau` (shear stress)
-// as variables, and constants used to shadow them silently — `e = 0.5 [in]` was ignored and every
-// later `e` was 2.718…. So:
-//   \e   Euler's number — the ONLY spelling of it. Plain `e` is an ordinary variable.
-//   \pi  π. Plain `pi` also stays π (countless `A = pi*d^2/4` sheets); assigning to it is an error.
-//   tau  no longer a constant (2π is 2*\pi) — frees `\tau` for shear stress.
-// Marked constants are lexed as ID tokens that keep their backslash, so no user name (letters,
-// digits, `_`) can ever collide with them.
-const MARKED_CONST: Record<string, number> = { '\\e': Math.E, '\\pi': Math.PI };
+// Constants (2026-09-22, revised 2026-09-23). Structural sheets use `e` (eccentricity) and `\tau`
+// (shear stress) as variables, and constants used to shadow them silently — `e = 0.5 [in]` was
+// ignored and every later `e` was 2.718…. So:
+//   exp(x)  Euler's number, as a FUNCTION — `exp(2)`, `exp(-x/2)`; the renderer draws it as eˣ.
+//           (v2.3.0 used `\e` as a marked constant; Jon replaced it with exp() on 2026-09-23.)
+//   \pi     π. Plain `pi` also stays π (countless `A = pi*d^2/4` sheets); assigning to it is an error.
+//   e, tau  ordinary variables — eccentricity, shear stress.
+// The marked constant is lexed as an ID token that keeps its backslash, so no user name (letters,
+// digits, `_`) can ever collide with it.
+const MARKED_CONST: Record<string, number> = { '\\pi': Math.PI };
 const PLAIN_CONST: Record<string, number> = { pi: Math.PI };
 
 const CMP_OPS: TT[] = ['EQ', 'NEQ', 'LT', 'GT', 'LEQ', 'GEQ'];
@@ -1504,7 +1505,7 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
 
       // Constants can't be assigned — say so, rather than let the constant silently win later.
       if (name in MARKED_CONST || name in PLAIN_CONST) {
-        const what = name.endsWith('e') ? "Euler's number" : 'π';
+        const what = 'π';
         results.push({
           raw: s,
           name: '',

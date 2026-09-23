@@ -254,16 +254,20 @@ trig and exponential arguments must be unitless — divide the unit out first, e
 
 **Constants** are marked with a backslash, so they can never be confused with your variables:
 
-| You type       | Means                                                   |
-| -------------- | ------------------------------------------------------- |
-| `\e`           | Euler's number 2.71828… (`\e^2`, `\e^(-x)`)             |
-| `\pi` or `pi`  | π 3.14159…                                              |
-| `e`            | **your variable** — e.g. eccentricity `e = 0.5 [in]`    |
-| `tau` / `\tau` | **your variable** — e.g. shear stress τ (2π is `2*\pi`) |
+| You type       | Means                                                      |
+| -------------- | ---------------------------------------------------------- |
+| `exp(x)`       | eˣ — Euler's number, written as a function; displays as eˣ |
+| `\pi` or `pi`  | π 3.14159…                                                 |
+| `e`            | **your variable** — e.g. eccentricity `e = 0.5 [in]`       |
+| `tau` / `\tau` | **your variable** — e.g. shear stress τ (2π is `2*\pi`)    |
 
-Plain `e` is never Euler's number — a sheet that uses `e` as 2.718… shows `Undefined: e` until it is
-changed to `\e` (or `exp(x)`). `\e`, `\pi` and `pi` cannot be assigned; `\pi_1` or `\piR` are ordinary
-names that merely display with π.
+**Euler's number has no letter of its own — write `exp(…)`.** `exp(2)`, `exp(-x/2)` and
+`2*exp(-t/T)` all display as e with the argument raised, and `e` stays free for eccentricity.
+`\pi` and `pi` cannot be assigned; `\pi_1` or `\piR` are ordinary names that merely display with π.
+
+**Math display size** is in the sidebar under _Math Display_: separate settings for text size and for
+sub/superscript size, so raised and lowered characters can be made easier to read. They apply to
+formula rows, results, plot cells and `$…$` math in text blocks, and are remembered per browser.
 
 ## Section template encryption
 
