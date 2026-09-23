@@ -126,6 +126,20 @@ When a statement has a **single** `[unit]` tag at the very end, it labels the wh
 including the last — applies only to the term right before it. `[[targetUnit]]` conversion must be
 the last thing on the line.
 
+### Mixing units in one expression
+
+Adding, subtracting or comparing two quantities of the **same kind** converts automatically — the
+left-hand unit wins, so the result reads in the unit you wrote first:
+
+- `1 [ft] + 1 [in]` → `1.0833 ft`, and `12 [in] + 1 [ft]` → `24 in`
+- `1 [ft] > 1 [in]` → true; `6 [in] > 0.5 [ft]` → false (they are equal)
+- `20 [C] > 50 [F]` → true (affine conversion applied)
+
+A **different kind** of unit is an error, never a guess: `1 [ft] + 1 [kg]`, and `1 [lbf] + 1 [lbm]`
+— force and mass stay distinct. A **comparison against a bare number** is also refused, because
+`b > 8` where `b` is in inches checks nothing; write `b > 8 [in]`. Zero is the exception, since it
+carries no dimension, so `M > 0` and `P != 0` work as written.
+
 `[[targetUnit]]` performs real numeric conversion using the unit catalog in `src/utils/unit-defs.ts`. It handles:
 
 - **Simple scaling**: `200 [MPa] [[ksi]]` → `29.0 ksi`

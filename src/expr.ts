@@ -1,4 +1,9 @@
-import { ANGLE_UNITS, UNIT_LOOKUP } from './utils/unit-defs.ts';
+import {
+  ANGLE_UNITS,
+  CATEGORY_DIMENSION,
+  UNIT_CATEGORY_OF,
+  UNIT_LOOKUP,
+} from './utils/unit-defs.ts';
 
 // Recursive-descent expression evaluator with dimensional analysis.
 // Supports: + - * / ^ () identifiers function-calls numbers (incl. sci notation)
@@ -79,26 +84,57 @@ export interface FormulaRow {
 const CMP_OP_RE = /[<>]=?|[!=]=|<>/;
 
 /**
- * Both sides of a comparison must carry the same unit.
- *
- * Until 2.3.23 a comparison compared the raw numbers and ignored units entirely, so
- * `1 [ft] > 1 [in]` was false and `6 [in] > 0.5 [ft]` was true — a wrong pass/fail, silently, on
- * a sheet someone stamps. `b > 8` where b is in inches is not a check at all, it is a
- * coincidence of the number 6 against the number 8.
- *
- * The rule matches addition, which has always refused `1 [ft] + 1 [in]`: the units must be equal,
- * not merely compatible. The one exception is a literal zero, which carries no dimension — so
- * `M > 0` and `P != 0` stay idiomatic.
+ * The dimensional signature of a unit map, in primitive dimensions (L, M, T, F, K, A).
+ * A symbol the catalog does not know becomes its own dimension, so an invented unit still only
+ * matches itself rather than silently converting into something real.
  */
-function assertComparable(a: Quantity, b: Quantity): void {
-  if (eqU(a.u, b.u)) return;
+function dimensionOf(u: UnitMap): Record<string, number> {
+  const dim: Record<string, number> = {};
+  for (const [sym, exp] of Object.entries(u)) {
+    const cat = UNIT_CATEGORY_OF.get(sym);
+    const base = (cat && CATEGORY_DIMENSION[cat]) ?? { [`?${sym}`]: 1 };
+    for (const [d, e] of Object.entries(base)) dim[d] = (dim[d] ?? 0) + e * exp;
+  }
+  for (const k of Object.keys(dim)) if (dim[k] === 0) delete dim[k];
+  return dim;
+}
+
+/** Whether two unit maps measure the same kind of thing, so one can be converted into the other. */
+function sameKind(a: UnitMap, b: UnitMap): boolean {
+  const da = dimensionOf(a), db = dimensionOf(b);
+  const ka = Object.keys(da), kb = Object.keys(db);
+  return ka.length === kb.length && ka.every((k) => da[k] === db[k]);
+}
+
+/**
+ * Line up `b` with `a`'s unit so their raw numbers can be added or compared.
+ *
+ * Until 2.3.23 both operations read the raw `.v` and ignored units, so `1 [ft] > 1 [in]` was
+ * false and `6 [in] > 0.5 [ft]` was true — a wrong pass/fail, silently, on a sheet someone
+ * stamps. Addition refused mixed units outright, which was safe but made the user do arithmetic
+ * the program was better placed to do.
+ *
+ * Now anything of the same kind converts (2.3.24), and only a genuine kind mismatch — ft against
+ * kg — is an error. A literal zero carries no dimension, so `M > 0` and `x + 0` stay idiomatic,
+ * and a dimensionless operand is left alone so `1 [ft] + 1` keeps its long-standing meaning.
+ */
+function alignUnits(a: Quantity, b: Quantity, what: string, bareOk: boolean): Quantity {
+  if (eqU(a.u, b.u)) return b;
   const aBare = Object.keys(cleanU(a.u)).length === 0;
   const bBare = Object.keys(cleanU(b.u)).length === 0;
-  if ((aBare && a.v === 0) || (bBare && b.v === 0)) return;
   const name = (q: Quantity) => formatUnit(q.u) || 'no unit';
-  throw new Error(
-    `Unit mismatch: ${name(a)} ≠ ${name(b)} — both sides of a comparison need the same unit`,
-  );
+
+  if (aBare || bBare) {
+    // `1 [ft] + 1` has always meant 2 ft, so addition lets a bare number through. A comparison
+    // does not: `b > 8` where b is in inches is not a check, it is the number 6 against the
+    // number 8. Zero is the exception either way — zero carries no dimension.
+    if (bareOk || (aBare && a.v === 0) || (bBare && b.v === 0)) return b;
+    throw new Error(`Unit mismatch: ${name(a)} ≠ ${name(b)} — ${what} needs the same kind of unit`);
+  }
+  if (!sameKind(a.u, b.u)) {
+    throw new Error(`Unit mismatch: ${name(a)} ≠ ${name(b)} — ${what} needs the same kind of unit`);
+  }
+  return applyTargetUnit(b, a.u);
 }
 
 function cleanU(u: Record<string, number>): UnitMap {
@@ -165,10 +201,16 @@ function matrixOf(rows: Quantity[][]): Quantity {
 /** Scalar arithmetic with unit bookkeeping — the one place + − * / on two numbers is defined. */
 function scalarOp(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity {
   switch (op) {
-    case '+':
-      return { v: a.v + b.v, u: addU(a.u, b.u) };
-    case '-':
-      return { v: a.v - b.v, u: addU(a.u, b.u) };
+    case '+': {
+      // The right side is converted into the left's unit, so the result reads in the unit the
+      // user wrote first: `1 [ft] + 1 [in]` is 1.0833 ft, not an error and not 2 of something.
+      const r = alignUnits(a, b, 'addition', true);
+      return { v: a.v + r.v, u: addU(a.u, r.u) };
+    }
+    case '-': {
+      const r = alignUnits(a, b, 'subtraction', true);
+      return { v: a.v - r.v, u: addU(a.u, r.u) };
+    }
     case '*':
       return { v: a.v * b.v, u: mulU(a.u, b.u) };
     case '/':
@@ -1323,8 +1365,7 @@ class Parser {
     if (CMP_OPS.includes(this.peek().t)) {
       noMatrix(q, 'A comparison');
       const op = this.eat().t;
-      const r = noMatrix(this.arithmetic(), 'A comparison');
-      assertComparable(q, r);
+      const r = alignUnits(q, noMatrix(this.arithmetic(), 'A comparison'), 'a comparison', false);
       let result: boolean;
       const EPS = 1e-12;
       switch (op) {

@@ -35,6 +35,17 @@ Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => 
 
   await t.step('mismatched addition is an error, never a coerced number', () => {
     assertError('x = 1 [ft] + 1 [kg]', /Unit mismatch/);
+    assertError('x = 1 [lbf] + 1 [lbm]', /Unit mismatch/); // force and mass stay distinct
+  });
+
+  await t.step('addition converts units of the same kind into the left-hand one', () => {
+    // Until 2.3.24 this was an error and the user did the conversion by hand.
+    assertValue('x = 1 [ft] + 1 [in]', 1.0833333333, 'ft', 1e-9);
+    assertValue('x = 12 [in] + 1 [ft]', 24, 'in'); // the LEFT unit wins
+    assertValue('x = 1 [ft] - 6 [in]', 0.5, 'ft');
+    assertValue('x = 2 [kip] + 1000 [lbf]', 3, 'kip');
+    assertValue('A = 2 [in^2] + 1 [in2]', 3, 'in^2'); // both spellings of square inches
+    assertValue('x = 1 [ft] + 1', 2, 'ft'); // a bare number still means "in that unit"
   });
 
   await t.step('compound units expand so they cancel', () => {
@@ -107,14 +118,26 @@ Deno.test('comparisons', async (t) => {
     assertValue('b = 10 [in]; c = b >= 10 [in]', 1, '');
   });
 
-  await t.step('both sides must carry the same unit', () => {
+  await t.step('units of the same kind convert before comparing', () => {
     // Before 2.3.23 comparisons ignored units and compared the raw numbers, so these were
     // answered — wrongly and silently. `1 [ft] > 1 [in]` was false; `6 [in] > 0.5 [ft]` was true.
+    assertValue('x = 1 [ft] > 1 [in]', 1, '');
+    assertValue('x = 1 [ft] == 12 [in]', 1, '');
+    assertValue('b = 6 [in]; c = b > 0.5 [ft]', 0, ''); // 6 in IS 0.5 ft — not greater
+    assertValue('x = 200 [MPa] > 20 [ksi]', 1, ''); // compound, through the SI base
+    assertValue('t = 20 [C] > 50 [F]', 1, ''); // affine: 50 °F is 10 °C
+  });
+
+  await t.step('a different kind of unit is still an error', () => {
+    assertError('b = 6 [in]; c = b > 8 [kg]', /Unit mismatch: in ≠ kg/);
+    assertError('x = 1 [lbf] > 1 [lbm]', /Unit mismatch/); // force is not mass
+  });
+
+  await t.step('a comparison against a bare number is refused', () => {
+    // `b > 8` where b is in inches is not a check — it is 6 against 8. Addition still allows a
+    // bare operand (`1 [ft] + 1`), because that has always meant 2 ft.
     assertError('b = 6 [in]; c = b > 8', /Unit mismatch: in ≠ no unit/);
     assertError('b = 6 [in]; c = b < 8', /Unit mismatch/);
-    assertError('b = 6 [in]; c = b > 8 [kg]', /Unit mismatch: in ≠ kg/);
-    assertError('x = 1 [ft] == 12 [in]', /Unit mismatch: ft ≠ in/);
-    assertError('x = 1 [ft] > 1 [in]', /same unit/);
   });
 
   await t.step('a literal zero carries no dimension, so it compares against anything', () => {

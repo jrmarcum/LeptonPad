@@ -970,3 +970,52 @@ export const UNIT_LOOKUP: ReadonlyMap<string, UnitDef> = (() => {
   }
   return m;
 })();
+
+/** Unit id → the category it belongs to. First category wins, as in UNIT_LOOKUP. */
+export const UNIT_CATEGORY_OF: ReadonlyMap<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const cat of Object.values(UNIT_CATEGORIES)) {
+    for (const u of cat.units) {
+      if (!m.has(u.id)) m.set(u.id, cat.id);
+    }
+  }
+  return m;
+})();
+
+/**
+ * The dimensional signature of each category, in primitive dimensions:
+ * **L** length, **M** mass, **T** time, **F** force, **K** temperature, **A** angle.
+ *
+ * This is what makes "are these the same kind of quantity?" answerable — `ft` and `in` are both
+ * {L:1} and so convert; `ft` and `kg` do not. Two categories may legitimately share a signature
+ * (energy and torque are both F·L, as J and N·m are), and converting between them is valid.
+ *
+ * **Force is primitive rather than M·L·T⁻²** because the catalog treats N and kg as independent
+ * base units. That is deliberate: it keeps `lbf` and `lbm` from silently converting into each
+ * other, which on a structural calculation is the difference that matters.
+ */
+export const CATEGORY_DIMENSION: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  length: { L: 1 },
+  area: { L: 2 },
+  volume: { L: 3 },
+  mass: { M: 1 },
+  time: { T: 1 },
+  temperature: { K: 1 },
+  force: { F: 1 },
+  forcePerUnitLength: { F: 1, L: -1 },
+  pressure: { F: 1, L: -2 },
+  energy: { F: 1, L: 1 },
+  power: { F: 1, L: 1, T: -1 },
+  velocity: { L: 1, T: -1 },
+  acceleration: { L: 1, T: -2 },
+  angle: { A: 1 },
+  momentum: { M: 1, L: 1, T: -1 },
+  angular_momentum: { M: 1, L: 2, T: -1 },
+  angular_acceleration: { A: 1, T: -2 },
+  torque: { F: 1, L: 1 },
+  density: { M: 1, L: -3 },
+  area_moi: { L: 4 },
+  mass_moi: { M: 1, L: 2 },
+  section_modulus: { L: 3 },
+  warping_constant: { L: 6 },
+};
