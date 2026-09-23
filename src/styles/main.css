@@ -824,17 +824,15 @@ main {
   align-items: flex-start;
   gap: 0;
   padding-left: calc(var(--depth, 0) * 16px);
-  /* Line spacing (1 / 1.5 / 2, Word-style). The row's own --row-space wins; otherwise it follows
-     the block's --block-line-space; 1 means "no extra", leaving the 2px flex gap alone. The extra
-     is a margin rather than a larger gap because a flex gap is uniform and cannot vary per row.
-     It scales with --math-text-scale so spacing stays proportional at every text size. */
-  margin-bottom: calc(
-    (var(--row-space, var(--block-line-space, 1)) - 1) * 0.8rem * var(--math-text-scale)
-  );
-}
-.formula-rows > .formula-row:last-child,
-.formula-block-inner > .formula-row:last-child {
-  margin-bottom: 0; /* no trailing gap at the foot of a block or an if/for body */
+  /* Line spacing (1 / 1.5 / 2, Word-style). Each row carries its OWN spacing in --row-space and
+     nothing else feeds it — the block-level control works by stamping its value into every row,
+     so there is exactly one source of truth and no block-vs-row cascade to reason about.
+     Not a flex `gap`: a gap is uniform and cannot vary row by row.
+     Split HALF ABOVE and HALF BELOW so the extra space belongs to this row, the way a taller line
+     does in Word. As a bottom margin it read as a gap donated to the row underneath, which made a
+     row's setting look like it applied to its neighbour (both reported 2026-09-23).
+     Scales with --math-text-scale so spacing stays proportional at every text size. */
+  padding-block: calc((var(--row-space, 1) - 1) * 0.4rem * var(--math-text-scale));
 }
 
 /* Control-flow rows align with the formula column when per-row desc column is present */

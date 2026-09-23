@@ -55,7 +55,8 @@ export function parseFormulaRows(content: string): FormulaRow[] {
         const row: FormulaRow = { e: String(r.e ?? ''), d: String(r.d ?? '') };
         if (r.type) row.type = r.type as FormulaRow['type'];
         if (r.ref) row.ref = String(r.ref);
-        if (Number(r.sp) > 1) row.sp = Number(r.sp); // 1 is the default — never stored
+        // >= 1, not > 1: an explicit `sp: 1` is how a row says "single, regardless of the block".
+        if (Number(r.sp) >= 1) row.sp = Number(r.sp);
         return row;
       });
     }
@@ -555,9 +556,8 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       const d = depths[i] ?? 0;
       row.style.setProperty('--depth', String(d));
 
-      // Line spacing: the row's own setting wins, otherwise the row inherits the block's
-      // --block-line-space (set in canvas.addBlock). Only the extra space is applied, as a
-      // bottom margin — a flex `gap` is uniform and so cannot vary row by row.
+      // Line spacing is the row's own property. The block-level control stamps its value into
+      // every row rather than cascading, so this is the only thing the CSS reads.
       if (rowDatum.sp && rowDatum.sp !== 1) {
         row.style.setProperty('--row-space', String(rowDatum.sp));
       }
@@ -996,21 +996,38 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       return { rowType, hasIf, hasElse, canDelBranch };
     },
 
-    /** This row's own line spacing, or 0 when it simply follows the block. */
+    /** This row's line spacing; 1 (single) when it has never been set. */
     getRowSpacing: (rowEl: HTMLElement | null): number => {
-      if (!rowEl) return 0;
+      if (!rowEl) return 1;
       const arr = parseFormulaRows(block.content);
-      return arr[getRowIdx(rowEl)]?.sp ?? 0;
+      return arr[getRowIdx(rowEl)]?.sp ?? 1;
     },
 
-    /** Set (or with 1, clear) this row's line spacing. Rebuilds so the row picks up the change. */
+    /** Set this row's line spacing. 1 is stored explicitly so a row can be single inside a
+     *  block that was set to 1.5 or 2 — deleting it instead made 1 unreachable per row. */
     setRowSpacing: (rowEl: HTMLElement | null, sp: number) => {
       if (!rowEl) return;
       const arr = parseFormulaRows(block.content);
       const idx = getRowIdx(rowEl);
       if (idx < 0 || !arr[idx]) return;
-      if (sp > 1) arr[idx].sp = sp;
-      else delete arr[idx].sp; // back to following the block — never store a redundant 1
+      arr[idx].sp = sp;
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /** The spacing every row shares, or 0 when they differ — so the menu can show "mixed". */
+    getUniformSpacing: (): number => {
+      const arr = parseFormulaRows(block.content);
+      if (arr.length === 0) return 1;
+      const first = arr[0].sp ?? 1;
+      return arr.every((r) => (r.sp ?? 1) === first) ? first : 0;
+    },
+
+    /** The block-level control: overwrite EVERY row's spacing with this value. */
+    setAllRowSpacing: (sp: number) => {
+      const arr = parseFormulaRows(block.content);
+      for (const r of arr) r.sp = sp;
       block.content = JSON.stringify(arr);
       rebuildRows();
       reEvalAllFormulas();

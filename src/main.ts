@@ -1520,23 +1520,28 @@ async function start() {
       });
       group.appendChild(btnRow);
       ctxMenu.insertBefore(group, ctxSaveToolBtn);
-      // `current` of 0 means "no setting of its own" — show it as following the block, i.e. 1.0.
+      // `current` of 0 means the rows disagree — mark nothing rather than claim a shared value.
       const mark = (current: number) =>
-        btns.forEach((b, i) => b.classList.toggle('active', SPACINGS[i] === (current || 1)));
+        btns.forEach((b, i) => b.classList.toggle('active', SPACINGS[i] === current));
       return { group, mark };
     };
 
     const rowSpacing = mkSpacingGroup('Line spacing (this row)', (v) => {
       ctxFormulaActions?.setRowSpacing(ctxFormulaRowEl, v);
     });
-    const blockSpacing = mkSpacingGroup('Line spacing (block)', (v) => {
+    const blockSpacing = mkSpacingGroup('Line spacing (whole block)', (v) => {
       // Apply to every selected block when there is a multi-selection, else just the target.
       const els = selectedEls.size > 1 ? [...selectedEls] : ctxTarget ? [ctxTarget] : [];
       for (const el of els) {
         const b = state.blocks.find((bl) => bl.id === el.id);
         if (!b) continue;
         b.lineSpacing = v;
-        applyBlockLineSpacing(el, b);
+        // Formula and summary blocks keep spacing on their rows, so overwrite every row rather
+        // than relying on a cascade — the block control is "set all rows", nothing subtler.
+        // deno-lint-ignore no-explicit-any
+        const acts = (el.querySelector('.formula-rows') as any)?._formulaCtxActions;
+        if (acts) acts.setAllRowSpacing(v);
+        else applyBlockLineSpacing(el, b); // text blocks have no rows — the variable drives them
       }
     });
 
@@ -1701,8 +1706,12 @@ async function start() {
       if (onRow) {
         rowSpacing.mark(actions.getRowSpacing(rowEl));
       } else {
+        // Rows hold the truth, so report what they actually say: mark a value only when every row
+        // agrees, otherwise mark none rather than claiming a setting the block does not have.
+        // deno-lint-ignore no-explicit-any
+        const acts = (target.querySelector('.formula-rows') as any)?._formulaCtxActions;
         const b = state.blocks.find((bl) => bl.id === target.id);
-        blockSpacing.mark(b?.lineSpacing ?? 1);
+        blockSpacing.mark(acts ? acts.getUniformSpacing() : (b?.lineSpacing ?? 1));
       }
 
       ctxMenu.style.left = `${e.clientX}px`;
