@@ -349,7 +349,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         symbol: 'J',
         factor: 1,
         system: 'metric',
-        baseUnits: { N: 1, m: 1 },
       },
       {
         id: 'kJ',
@@ -357,7 +356,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         symbol: 'kJ',
         factor: 1e3,
         system: 'metric',
-        baseUnits: { kN: 1, m: 1 },
       },
       {
         id: 'MJ',
@@ -365,7 +363,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         symbol: 'MJ',
         factor: 1e6,
         system: 'metric',
-        baseUnits: { MN: 1, m: 1 },
       },
       { id: 'kWh', label: 'Kilowatt-hours', symbol: 'kWh', factor: 3.6e6, system: 'metric' },
       { id: 'cal', label: 'Calories', symbol: 'cal', factor: 4.184, system: 'metric' },
@@ -419,7 +416,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         symbol: 'W',
         factor: 1,
         system: 'metric',
-        baseUnits: { N: 1, m: 1, s: -1 },
       },
       {
         id: 'kW',
@@ -427,7 +423,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         symbol: 'kW',
         factor: 1e3,
         system: 'metric',
-        baseUnits: { kN: 1, m: 1, s: -1 },
       },
       {
         id: 'MW',
@@ -435,7 +430,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         symbol: 'MW',
         factor: 1e6,
         system: 'metric',
-        baseUnits: { MN: 1, m: 1, s: -1 },
       },
       { id: 'hp', label: 'Horsepower', symbol: 'hp', factor: 745.69987158227, system: 'english' },
       {

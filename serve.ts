@@ -2,11 +2,18 @@ import { serveDir } from 'jsr:@std/http@1/file-server';
 
 const port = 5173;
 
+// The live-reload client is injected into the response, never written back to dist/index.html.
+// It used to be persisted to disk, which meant any dist/ that had been served once carried a
+// dev-only EventSource into production, where it hammers an endpoint that does not exist.
+// Serving it from memory keeps dist/ exactly as `deno task build` produced it.
 const sseSnippet = `  <script>new EventSource('/__sse');</script>\n  </body>`;
-const indexHtml = await Deno.readTextFile('dist/index.html');
-if (!indexHtml.includes('/__sse')) {
-  await Deno.writeTextFile('dist/index.html', indexHtml.replace('</body>', sseSnippet));
-}
+const rawIndex = await Deno.readTextFile('dist/index.html');
+const devIndex = rawIndex.includes('/__sse')
+  ? rawIndex // already injected by an older build — serve as-is rather than double-inject
+  : rawIndex.replace('</body>', sseSnippet);
+
+/** The paths that must be answered with the injected HTML rather than the file on disk. */
+const isIndexPath = (p: string) => p === '/' || p === '/index.html';
 
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -36,6 +43,16 @@ Deno.serve(
         }),
         { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } },
       );
+    }
+
+    if (isIndexPath(pathname)) {
+      return new Response(devIndex, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          // Matches dev.ts: without it the browser serves a stale shell across restarts.
+          'Cache-Control': 'no-store',
+        },
+      });
     }
 
     return serveDir(req, { fsRoot: 'dist', quiet: true });

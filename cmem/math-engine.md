@@ -79,21 +79,40 @@ the tag for the parser to bind to the `8`, which is what the user wrote.
 
 **Side effect (expected, correct, do not "fix"):** intermediate results display the **expanded** form
 — `kip/in²`, not `ksi`. Users see this and it is right. Units that expand: `psi`, `ksi`, `psf`, `ksf`,
-`Pa`, `kPa`, `MPa`, `GPa`, `J`, `kJ`, `MJ`, `W`, `kW`, `MW`, plus the torque, velocity, acceleration,
-density, and momentum compound ids.
+`Pa`, `kPa`, `MPa`, `GPa`, plus the torque, velocity, acceleration, density and momentum compound
+ids.
 
 `baseUnits` is only defined when `1 [unit] = 1 [product of base units]` **exactly**, so expansion
 never changes the numeric value — only the bookkeeping.
 
+### `J` and `W` deliberately do NOT expand (2026-09-23, v2.3.30)
+
+They used to, so `5 [J]` displayed as `5 m·N` and `[[W]]` produced `m·N/s`. Jon: _"I do not want to
+render J as m*N or N*m. If the user wants the J unit that is what needs to display."_ Their
+`baseUnits` were removed, which also made them consistent with `kWh`, `cal`, `BTU` and `hp` — named
+units in the same two categories that never had a decomposition.
+
+**This is safe now in a way it would not have been before `CATEGORY_DIMENSION` existed.** Expansion
+used to be the *only* mechanism that let one category's units interoperate with another's;
+`dimensionOf` supplies that directly, so `[J] ↔ [N-m]`, `[J] ↔ [kJ]`, `[J] ↔ [BTU]` and
+`E / (2 [s]) [[W]]` all still convert. What changes is only what is *displayed* when nothing is
+converted: `5 [J]` stays `5 J`, and `E / (2 [s])` reads `J/s` rather than collapsing to `W`.
+
+**The reason pressure still expands:** `E * I` must cancel to `kip·in²` rather than accumulate
+`ksi·in⁴`, which is a genuine cancellation inside one expression. Energy and power are normally
+written, not derived, so there is nothing to cancel. Note that `N·m` is **both** torque and energy,
+so a display-time re-collapse could never tell them apart — which is why the fix is to stop
+expanding rather than to expand and then reverse it.
+
 ## `[unit]` vs `[[targetUnit]]` — the syntax users care about
 
-| Syntax                   | Effect                                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------- |
-| `x = 150 [mm]`           | **Declares** the unit — the result was a plain number, so it takes the tag.                     |
+| Syntax                    | Effect                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------- |
+| `x = 150 [mm]`            | **Declares** the unit — the result was a plain number, so it takes the tag.                    |
 | `l = 12 [ft]; x = l [in]` | **Converts** to 144 in since 2.3.29. It used to relabel: the unit changed, the number did not. |
-| `x = F [kN] [[lbf]]`     | **Converts** the result to `lbf`. `x` is then stored in `lbf` for everything downstream.        |
-| `x = 5 [kip] [[in]]`     | **Error** since 2.3.26 — the kinds differ. It used to report `875634 in`.                       |
-| `delta(x) = expr [[in]]` | Function definition — the conversion is applied **on every call**, not at definition time.      |
+| `x = F [kN] [[lbf]]`      | **Converts** the result to `lbf`. `x` is then stored in `lbf` for everything downstream.       |
+| `x = 5 [kip] [[in]]`      | **Error** since 2.3.26 — the kinds differ. It used to report `875634 in`.                      |
+| `delta(x) = expr [[in]]`  | Function definition — the conversion is applied **on every call**, not at definition time.     |
 
 ### Inline `[unit]` tags (v2.2.3, 2026-09-21)
 

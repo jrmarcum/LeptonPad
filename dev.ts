@@ -32,12 +32,14 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request)));`,
 );
 
-// Inject SSE close-detection client into dist/index.html (dev-only, not in source)
-const indexHtml = await Deno.readTextFile('dist/index.html');
-await Deno.writeTextFile(
-  'dist/index.html',
-  indexHtml.replace('</body>', `  <script>new EventSource('/__dev_sse');</script>\n  </body>`),
-);
+// SSE close-detection client — injected into the RESPONSE, never written back to dist/index.html.
+// Writing it to disk left a dev-only EventSource in dist/, which a build would normally overwrite
+// but which would ship if anyone published a dist/ that had only been through `dev`.
+const devIndex = (await Deno.readTextFile('dist/index.html'))
+  .replace('</body>', `  <script>new EventSource('/__dev_sse');</script>\n  </body>`);
+
+/** The paths that must be answered with the injected HTML rather than the file on disk. */
+const isIndexPath = (p: string) => p === '/' || p === '/index.html';
 
 // CSS hot-copy watcher
 (async () => {
@@ -99,6 +101,15 @@ Deno.serve(
         }),
         { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } },
       );
+    }
+
+    if (isIndexPath(pathname)) {
+      return new Response(devIndex, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      });
     }
 
     const res = await serveDir(req, { fsRoot: 'dist', quiet: true });

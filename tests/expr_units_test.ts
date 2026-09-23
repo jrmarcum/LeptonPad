@@ -140,9 +140,17 @@ Deno.test('[[targetUnit]] conversion', async (t) => {
   await t.step('mass, energy and force units are all present', () => {
     assertValue('m = 10 [lbm] [[kg]]', 4.5359237, 'kg', 1e-7);
     assertValue('m = 1 [kg] [[lbm]]', 2.2046226218, 'lbm', 1e-8);
-    // J and kJ are compound ids, so they expand on display — 1 J reads as `m·N`, not `J`.
+    // A named unit displays as itself: J is J, not `m·N` (2.3.30). It still converts freely,
+    // including across to the torque category, because both are F·L.
+    assertValue('E = 5 [J]', 5, 'J');
     assertValue('E = 1 [J] [[N-m]]', 1, 'm·N');
-    assertValue('E = 1000 [J] [[kJ]]', 1, 'kN·m');
+    assertValue('E = 1000 [J] [[kJ]]', 1, 'kJ');
+    assertValue('E = 1 [kN-m] [[kJ]]', 1, 'kJ');
+    assertValue('E = 1 [BTU] [[J]]', 1055.05585262, 'J', 1e-6);
+    assertValue('E = 1 [J] + 1 [N-m]', 2, 'J');
+    assertValue('P = 5 [W]', 5, 'W');
+    assertValue('P = 1 [hp] [[W]]', 745.69987158227, 'W', 1e-8);
+    assertValue('E = 5 [J]; P = E / (2 [s]) [[W]]', 2.5, 'W');
   });
 });
 
