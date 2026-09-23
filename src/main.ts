@@ -870,11 +870,13 @@ function renderSidebar() {
 
   const marginGrid = document.createElement('div');
   marginGrid.className = 'margin-inputs';
+  // Left, Right, Top, Bottom — the order Jon asked for (2026-09-23). The ids and `side` keys are
+  // unchanged, so nothing that reads a margin by name is affected; this is display order only.
   const marginDefs: { id: string; label: string; side: keyof typeof margins }[] = [
-    { id: 'margin-top', label: 'Top', side: 'top' },
-    { id: 'margin-right', label: 'Right', side: 'right' },
-    { id: 'margin-bottom', label: 'Bottom', side: 'bottom' },
     { id: 'margin-left', label: 'Left', side: 'left' },
+    { id: 'margin-right', label: 'Right', side: 'right' },
+    { id: 'margin-top', label: 'Top', side: 'top' },
+    { id: 'margin-bottom', label: 'Bottom', side: 'bottom' },
   ];
   for (const def of marginDefs) {
     const wrap = document.createElement('label');
