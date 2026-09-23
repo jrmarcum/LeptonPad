@@ -206,6 +206,12 @@ table rather than guessing.
 | `integral(w(x), x, 0, L)`       | ∫ from 0 to L of w(x) dx   | total load, e.g. kip |
 | `integral(w(x)*x, x, 0, L) / W` | stacked fraction           | centroid location    |
 
+**Solving an equation** — `findroot(expr, x, lo, hi)` finds the x between `lo` and `hi` where `expr`
+is zero. Write an equation as its difference, so "capacity = demand" is
+`findroot(f(c) - P_u, c, 0 [in], 7.5 [in])`. The range must contain a sign change, which is what
+guarantees a root; if it doesn't, you get an error rather than a wrong answer. x carries the unit of
+the bounds, so the answer comes back in inches, degrees or whatever you searched in.
+
 - `sum`/`prod` step the index by 1 over whole-number limits; an empty range gives 0 (sum) or 1 (prod).
 - `integral` is numerical (adaptive Simpson's rule, ~10 significant figures for smooth functions).
   Units follow the math — a kip/ft load integrated over ft gives kip. The integrand must be finite

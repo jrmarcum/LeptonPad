@@ -215,6 +215,22 @@ bound variable added to scope — the only lazily-evaluated argument in the lang
 - Tested (script, 2026-09-22): Σi² = 385, 5! = 120, ∫sin 0…π = 2, ∫e^(−x²) = √π to 11 digits,
   triangular load W = 20 kip / centroid 2L/3, nested sums, sums inside `for` loops.
 
+### findroot (v2.3.15, 2026-09-23)
+
+`findroot(expr, x, lo, hi)` joins `BIG_OPS`, so it reuses `Parser.bigOp()`'s lazily captured first
+argument — the expression is re-parsed at each trial x. **Bisection**, deliberately: it cannot
+diverge, needs no derivative, and a capacity curve is exactly the shape Newton mishandles. 200
+halvings to `1e-14 ×` scale, a 1000-evaluation ceiling, and an endpoint hit returns exactly.
+
+- Solves `expr = 0`; an equation goes in as its difference (`f(c) - P_u`).
+- **A sign change across the bracket is required** — that is the guarantee of a root. No sign change
+  is an error naming which way both ends lean, never a silently returned endpoint.
+- x carries the bounds' unit (`0 [in] … 7.5 [in]` → answer in inches, `0 [deg] … 90 [deg]` → degrees);
+  the expression's own unit only has to stay consistent, checked like `integrate`.
+- Verified 2026-09-23: x²−4 → ±2, cos x − x → 0.739085, e^x−5 → ln 5, x³−2x−5 → 2.09455, sin x → π,
+  a capacity curve solved on both sides of its peak (5 in and 10 in, `f(c1)` back to 100 kip), and
+  `sin(t) − 0.5` over `0 [deg] … 90 [deg]` → 30 deg.
+
 ### Sheet-practical functions (v2.3.13, 2026-09-23)
 
 From a review of what a real structural sheet reaches for; Jon picked these four, then root finding.

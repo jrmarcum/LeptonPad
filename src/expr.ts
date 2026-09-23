@@ -10,6 +10,7 @@ import { ANGLE_UNITS, UNIT_LOOKUP } from './utils/unit-defs.ts';
 //                              (log = ln = natural log; log10 for base 10)
 // Built-in functions (2-arg): min max atan2 mod hypot pow and or xor log(x, base)
 // Big operators (4-arg)      : sum(expr, i, a, b)  prod(expr, i, a, b)  integral(expr, x, a, b)
+//                              findroot(expr, x, lo, hi) — solves expr = 0 by bisection
 // Built-in functions (3-arg): if(cond, then, else)
 //                              clamp(x, min, max)
 // Statistical/combinatorial  : factorial(n)  gamma(n)  lgamma(n)  erf(x)  erfc(x)
@@ -228,6 +229,65 @@ function matMul(a: Quantity, b: Quantity): Quantity {
     rows.push(row);
   }
   return ar === 1 && bc === 1 ? rows[0][0] : matrixOf(rows);
+}
+
+/**
+ * findroot(expr, x, lo, hi) — the x in [lo, hi] where `expr` is zero, by bisection.
+ *
+ * Written as "something = 0", so an equation goes in as its difference:
+ * `findroot(P_n(c) - P_u, c, 0 [in], 12 [in])`. The bracket must actually contain a sign change —
+ * that is what guarantees a root — and if it does not, that is an error rather than a returned
+ * endpoint. Bisection is slower than Newton but cannot diverge and needs no derivative, which suits
+ * capacity curves and neutral-axis depths.
+ *
+ * x carries the unit of the bounds; the expression's own unit only has to stay consistent.
+ */
+function findRoot(at: (q: Quantity) => Quantity, lo: Quantity, hi: Quantity): Quantity {
+  const xu = addU(lo.u, hi.u); // the bounds must share a unit
+  let fu: UnitMap = {};
+  let evals = 0;
+  const f = (x: number): number => {
+    if (++evals > 1000) throw new Error('findroot(): gave up before converging');
+    const q = noMatrix(at({ v: x, u: xu }), 'findroot()');
+    if (!isFinite(q.v)) throw new Error(`findroot(): the expression is not finite at ${x}`);
+    if (Object.keys(q.u).length > 0) {
+      if (Object.keys(fu).length === 0) fu = q.u;
+      else if (!eqU(fu, q.u)) {
+        throw new Error(
+          `findroot(): the expression's unit changes (${formatUnit(fu)} ≠ ${formatUnit(q.u)})`,
+        );
+      }
+    }
+    return q.v;
+  };
+
+  let a = lo.v, b = hi.v;
+  if (a === b) throw new Error('findroot(): the two bounds are the same');
+  if (a > b) [a, b] = [b, a];
+  let fa = f(a);
+  const fbEnd = f(b);
+  if (fa === 0) return { v: a, u: xu };
+  if (fbEnd === 0) return { v: b, u: xu };
+  if (fa > 0 === fbEnd > 0) {
+    throw new Error(
+      `findroot(): the expression does not change sign between ${a} and ${b} ` +
+        `(it is ${fa > 0 ? 'positive' : 'negative'} at both ends) — widen the range or check it`,
+    );
+  }
+
+  const scale = Math.max(Math.abs(a), Math.abs(b), 1);
+  for (let i = 0; i < 200 && b - a > 1e-14 * scale; i++) {
+    const m = (a + b) / 2;
+    const fmid = f(m);
+    if (fmid === 0) return { v: m, u: xu };
+    if (fa > 0 === fmid > 0) {
+      a = m;
+      fa = fmid;
+    } else {
+      b = m;
+    }
+  }
+  return { v: (a + b) / 2, u: xu };
 }
 
 /**
@@ -1014,7 +1074,7 @@ const CMP_OPS: TT[] = ['EQ', 'NEQ', 'LT', 'GT', 'LEQ', 'GEQ'];
 // ---------------------------------------------------------------------------
 // `at(q)` evaluates the captured expression with the bound variable set to q (see Parser.bigOp).
 
-const BIG_OPS = new Set(['sum', 'prod', 'integral']);
+const BIG_OPS = new Set(['sum', 'prod', 'integral', 'findroot']);
 const MAX_TERMS = 100_000; // sum/prod term cap — evaluation runs on every keystroke
 const MAX_INTEGRAND_EVALS = 200_000;
 
@@ -1183,7 +1243,9 @@ class Parser {
       if (p.peek().t !== 'EOF') throw new Error(`${name}(): unexpected input in the expression`);
       return noMatrix(r, `${name}()`);
     };
-    return name === 'integral' ? integrate(at, lo, hi) : sumOrProd(name, at, lo, hi);
+    if (name === 'integral') return integrate(at, lo, hi);
+    if (name === 'findroot') return findRoot(at, lo, hi);
+    return sumOrProd(name, at, lo, hi);
   }
 
   /**
