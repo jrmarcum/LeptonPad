@@ -121,10 +121,17 @@ focus. Line spacing (1 / 1.5 / 2) is on the right-click menu — per row, or per
 | `x = F [kN] [[lbf]]`      | Converts the result to `lbf`; `x` is stored in `lbf` for downstream use |
 | `delta(x) = expr [[in]]`  | Function definition — output is converted to `in` on every call         |
 
-When a statement has a **single** `[unit]` tag at the very end, it labels the whole result (so
-`A = b*h [mm^2]` means the result is in mm²). When a statement has **several** tags, every tag —
-including the last — applies only to the term right before it. `[[targetUnit]]` conversion must be
-the last thing on the line.
+When a statement has a **single** `[unit]` tag at the very end it applies to the whole result, and
+what it does depends on what the result already is:
+
+- **A plain number → it declares.** `A = b*h [mm^2]` with `b` and `h` unitless means mm².
+- **Already has a unit → it converts.** `l = 12 [ft]` then `x = l [in]` gives **144 in**.
+
+Because that is a real conversion it is checked: `L * 12 [in/ft]` (meaning to cancel the ft) is an
+error rather than a silent `300 in/ft`. Write `L * (12 [in/ft])` so the tag binds to the 12.
+
+When a statement has **several** tags, every tag — including the last — applies only to the term
+right before it. `[[targetUnit]]` conversion must be the last thing on the line.
 
 ### Mixing units in one expression
 

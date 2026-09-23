@@ -89,7 +89,8 @@ never changes the numeric value — only the bookkeeping.
 
 | Syntax                   | Effect                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
-| `x = 150 [mm]`           | **Declares** the unit. No numeric conversion; labels the result and feeds dimensional analysis. |
+| `x = 150 [mm]`           | **Declares** the unit — the result was a plain number, so it takes the tag.                     |
+| `l = 12 [ft]; x = l [in]` | **Converts** to 144 in since 2.3.29. It used to relabel: the unit changed, the number did not. |
 | `x = F [kN] [[lbf]]`     | **Converts** the result to `lbf`. `x` is then stored in `lbf` for everything downstream.        |
 | `x = 5 [kip] [[in]]`     | **Error** since 2.3.26 — the kinds differ. It used to report `875634 in`.                       |
 | `delta(x) = expr [[in]]` | Function definition — the conversion is applied **on every call**, not at definition time.      |
@@ -107,9 +108,10 @@ failed. Now:
 - **Backward-compat rule:** `evalStatements` strips the trailing tag as a whole-result override **only
   when it is the sole tag** (`!stmt.slice(0, idx).includes('[')`). With several tags, all stay inline.
   `prettifyExpr` applies the identical rule so display and evaluation agree.
-- ⚠️ **Accepted legacy trap:** a single trailing tag still relabels without converting —
-  `d_bolt [in] + 1 [mm]` written as `d_bolt + 1 [mm]` gives `1.75 mm`. Changing it would change every
-  existing `A = b*h [mm^2]` sheet, so it was left; `addU` stays strict for the inline form.
+- ✅ **The relabel trap is gone (2.3.29).** A single trailing tag used to relabel without
+  converting, so `d_bolt + 1 [mm]` with `d_bolt` in inches gave `1.75 mm`. It now **declares only
+  when the result is dimensionless and converts otherwise** — which leaves every existing
+  `A = b*h [mm^2]` sheet alone, because that is the dimensionless case. See the section above.
 
 ### Greek letters and `\sqrt` — the display-only backslash (v2.2.5, 2026-09-21)
 

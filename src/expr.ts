@@ -1720,7 +1720,17 @@ function applyStatementUnits(q: Quantity, tag?: UnitMap, target?: UnitMap): Quan
         'put the unit next to its number, e.g. Km / (2 [in])',
     );
   }
-  if (tag !== undefined) q = mapQ(q, (x) => ({ v: x.v, u: tag }));
+  // A trailing tag DECLARES when the result is a plain number and CONVERTS when it already has a
+  // unit. Until 2.3.29 it always relabelled: `l = 12 [ft]; x = l [in]` reported "12 in" — the unit
+  // changed and the number did not. Declaring is still what `x = 150 [mm]` and `A = b*h [mm^2]`
+  // need, and that is exactly the dimensionless case. Converting is kind-checked like any other,
+  // so `L * 12 [in/ft]` now says so instead of quietly producing "300 in/ft".
+  if (tag !== undefined) {
+    q = mapQ(
+      q,
+      (x) => Object.keys(cleanU(x.u)).length === 0 ? { v: x.v, u: tag } : applyTargetUnit(x, tag),
+    );
+  }
   if (target !== undefined) q = applyTargetUnit(noMatrix(q, 'Unit conversion [[…]]'), target);
   return q;
 }

@@ -5,7 +5,15 @@
 // stamps. Every case below is a rule the engine is expected to hold; several are bugs that were
 // found in the browser and must never come back.
 
-import { assertEquals, assertError, assertMatch, assertValue, last, rows } from './_helpers.ts';
+import {
+  assertEquals,
+  assertError,
+  assertMatch,
+  assertValue,
+  last,
+  matrixText,
+  rows,
+} from './_helpers.ts';
 import type { Scope } from '../src/expr.ts';
 
 Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => {
@@ -13,8 +21,23 @@ Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => 
     assertValue('b = 150 [mm]', 150, 'mm');
   });
 
-  await t.step('a single trailing tag labels the whole result', () => {
+  await t.step('a single trailing tag declares when the result is a plain number', () => {
     assertValue('b = 150; h = 300; A = b*h [mm^2]', 45000, 'mm^2');
+    assertValue('x = 150 [mm]', 150, 'mm');
+    // A matrix of plain numbers declares too — every element takes the tag.
+    assertEquals(
+      matrixText('K = {{12, -6}, {-6, 4}} [kip/in]'),
+      '[12 kip/in, -6 kip/in; -6 kip/in, 4 kip/in]',
+    );
+  });
+
+  await t.step('a single trailing tag CONVERTS when the result already has a unit (2.3.29)', () => {
+    // It used to relabel: `l = 12 [ft]; x = l [in]` reported "12 in" — the unit changed and the
+    // number did not. A conversion is kind-checked like any other, so a nonsense one now says so.
+    assertValue('l = 12 [ft]; x = l [in]', 144, 'in');
+    assertValue('m = 5 [kg]; x = m [lbm]', 11.0231131093, 'lbm', 1e-8);
+    assertValue('E = 29000 [ksi]; I = 100 [in^4]; EI = E * I [kip*in^2]', 2900000, 'in^2·kip');
+    assertError('L = 25 [ft]; s = L * 12 [in/ft]', /Can't convert ft to in\/ft/);
   });
 
   await t.step('several tags each apply to their own term (the 2.2.3 fix)', () => {
@@ -302,9 +325,7 @@ Deno.test('functions', async (t) => {
     assertValue('x = if(2 > 1, 5 [kip], 9 [kip])', 5, 'kip');
     assertValue('x = hypot(3, 4)', 5);
     assertValue('x = mod(7, 3)', 1);
-    // CURRENT RULE: a single trailing tag relabels the whole result without converting. Jon has
-    // asked for it to convert instead; this assertion pins today's behaviour so that change is
-    // deliberate and visible in the diff.
+    // sin(1) + 1 is a plain number, so the trailing tag DECLARES — it is not a conversion.
     assertValue('x = sin(1) + 1 [ft]', 1.8414709848, 'ft', 1e-9);
   });
 });
