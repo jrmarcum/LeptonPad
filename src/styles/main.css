@@ -769,6 +769,33 @@ main {
   background: none;
 }
 
+/* A labelled dropdown in the context menu — used where there are too many choices for the
+   side-by-side button rows below (the two dozen unit kinds an input row can require). */
+.ctx-field {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.75rem 0.3rem;
+  font-size: 0.72rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+.ctx-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0.2rem;
+  font: inherit;
+  font-size: 0.72rem;
+  color: #374151;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 3px;
+}
+.ctx-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
 /* Line spacing 1.0 / 1.5 / 2.0 — three side-by-side choices, the current one marked */
 .ctx-spacing-row {
   display: flex;
@@ -1056,6 +1083,89 @@ main {
 .formula-cell sub {
   vertical-align: sub;
   line-height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Author-declared input rows
+
+   The name is the template's, the value is the user's. They read as one line but are two
+   columns: the name column shrinks to its content and sits hard against the value so
+   `P = 10 kip` still scans as a single equation rather than a form.
+   --------------------------------------------------------------------------- */
+/* Any cell that cannot be typed into: the locked NAME of an input row, and every cell of a
+   row locked outright. No hover underline and no text cursor — nothing here responds to a
+   click, so it must not advertise that it might. */
+.formula-cell--locked,
+.formula-cell--readonly {
+  cursor: default;
+  border-bottom-color: transparent;
+}
+.formula-cell--locked:hover,
+.formula-cell--readonly:hover {
+  border-bottom-color: transparent;
+}
+/* An empty locked cell has no placeholder to offer — there is nothing the user can put there. */
+.formula-cell--readonly:empty::before {
+  content: '';
+}
+
+/* The name half of an input row shrinks to its content so `P = 10 kip` reads as one equation. */
+.formula-row--input .formula-cell--locked {
+  flex: 0 0 auto;
+  padding-right: 0;
+}
+.formula-row--input .formula-cell--locked::after {
+  content: ' =';
+  color: #71717a;
+}
+.formula-input-value {
+  flex: 1;
+  min-width: 2.5rem;
+  outline: none;
+  cursor: text;
+  padding: 1px 4px;
+  margin-left: 4px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: break-word;
+  font-family: var(--math-font);
+  font-size: calc(0.8rem * var(--math-text-scale));
+  font-variant-numeric: lining-nums;
+  /* Always editable, and it looks it — a faint well marks the one part of a locked
+     template the reader is meant to fill in. */
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  border-radius: 3px;
+}
+.formula-input-value:focus {
+  font-family: 'Courier New', monospace;
+  font-size: 0.74rem;
+  background: #fff;
+  border-color: #3b82f6;
+}
+.formula-input-value:hover:not(:focus) {
+  border-color: #d4d4d8;
+}
+.formula-input-value:empty::before {
+  content: attr(data-placeholder);
+  color: #a1a1aa;
+  font-family: 'Courier New', monospace;
+  font-size: 0.74rem;
+  pointer-events: none;
+}
+.formula-input-value--bad {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+/* On a printed sheet an input is just a number: the well and its border are screen
+   affordances and would read as a form field on a stamped calculation. */
+@media print {
+  .formula-input-value {
+    background: none;
+    border-color: transparent;
+    padding-left: 0;
+  }
 }
 
 /* Stacked fraction: numerator over denominator with a rule line */

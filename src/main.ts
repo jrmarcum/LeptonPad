@@ -17,6 +17,7 @@ import {
   verifySecondFactor,
 } from './auth.ts';
 import { accessSummary, showRedeemCodeDialog } from './license.ts';
+import { INPUT_UNIT_KINDS } from './expr.ts';
 import {
   GRID_SIZE,
   PAGE_SIZES,
@@ -1483,6 +1484,8 @@ async function start() {
     const ctxAddForBtn = document.createElement('button');
     const ctxAddDescBtn = document.createElement('button');
     const ctxAddRefBtn = document.createElement('button');
+    const ctxInputBtn = document.createElement('button');
+    const ctxLockRowBtn = document.createElement('button');
     const ctxDelBranchBtn = document.createElement('button');
     const ctxDelRowBtn = document.createElement('button');
 
@@ -1500,6 +1503,10 @@ async function start() {
     ctxAddDescBtn.textContent = '+ description';
     ctxAddRefBtn.className = 'ctx-neutral-btn';
     ctxAddRefBtn.textContent = '+ reference';
+    ctxInputBtn.className = 'ctx-neutral-btn';
+    ctxInputBtn.textContent = '⌨ make input row';
+    ctxLockRowBtn.className = 'ctx-neutral-btn';
+    ctxLockRowBtn.textContent = '🔒 lock row';
     ctxDelBranchBtn.textContent = '× branch';
     ctxDelRowBtn.textContent = '× delete row';
 
@@ -1510,6 +1517,9 @@ async function start() {
     ctxAddForBtn.title = 'Insert for/end block after this row (Ctrl+L)';
     ctxAddDescBtn.title = 'Add a text description to this row (left column)';
     ctxAddRefBtn.title = 'Add a reference annotation to this row (right column)';
+    ctxInputBtn.title =
+      'Let the reader enter this value: the name is locked, only the value can be changed';
+    ctxLockRowBtn.title = 'Protect this row from accidental edits';
     ctxDelBranchBtn.title = 'Delete this branch (elseif/else/for) and its body (Ctrl+-)';
     ctxDelRowBtn.title = 'Delete this row or block (Ctrl+-)';
 
@@ -1521,9 +1531,36 @@ async function start() {
       ctxAddForBtn,
       ctxAddDescBtn,
       ctxAddRefBtn,
+      ctxInputBtn,
+      ctxLockRowBtn,
       ctxDelBranchBtn,
       ctxDelRowBtn,
     ].forEach((b) => ctxFormulaGroup.appendChild(b));
+
+    // Required unit kind for an input row. A dropdown rather than the button rows used for
+    // spacing and precision: there are two dozen kinds, and a menu that long stops being a menu.
+    const ctxInputKindWrap = document.createElement('label');
+    ctxInputKindWrap.className = 'ctx-field';
+    ctxInputKindWrap.textContent = 'Requires ';
+    const ctxInputKind = document.createElement('select');
+    ctxInputKind.className = 'ctx-select';
+    const anyOpt = document.createElement('option');
+    anyOpt.value = '';
+    anyOpt.textContent = 'any unit';
+    ctxInputKind.appendChild(anyOpt);
+    for (const kind of INPUT_UNIT_KINDS) {
+      const o = document.createElement('option');
+      o.value = kind;
+      o.textContent = kind.replace(/_/g, ' ');
+      ctxInputKind.appendChild(o);
+    }
+    ctxInputKindWrap.appendChild(ctxInputKind);
+    ctxFormulaGroup.appendChild(ctxInputKindWrap);
+
+    ctxInputKind.addEventListener('change', () => {
+      ctxFormulaActions?.setRowInputKind(ctxFormulaRowEl, ctxInputKind.value);
+      hideCtxMenu();
+    });
 
     const ctxFormulaSep = document.createElement('hr');
     ctxFormulaSep.className = 'ctx-sep';
@@ -1740,6 +1777,18 @@ async function start() {
       if (ctxFormulaRowEl) ctxFormulaActions?.addDescription(ctxFormulaRowEl);
       hideCtxMenu();
     });
+    ctxInputBtn.addEventListener('click', () => {
+      if (!ctxFormulaRowEl) return;
+      const { isInput } = ctxFormulaActions!.getRowInput(ctxFormulaRowEl);
+      ctxFormulaActions!.setRowInput(ctxFormulaRowEl, !isInput);
+      hideCtxMenu();
+    });
+    ctxLockRowBtn.addEventListener('click', () => {
+      if (!ctxFormulaRowEl) return;
+      const { locked } = ctxFormulaActions!.getRowLock(ctxFormulaRowEl);
+      ctxFormulaActions!.setRowLock(ctxFormulaRowEl, !locked);
+      hideCtxMenu();
+    });
     ctxAddRefBtn.addEventListener('click', () => {
       if (ctxFormulaRowEl) ctxFormulaActions?.addReference(ctxFormulaRowEl);
       hideCtxMenu();
@@ -1778,6 +1827,7 @@ async function start() {
       // deno-lint-ignore no-explicit-any
       const actions = rowsEl ? (rowsEl as any)._formulaCtxActions : null;
 
+      let rowLocked = false;
       if (actions) {
         ctxFormulaRowEl = rowEl;
         ctxFormulaActions = actions;
@@ -1785,6 +1835,14 @@ async function start() {
         const isRegular = actions.isRegularRow(rowEl);
         const hasDesc = actions.hasDescription(rowEl);
         const hasRef = actions.hasReference(rowEl);
+
+        // The menu is one long-lived element, so every item has to be put back each time it
+        // opens. These four are otherwise always visible and so were never reset — until the
+        // lock below started hiding them, at which point they would have stayed hidden for
+        // every row opened afterwards.
+        for (const b of [ctxAddRowBtn, ctxAddIfBtn, ctxAddForBtn, ctxDelRowBtn]) {
+          b.style.display = '';
+        }
 
         // Show/hide add-branch items based on context
         ctxAddElseifBtn.style.display = hasIf ? '' : 'none';
@@ -1812,6 +1870,50 @@ async function start() {
         const typeLabel = rowType ? ` (${rowType})` : '';
         ctxDelRowBtn.title = `Delete this row${typeLabel} (Ctrl+-)`;
 
+        // Input rows. Offered on any named, non-control row the author can still edit; the
+        // unit-kind picker appears only once the row IS an input, since it has nothing to
+        // qualify otherwise.
+        // `canBe` already means "the author may change this", which is false inside a purchased
+        // pack — so an input row shipped in a pack shows no way to un-declare itself.
+        const inputState = actions.getRowInput(rowEl);
+        ctxInputBtn.style.display = inputState.canBe ? '' : 'none';
+        ctxInputBtn.textContent = inputState.isInput ? '⌨ not an input row' : '⌨ make input row';
+        ctxInputBtn.title = inputState.isInput
+          ? `Turn this back into an ordinary row (input id "${inputState.id}")`
+          : 'Let the reader enter this value: the name is locked, only the value can be changed';
+        ctxInputKindWrap.style.display = (inputState.isInput && inputState.canBe) ? '' : 'none';
+        ctxInputKind.value = inputState.uk;
+
+        // Lock. A row locked by a purchased pack offers no toggle — see getRowLock.
+        const { locked, fixed } = actions.getRowLock(rowEl);
+        rowLocked = locked;
+        ctxLockRowBtn.style.display = fixed ? 'none' : '';
+        ctxLockRowBtn.textContent = locked ? '🔓 unlock row' : '🔒 lock row';
+        ctxLockRowBtn.title = locked
+          ? 'Allow this row to be edited again'
+          : 'Protect this row from accidental edits';
+
+        // A locked row is protected from the menu too. Offering "× delete row" beside a row the
+        // user cannot type into would make the lock look decorative — and deleting it is the
+        // very accident the lock is there to prevent.
+        if (locked) {
+          for (
+            const b of [
+              ctxAddRowBtn,
+              ctxAddIfBtn,
+              ctxAddElseifBtn,
+              ctxAddElseBtn,
+              ctxAddForBtn,
+              ctxAddDescBtn,
+              ctxAddRefBtn,
+              ctxDelBranchBtn,
+              ctxDelRowBtn,
+              ctxInputBtn,
+            ]
+          ) b.style.display = 'none';
+          ctxInputKindWrap.style.display = 'none';
+        }
+
         ctxFormulaGroup.style.display = '';
         ctxFormulaSep.style.display = '';
       } else {
@@ -1822,17 +1924,24 @@ async function start() {
       }
 
       // Line spacing: the row's own setting when a row was clicked, otherwise the block default.
-      const onRow = !!(actions && rowEl);
+      // A locked row shows neither control: spacing and precision are edits like any other, and
+      // on a pack row they would be discarded on save exactly as a formula edit is.
+      // Whether a row was clicked at all decides ROW controls versus BLOCK controls; whether
+      // that row is locked decides whether the row controls appear. The two must stay separate:
+      // folding the lock into `onRow` would fall through to the block controls and offer to
+      // restyle the whole block from a row that refuses to be edited.
+      const onAnyRow = !!(actions && rowEl);
+      const onRow = onAnyRow && !rowLocked;
       rowSpacing.group.style.display = onRow ? '' : 'none';
-      blockSpacing.group.style.display = onRow ? 'none' : '';
+      blockSpacing.group.style.display = onAnyRow ? 'none' : '';
       const blkActs = rowActionsOf(target, state.blocks.find((bl) => bl.id === target.id));
       // Precision only applies to blocks that HAVE rows — a text or section block has none.
       rowDigits.group.style.display = onRow ? '' : 'none';
-      blockDigits.group.style.display = !onRow && blkActs ? '' : 'none';
+      blockDigits.group.style.display = !onAnyRow && blkActs ? '' : 'none';
       if (onRow) {
         rowSpacing.mark(actions.getRowSpacing(rowEl));
         rowDigits.mark(actions.getRowSigDigits(rowEl));
-      } else {
+      } else if (!onAnyRow) {
         // Rows hold the truth, so report what they actually say: mark a value only when every row
         // agrees, otherwise mark none rather than claiming a setting the block does not have.
         const b = state.blocks.find((bl) => bl.id === target.id);

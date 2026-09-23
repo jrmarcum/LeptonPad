@@ -9,9 +9,12 @@ import {
   type FnScope,
   formatUnit,
   type FormulaRow,
+  inputUnitKindOf,
   type Quantity,
   type Scope,
+  splitInputRow,
   type Statement,
+  validateInputValue,
 } from '../expr.ts';
 import { type Block, sectionPrefix } from '../types.ts';
 import {
@@ -87,6 +90,9 @@ export function parseFormulaRows(content: string): FormulaRow[] {
         if (Number.isFinite(sd) && sd >= 1 && sd <= 15 && sd !== SIG_DEFAULT) {
           row.sd = Math.round(sd);
         }
+        if (r.in) row.in = String(r.in);
+        if (r.uk) row.uk = String(r.uk);
+        if (r.lk) row.lk = true;
         return row;
       });
     }
@@ -451,6 +457,15 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         // every row's spacing the moment the user typed (reported 2026-09-23).
         if (r.dataset.sp) obj.sp = Number(r.dataset.sp);
         if (r.dataset.sd) obj.sd = Number(r.dataset.sd);
+        // Same reason as `sp` above: an author-declared input row that is not read back here
+        // stops being an input row the first time anyone types in the block, and its stable id
+        // — the thing every saved value is keyed to — is gone for good.
+        if (r.dataset.inputId) obj.in = r.dataset.inputId;
+        if (r.dataset.uk) obj.uk = r.dataset.uk;
+        // `lk` is the row's OWN lock only. A row locked because it sits in a pack block is not
+        // marked here: that lock comes from the block and must not be baked into the row, or
+        // exporting the sheet from the pack would carry a lock nobody can explain.
+        if (r.dataset.lk) obj.lk = true;
         return obj;
       }),
     );
@@ -584,8 +599,45 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     return depths;
   }
 
+  /**
+   * Fold the user's saved entries into the rows they belong to.
+   *
+   * Values are matched on the author's stable `in` id, never on position: a template that gains
+   * a row above an input must still find that input's value, and matching by index would quietly
+   * shift every saved number onto the wrong row. An id with no matching row is left alone in
+   * `block.inputs` rather than discarded — the row may come back in a later version of the pack.
+   */
+  function applyInputOverlay(rows: FormulaRow[]) {
+    const saved = block.inputs;
+    if (!saved) return;
+    for (const r of rows) {
+      if (!r.in) continue;
+      const v = saved[r.in];
+      if (v === undefined) continue;
+      r.e = `${splitInputRow(r.e).name} = ${v}`;
+    }
+  }
+
+  /**
+   * Whether this block's content came from a purchased pack.
+   *
+   * A formula block inside a pack section is an ordinary child block — the `packId` lives on the
+   * section above it, so the parent has to be consulted. Everything in such a block except its
+   * declared input rows is read-only: the plaintext is never written back (the serializer
+   * re-emits the ciphertext), so an edit here was being accepted on screen and silently dropped
+   * on save. Refusing the edit is the honest version of what already happened.
+   */
+  function inPurchasedPack(): boolean {
+    if (block.packId) return true;
+    const parentId = block.parentSectionId ?? childToSection.get(block.id);
+    if (!parentId) return false;
+    return !!state.blocks.find((b) => b.id === parentId)?.packId;
+  }
+
   function rebuildRows() {
     const rowData = parseFormulaRows(block.content);
+    const packLocked = inPurchasedPack();
+    applyInputOverlay(rowData);
     rowsEl.innerHTML = '';
     block.content = JSON.stringify(rowData);
 
@@ -632,6 +684,28 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       // syncContent can round-trip it. applyEvalResults reads it back off the row element.
       if (rowDatum.sd) row.dataset.sd = String(rowDatum.sd);
 
+      // An author-declared input. Control rows can never be one: `if`/`for` take a condition,
+      // not a value.
+      const inputId = isCtrl ? undefined : rowDatum.in;
+      if (inputId) {
+        row.dataset.inputId = inputId;
+        row.classList.add('formula-row--input');
+        if (rowDatum.uk) row.dataset.uk = rowDatum.uk;
+      }
+
+      // Two independent reasons a row cannot be typed into, resolved to one answer. An input row
+      // is never locked by the pack — being editable inside an otherwise sealed template is the
+      // entire purpose of declaring it — but the author can still lock one explicitly.
+      if (rowDatum.lk) row.dataset.lk = '1';
+      const locked = !!rowDatum.lk || (packLocked && !inputId);
+      if (locked) {
+        row.classList.add('formula-row--readonly');
+        if (!inputId) row.dataset.locked = '1';
+      }
+      const lockNote = rowDatum.lk
+        ? 'Locked — unlock from the right-click menu to edit'
+        : 'Set by the purchased template — only its input fields can be changed';
+
       if (isCtrl) {
         const badge = document.createElement('span');
         badge.className = `formula-keyword formula-keyword--${rowType}`;
@@ -667,8 +741,12 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         descWrap.className = 'formula-desc-wrap';
 
         const descCell = document.createElement('div');
-        descCell.contentEditable = 'true';
+        descCell.contentEditable = String(!locked);
         descCell.className = 'formula-desc-cell';
+        if (locked) {
+          descCell.classList.add('formula-cell--readonly');
+          descCell.title = lockNote;
+        }
         descCell.dataset.placeholder = 'Description…';
 
         const renderDesc = () => {
@@ -698,7 +776,8 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         descCell.addEventListener('keydown', (ev: KeyboardEvent) => {
           if (ev.key === 'Tab' && !ev.shiftKey) {
             ev.preventDefault();
-            cell.focus();
+            // On an input row the expression cell is the locked name; Tab belongs in the value.
+            (inputValueCell ?? cell).focus();
           }
           if (ev.key === 'Enter') {
             ev.preventDefault();
@@ -717,8 +796,64 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       const cell = document.createElement('div');
       cell.className = 'formula-cell';
 
+      // The editable half of an input row, built below and inserted between the locked name
+      // cell and the ` = ` separator.
+      let inputValueCell: HTMLElement | null = null;
+
       if (isBodyOnly) {
         cell.style.display = 'none';
+      } else if (inputId) {
+        // --- Author-declared input row ------------------------------------------------------
+        // The name is rendered, not edited: downstream formulas refer to it by name, so letting
+        // it be retyped turns a working template into a sheet full of undefined variables with
+        // no hint of what happened. Only the value is in the user's hands — and it always is,
+        // whatever else about the block is locked, which is the point of declaring it an input.
+        const { name, value } = splitInputRow(row.dataset.raw ?? '');
+        cell.classList.add('formula-cell--locked');
+        cell.title = 'Set by the template — only the value can be changed';
+        const nameHtml = prettifyExpr(name);
+        if (nameHtml) cell.innerHTML = nameHtml;
+        else cell.textContent = name;
+
+        const valueCell = document.createElement('div');
+        inputValueCell = valueCell;
+        valueCell.className = 'formula-input-value';
+        // An input is editable even inside a sealed pack; only an explicit row lock stops it.
+        valueCell.contentEditable = String(!rowDatum.lk);
+        if (rowDatum.lk) {
+          valueCell.classList.add('formula-cell--readonly');
+          valueCell.title = lockNote;
+        }
+        valueCell.dataset.placeholder = rowDatum.uk
+          ? `value [${rowDatum.uk.replace(/_/g, ' ')}]`
+          : 'value';
+        valueCell.textContent = value;
+
+        const showProblem = (msg: string | null) => {
+          valueCell.classList.toggle('formula-input-value--bad', !!msg);
+          if (msg) valueCell.title = msg;
+          else valueCell.removeAttribute('title');
+        };
+        showProblem(validateInputValue(value, rowDatum.uk));
+
+        const commit = () => {
+          const v = (valueCell.textContent ?? '').trim();
+          showProblem(validateInputValue(v, rowDatum.uk));
+          // Recorded against the id even when it fails to validate. Silently dropping a bad
+          // entry loses the user's typing and leaves the previous number on screen looking
+          // accepted; the row is marked instead, and evaluation reports it like any other row.
+          (block.inputs ??= {})[inputId] = v;
+          row.dataset.raw = `${name} = ${v}`;
+          syncContent();
+        };
+        valueCell.addEventListener('focus', () => {
+          lastFocusedRowIdx = i;
+        });
+        valueCell.addEventListener('input', commit);
+        valueCell.addEventListener('blur', commit);
+        valueCell.addEventListener('keydown', (ev: KeyboardEvent) => {
+          if (ev.key === 'Enter') ev.preventDefault();
+        });
       } else {
         cell.contentEditable = 'true';
         // `for` headers (`i = 1 to n step 2`) stay plain text; if/elseif conditions render like any
@@ -742,7 +877,18 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           cell.dataset.placeholder = 'x = expression';
         }
 
+        // A locked row renders exactly like any other — same fonts, same maths — and simply has
+        // no way in. `contentEditable` false is the real barrier; the guards below matter because
+        // `focus` replaces the rendered markup with raw source text as its first act, and a
+        // non-editable div can still be focused programmatically.
+        if (locked) {
+          cell.contentEditable = 'false';
+          cell.classList.add('formula-cell--readonly');
+          cell.title = lockNote;
+        }
+
         cell.addEventListener('focus', () => {
+          if (locked) return;
           lastFocusedRowIdx = i;
           cell.textContent = row.dataset.raw ?? '';
           const range = document.createRange();
@@ -752,16 +898,20 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
           globalThis.getSelection()?.addRange(range);
         });
         cell.addEventListener('blur', () => {
+          if (locked) return;
           row.dataset.raw = cell.textContent?.trim() ?? '';
           syncContent();
           renderMath();
         });
         cell.addEventListener('input', () => {
+          if (locked) return;
           row.dataset.raw = cell.textContent ?? '';
           syncContent();
         });
 
         cell.addEventListener('keydown', (e: KeyboardEvent) => {
+          // Ctrl+Enter / Ctrl+- add and remove rows. A locked row is not a place to do either.
+          if (locked) return;
           const k = e.key;
           if (k === 'Enter' && e.altKey && !e.ctrlKey) {
             e.preventDefault();
@@ -868,6 +1018,7 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       resultEl.textContent = isBodyOnly ? '' : '—';
 
       exprSide.appendChild(cell);
+      if (inputValueCell) exprSide.appendChild(inputValueCell);
       exprSide.appendChild(sep);
       exprSide.appendChild(resultEl);
       row.appendChild(exprSide);
@@ -877,8 +1028,12 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
 
       if (!isCtrl) {
         const refCell = document.createElement('div');
-        refCell.contentEditable = 'true';
+        refCell.contentEditable = String(!locked);
         refCell.className = 'formula-ref-cell';
+        if (locked) {
+          refCell.classList.add('formula-cell--readonly');
+          refCell.title = lockNote;
+        }
         refCell.dataset.placeholder = 'Reference…';
         if (ref) refCell.innerText = ref;
 
@@ -903,7 +1058,7 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         refCell.addEventListener('keydown', (ev: KeyboardEvent) => {
           if (ev.key === 'Tab' && ev.shiftKey) {
             ev.preventDefault();
-            cell.focus();
+            (inputValueCell ?? cell).focus();
           }
           if (ev.key === 'Enter') {
             ev.preventDefault();
@@ -1039,10 +1194,16 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
   // and Ctrl+Arrow already moves the whole block — deliberately, even while a cell has focus.
   // Alt+Left/Right is the browser's Back/Forward, so these must preventDefault; they only fire
   // when a formula cell has focus, leaving browser navigation alone everywhere else.
-  const CELL_SEL = '.formula-desc-cell, .formula-cell, .formula-ref-cell';
+  const CELL_SEL = '.formula-desc-cell, .formula-cell, .formula-input-value, .formula-ref-cell';
 
-  /** A cell the user can actually reach — `else`/`end` rows hide their expression cell. */
-  const isVisibleCell = (c: HTMLElement) => c.style.display !== 'none';
+  /**
+   * A cell the user can actually reach — `else`/`end` rows hide their expression cell, and an
+   * input row's name cell is rendered but not editable, so landing on it would strand the caret.
+   */
+  const isVisibleCell = (c: HTMLElement) =>
+    c.style.display !== 'none' &&
+    !c.classList.contains('formula-cell--locked') &&
+    !c.classList.contains('formula-cell--readonly');
 
   const inDocOrder = (cells: HTMLElement[]): HTMLElement[] =>
     cells.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
@@ -1160,6 +1321,112 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       if (idx < 0 || !arr[idx]) return;
       if (sp > 1) arr[idx].sp = sp;
       else delete arr[idx].sp; // single is the default — storing a redundant 1 helps nobody
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /** Whether this row is an author-declared input, and whether it could become one. */
+    getRowInput: (
+      rowEl: HTMLElement | null,
+    ): { isInput: boolean; id: string; uk: string; canBe: boolean } => {
+      const none = { isInput: false, id: '', uk: '', canBe: false };
+      if (!rowEl) return none;
+      const arr = parseFormulaRows(block.content);
+      const r = arr[getRowIdx(rowEl)];
+      if (!r) return none;
+      // Control rows take a condition or a loop header, not a value, and a row with no name on
+      // the left of the `=` has nothing for downstream formulas to refer to.
+      const canBe = !r.type && !!splitInputRow(r.e).name && !inPurchasedPack();
+      return { isInput: !!r.in, id: r.in ?? '', uk: r.uk ?? '', canBe };
+    },
+
+    /**
+     * Declare this row an input, or take the declaration away.
+     *
+     * The id is seeded from the variable name because that is what an author expects to see,
+     * but the two are independent from that moment on: renaming the variable later must NOT
+     * move the id, or every value saved against it is orphaned. The unit kind is seeded from
+     * whatever unit the row already carries.
+     */
+    setRowInput: (rowEl: HTMLElement | null, on: boolean) => {
+      if (!rowEl) return;
+      const arr = parseFormulaRows(block.content);
+      const idx = getRowIdx(rowEl);
+      const r = arr[idx];
+      if (!r) return;
+      if (!on) {
+        // The stored value goes with the declaration. Leaving it in block.inputs would let a
+        // stale number silently reappear if the row were ever made an input again.
+        if (r.in) delete block.inputs?.[r.in];
+        delete r.in;
+        delete r.uk;
+      } else {
+        const { name, value } = splitInputRow(r.e);
+        if (!name) return;
+        const taken = new Set(arr.map((x) => x.in).filter(Boolean));
+        let id = name;
+        for (let n = 2; taken.has(id); n++) id = `${name}_${n}`;
+        r.in = id;
+        const kind = inputUnitKindOf(value);
+        if (kind) r.uk = kind;
+        (block.inputs ??= {})[id] = value;
+      }
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /** Set (or clear, with '') the unit kind an input row requires. */
+    setRowInputKind: (rowEl: HTMLElement | null, uk: string) => {
+      if (!rowEl) return;
+      const arr = parseFormulaRows(block.content);
+      const idx = getRowIdx(rowEl);
+      if (!arr[idx]?.in) return;
+      if (uk) arr[idx].uk = uk;
+      else delete arr[idx].uk;
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /**
+     * Whether this row is locked, and whether the user is allowed to change that.
+     *
+     * A row inside a purchased pack is locked by the pack, not by the row, so the menu offers
+     * nothing to toggle — unlocking it would be a promise the serializer does not keep, since
+     * the edit would be dropped on save regardless.
+     */
+    getRowLock: (rowEl: HTMLElement | null): { locked: boolean; fixed: boolean } => {
+      if (!rowEl) return { locked: false, fixed: true };
+      const arr = parseFormulaRows(block.content);
+      const r = arr[getRowIdx(rowEl)];
+      if (!r) return { locked: false, fixed: true };
+      const byPack = inPurchasedPack() && !r.in;
+      return { locked: byPack || !!r.lk, fixed: byPack };
+    },
+
+    /** Lock or unlock a single row. Accident protection only — see FormulaRow.lk. */
+    setRowLock: (rowEl: HTMLElement | null, lk: boolean) => {
+      if (!rowEl) return;
+      const arr = parseFormulaRows(block.content);
+      const idx = getRowIdx(rowEl);
+      if (idx < 0 || !arr[idx]) return;
+      if (lk) arr[idx].lk = true;
+      else delete arr[idx].lk; // unlocked is the default and is never stored
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /** Lock or unlock every row at once — the block-level control. */
+    setAllRowLocks: (lk: boolean) => {
+      if (inPurchasedPack()) return;
+      const arr = parseFormulaRows(block.content);
+      for (const r of arr) {
+        if (lk) r.lk = true;
+        else delete r.lk;
+      }
       block.content = JSON.stringify(arr);
       rebuildRows();
       reEvalAllFormulas();

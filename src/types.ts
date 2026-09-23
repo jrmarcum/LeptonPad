@@ -31,6 +31,13 @@ export interface Block {
   parentSectionId?: string; // set on child blocks; undefined for top-level blocks
   h?: number; // explicit height set by pull-down resize handle
   lineSpacing?: number; // 1 | 1.5 | 2 — default row spacing for this block (undefined = 1)
+  // Values the user typed into author-declared input rows, keyed by the row's stable `in` id.
+  //
+  // Deliberately OUTSIDE `content`: for a pack block `content` is re-emitted as ciphertext and any
+  // edit to it is dropped, which is what made a licensed template unusable. Input values are the
+  // engineer's own numbers, not the author's protected work, so they are saved as plaintext beside
+  // the ciphertext. The template itself is never decrypted to disk. See cmem/security-model.md.
+  inputs?: Record<string, string>;
   // Purchased template pack fields (section blocks only)
   packId?: string; // pack slug if this block came from a purchased template
   encrypted?: boolean; // true = content is encrypted; encIv + encContent hold the data

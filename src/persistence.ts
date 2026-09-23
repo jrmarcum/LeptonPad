@@ -461,6 +461,11 @@ export function loadProject(proj: Record<string, unknown>) {
       sectionColor: raw.sectionColor as string | undefined,
       parentSectionId: raw.parentSectionId as string | undefined,
       h: raw.h as number | undefined,
+      // `lineSpacing` was written by serializeProject but never read back here, so a block's
+      // spacing silently reverted to single on every reload — the setting looked like it had
+      // been forgotten when in fact it was in the file all along. Found 2026-09-23.
+      lineSpacing: raw.lineSpacing as number | undefined,
+      inputs: raw.inputs as Record<string, string> | undefined,
       packId: raw.packId as string | undefined,
       encrypted: raw.encrypted as boolean | undefined,
       encIv: raw.encIv as string | undefined,
@@ -562,6 +567,10 @@ export function serializeProject(): string {
     if (b.parentSectionId) out.parentSectionId = b.parentSectionId;
     if (b.h) out.h = b.h;
     if (b.lineSpacing && b.lineSpacing !== 1) out.lineSpacing = b.lineSpacing;
+    // Saved for every block, INCLUDING a pack block whose content is withheld below. These are the
+    // user's own entries, not the template, so writing them breaks no invariant — and it is the
+    // whole reason a licensed template is usable at all.
+    if (b.inputs && Object.keys(b.inputs).length) out.inputs = b.inputs;
 
     if (b.packId && b.encIv && b.encContent) {
       // Purchased template block — always save the ciphertext, NEVER the plaintext

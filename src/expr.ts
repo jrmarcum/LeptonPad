@@ -76,6 +76,17 @@ export interface FormulaRow {
   type?: 'if' | 'elseif' | 'else' | 'end' | 'for';
   sp?: number; // line spacing for this row (1 | 1.5 | 2); absent = follow the block
   sd?: number; // significant digits this row's result is DISPLAYED to; absent = SIG_DEFAULT
+  // Author-declared input row. `in` is a stable id chosen by whoever wrote the template — NOT the
+  // row's position, which moves when a later version inserts a row above it, and not the variable
+  // name, which the author may want to rename without orphaning everyone's saved values. The
+  // user's value is stored against this id in Block.inputs.
+  in?: string;
+  uk?: string; // unit kind this input requires (a key of CATEGORY_DIMENSION); absent = any
+  // Accident protection: the row renders normally but cannot be typed into. This is NOT access
+  // control — the flag sits in a file on the user's own disk and anyone who means to remove it
+  // can. It exists to stop a reader tabbing through a sheet and retyping a coefficient by
+  // mistake. Enforcement against a determined user is what pack encryption is for.
+  lk?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +117,122 @@ function sameKind(a: UnitMap, b: UnitMap): boolean {
   const da = dimensionOf(a), db = dimensionOf(b);
   const ka = Object.keys(da), kb = Object.keys(db);
   return ka.length === kb.length && ka.every((k) => da[k] === db[k]);
+}
+
+// ---------------------------------------------------------------------------
+// Author-declared input rows
+// ---------------------------------------------------------------------------
+
+/** The unit kinds an input row may require via `uk`. */
+export const INPUT_UNIT_KINDS: readonly string[] = Object.keys(CATEGORY_DIMENSION);
+
+/** A signed decimal, matching the same grammar the tokenizer accepts. */
+const INPUT_NUM_RE = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+/**
+ * The unit kind a value already carries, for defaulting the requirement when an author marks a
+ * row as an input. `10 [kip]` gives "force"; a bare number or an unrecognised unit gives nothing.
+ *
+ * Matching is on the dimensional signature, so `[kN]` and `[lbf]` both resolve to force. Two
+ * pairs of categories share a signature — energy/torque, and volume/section_modulus — and the
+ * first declared wins. That is a default offered to the author, not a decision made behind
+ * their back: the picker is right there to correct it.
+ */
+export function inputUnitKindOf(value: string): string | undefined {
+  const { tag } = splitInputTag(value.trim());
+  if (!tag) return undefined;
+  let u: UnitMap;
+  try {
+    u = parseUnitExpr(tag);
+  } catch {
+    return undefined;
+  }
+  const dim = dimensionOf(u);
+  const keys = Object.keys(dim);
+  if (keys.length === 0) return undefined;
+  for (const [cat, want] of Object.entries(CATEGORY_DIMENSION)) {
+    if (
+      Object.keys(want).length === keys.length &&
+      keys.every((k) => dim[k] === (want as Record<string, number>)[k])
+    ) {
+      return cat;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Split an input row's `name = value` into the locked name and the editable value.
+ *
+ * The name may not contain `=`, `<`, `>` or `!`, so the split cannot land inside a comparison
+ * operator. A row with no `=` at all is treated as all name and no value yet.
+ */
+export function splitInputRow(e: string): { name: string; value: string } {
+  const m = e.match(/^([^=<>!]*?)\s*=\s*([\s\S]*)$/);
+  if (!m) return { name: e.trim(), value: '' };
+  return { name: m[1].trim(), value: m[2].trim() };
+}
+
+/**
+ * Split a trailing `[unit]` tag off a literal. Matrices use `{…}`, so a `[` here is
+ * unambiguously a unit and there is no bracket to disambiguate against.
+ */
+function splitInputTag(text: string): { body: string; tag: string } {
+  const m = text.match(/\[([^\]]+)\]\s*$/);
+  if (!m) return { body: text.trim(), tag: '' };
+  return { body: text.slice(0, m.index!).trim(), tag: m[1].trim() };
+}
+
+/**
+ * Check a value typed into an author-declared input row.
+ *
+ * Inputs accept a LITERAL only — a signed number or a `{…}` matrix, either with an optional
+ * `[unit]`. No identifiers, no calls, no arithmetic. The restriction is not squeamishness about
+ * expressions: an input value is stored OUTSIDE the template it belongs to (`Block.inputs`) and
+ * re-applied to whatever version of that template is opened next. A literal means the same thing
+ * in every version; `2*L` does not, and would silently pick up a different `L`.
+ *
+ * `uk` is the unit kind the template author requires — a key of CATEGORY_DIMENSION. It is checked
+ * dimensionally, not by name, so a `force` input takes kip, kN or lbf alike.
+ *
+ * Returns null when the text is acceptable, or the reason it is not.
+ */
+export function validateInputValue(text: string, uk?: string): string | null {
+  const raw = text.trim();
+  if (!raw) return null; // not yet filled in — the row shows its placeholder, not an error
+
+  const { body, tag } = splitInputTag(raw);
+  if (!body) return 'Enter a value';
+
+  if (body.startsWith('{')) {
+    if (!body.endsWith('}')) return 'Unclosed matrix — a vector looks like {1, 2, 3}';
+    const inner = body.slice(1, -1).trim();
+    if (!inner) return 'Empty matrix';
+    for (const cell of inner.split(/[;,]/)) {
+      const c = cell.trim();
+      if (!c) return 'Empty element in the matrix';
+      if (!INPUT_NUM_RE.test(c)) return `"${c}" is not a number — inputs take values, not formulas`;
+    }
+  } else if (!INPUT_NUM_RE.test(body)) {
+    return `"${body}" is not a value — inputs take a number or a {…} vector, not a formula`;
+  }
+
+  if (!uk) return null;
+
+  const want = CATEGORY_DIMENSION[uk];
+  if (!want) return null; // unknown requirement in the template: do not block the user over it
+  if (!tag) return `This input needs a ${uk.replace(/_/g, ' ')} unit`;
+
+  let got: UnitMap;
+  try {
+    got = parseUnitExpr(tag);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  const dim = dimensionOf(got);
+  const ok = Object.keys(dim).length === Object.keys(want).length &&
+    Object.keys(want).every((k) => dim[k] === want[k]);
+  return ok ? null : `[${tag}] is not a ${uk.replace(/_/g, ' ')} unit`;
 }
 
 /**
