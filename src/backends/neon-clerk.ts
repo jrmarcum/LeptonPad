@@ -94,9 +94,27 @@ export class NeonClerkBackend implements Backend {
         return { error: null };
       }
 
-      // Second factor or another step is outstanding. LeptonPad's login modal
-      // has no UI for these, so say so plainly rather than failing silently.
-      return { error: 'Additional verification is required to sign in.' };
+      // Some other step is outstanding — a second factor, an email code as the first factor, or
+      // a forced password reset. LeptonPad's login modal has no UI for any of them.
+      //
+      // Say WHICH. The message used to be a flat "Additional verification is required to sign
+      // in.", which threw away the one piece of information needed to act: whether to enable
+      // password sign-in in the Clerk dashboard, or to build the missing step. Diagnosing it
+      // cost a round trip on 2026-09-23.
+      const status = attempt?.status ?? 'unknown';
+      // deno-lint-ignore no-explicit-any
+      const strat = (fs: any[]) => (fs ?? []).map((f: any) => f?.strategy).filter(Boolean);
+      const first = strat(attempt?.supportedFirstFactors);
+      const second = strat(attempt?.supportedSecondFactors);
+      console.warn('[auth] sign-in incomplete', { status, first, second });
+      const detail = [
+        first.length ? `first factor: ${first.join(', ')}` : '',
+        second.length ? `second factor: ${second.join(', ')}` : '',
+      ].filter(Boolean).join('; ');
+      return {
+        error: `Sign-in needs another step that this app cannot show (${status}` +
+          `${detail ? ' — ' + detail : ''}). See the browser console for detail.`,
+      };
     } catch (e) {
       return { error: clerkError(e) };
     }
