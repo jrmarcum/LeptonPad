@@ -28,10 +28,17 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
   el.style.height = `${block.h ?? DEFAULT_H}px`;
 
   let data: FigureData;
+  // Set when block.content could not be parsed — see the catch below.
+  let corrupt = false;
   try {
     data = JSON.parse(block.content || '{}') as FigureData;
   } catch {
+    // The image and caption could not be read. The empty object below is only so the block can
+    // render — DO NOT let it be written back: every edit here calls syncContent, which would
+    // overwrite the original (possibly recoverable) content with the blank reconstruction.
+    console.error('Figure block content could not be parsed; leaving it untouched.', block.id);
     data = { src: '', caption: '' };
+    corrupt = true;
   }
 
   // ── Label header ──────────────────────────────────────────────────────────
@@ -55,6 +62,7 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
 
   function loadSrc(src: string) {
     data.src = src;
+    corrupt = false; // the user supplied new content — this block is now well-formed again
     block.content = JSON.stringify(data);
     img.src = src;
     img.style.display = '';
@@ -106,6 +114,10 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
   caption.addEventListener('mousedown', (e) => e.stopPropagation());
   caption.addEventListener('blur', () => {
     data.caption = caption.textContent ?? '';
+    // Never write the blank reconstruction over unparseable content — clicking into the caption
+    // and out again would have silently destroyed the stored image. Choosing a new image
+    // (loadSrc) still writes, because that is the user deliberately replacing the content.
+    if (corrupt) return;
     block.content = JSON.stringify(data);
   });
   el.appendChild(caption);
@@ -153,11 +165,13 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       rightHandle.removeEventListener('pointermove', onMove);
       rightHandle.removeEventListener('pointerup', onUp);
+      rightHandle.removeEventListener('pointercancel', onUp);
       rightHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
     rightHandle.addEventListener('pointermove', onMove);
     rightHandle.addEventListener('pointerup', onUp);
+    rightHandle.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'ew-resize';
   });
 
@@ -183,11 +197,13 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       bottomHandle.removeEventListener('pointermove', onMove);
       bottomHandle.removeEventListener('pointerup', onUp);
+      bottomHandle.removeEventListener('pointercancel', onUp);
       bottomHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
     bottomHandle.addEventListener('pointermove', onMove);
     bottomHandle.addEventListener('pointerup', onUp);
+    bottomHandle.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'ns-resize';
   });
 

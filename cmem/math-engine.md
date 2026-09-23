@@ -93,9 +93,9 @@ render J as m*N or N*m. If the user wants the J unit that is what needs to displ
 units in the same two categories that never had a decomposition.
 
 **This is safe now in a way it would not have been before `CATEGORY_DIMENSION` existed.** Expansion
-used to be the *only* mechanism that let one category's units interoperate with another's;
+used to be the _only_ mechanism that let one category's units interoperate with another's;
 `dimensionOf` supplies that directly, so `[J] ↔ [N-m]`, `[J] ↔ [kJ]`, `[J] ↔ [BTU]` and
-`E / (2 [s]) [[W]]` all still convert. What changes is only what is *displayed* when nothing is
+`E / (2 [s]) [[W]]` all still convert. What changes is only what is _displayed_ when nothing is
 converted: `5 [J]` stays `5 J`, and `E / (2 [s])` reads `J/s` rather than collapsing to `W`.
 
 **The reason pressure still expands:** `E * I` must cancel to `kip·in²` rather than accumulate

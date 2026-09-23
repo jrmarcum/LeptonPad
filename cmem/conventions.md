@@ -101,6 +101,10 @@ entirely, for years, in the same file.
 **An unknown unit id is an error, not a new unit.** `parseUnitExpr` rejects anything outside the
 catalog. There is deliberately no way to define one. — [`design-decisions.md`](design-decisions.md)
 
+**`baseUnits` costs a unit its name on screen — add it for cancellation, never for compatibility.**
+An expanded unit can never display as itself again. Cross-category conversion comes from
+`CATEGORY_DIMENSION` now, not from expansion. — [`units.md`](units.md)
+
 **Run `cleanU` before comparing unit maps.** `{in: 0}` and `{}` are the same unit only after cleaning.
 
 **Expand compound units exactly once, in `parseUnitExpr`.** Expanding again downstream doubles
@@ -208,3 +212,14 @@ settled it. Notes describe what was true; production says what is. —
 
 **Grep before calling anything dead.** A symbol may be reached only through the `solver` import-map
 alias, a callback slot in `state.ts`, or a `data-*` attribute referenced from `main.css`.
+
+**When you add a capability, look for the workaround it retires.** Compound-unit expansion existed
+partly because it was the only way two categories' units could interoperate. Once
+`CATEGORY_DIMENSION` answered that directly, expansion was needed only for cancellation — which is
+what made "J displays as J" a two-line change instead of impossible. The same edit a week earlier
+would have broken every cross-category conversion. — [`design-decisions.md`](design-decisions.md)
+
+**A dev server may change what it sends and never what is on disk.** `serve.ts` and `dev.ts`
+injected their live-reload client into `dist/index.html` and wrote it back, so a `dist/` that had
+been served once carried a dev-only `EventSource` into production. Build output is an artifact of
+the build alone. — [`known-issues.md`](known-issues.md) § 6

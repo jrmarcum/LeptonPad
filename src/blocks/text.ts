@@ -370,11 +370,13 @@ export function buildTextBlock(el: HTMLElement, block: Block) {
     function onUp() {
       handle.removeEventListener('pointermove', onMove);
       handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
       handle.classList.remove('handle-active');
       document.body.style.cursor = '';
     }
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'ew-resize';
   });
 

@@ -23,7 +23,7 @@ export interface Block {
   w?: number; // explicit width for resizable blocks (e.g. text blocks)
   content: string;
   label?: string;
-  result?: string;
+  // `result?: string` removed 2026-09-23 — declared but never written, read or serialised.
   // Section block fields
   sectionName?: string; // scoping prefix, e.g. "beam1" → vars stored as beam1__L
   collapsed?: boolean; // collapse toggle state
@@ -114,7 +114,10 @@ export interface TitleBlockData {
   logo?: string; // data URL: "data:image/png;base64,..."
   project: string;
   by: string;
-  sheetNo: string;
+  /** @deprecated Write-only and never rendered — the sheet number cell is COMPUTED in
+   *  buildTitleBlockOverlay as `${pageIdx + 1} of ${numPages}`. Kept so old saved files that
+   *  carry the key still parse; do not add new readers. */
+  sheetNo?: string;
   subject: string; // subject line 1 (row 2)
   subject2: string; // subject line 2 (row 3)
   subject3: string; // subject line 3 (row 4)
@@ -125,6 +128,19 @@ export interface TitleBlockData {
 export interface FigureData {
   src: string;
   caption: string;
+}
+
+/**
+ * The scope prefix for a section's variables — `beam1` → `beam1__`.
+ *
+ * Defined here, in a leaf module both sides can import, because the evaluator and the summary
+ * renderer each had their own copy of this expression with a DIFFERENT fallback (`'section1'` vs
+ * `'section'`). For any section loaded without a name the evaluator wrote `section1__x` while the
+ * summary looked up `section__x`, missed, and fell through to a same-named global — printing one
+ * value on the summary line while the section computed with another.
+ */
+export function sectionPrefix(sectionName?: string): string {
+  return (sectionName || 'section') + '__';
 }
 
 // Canvas layout constants

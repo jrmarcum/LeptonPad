@@ -65,18 +65,20 @@ factor scaling will cheerfully convert a force into a length. Two exports fix th
 
 - **`UNIT_CATEGORY_OF`** — unit id → category id (first category wins, as in `UNIT_LOOKUP`).
 - **`CATEGORY_DIMENSION`** — category id → signature in primitive dimensions:
-  **L** length, **M** mass, **T** time, **F** force, **K** temperature, **A** angle.
+  **L** length, **M** mass, **T** time, **K** temperature, **A** angle. Force is not primitive; it
+  is M·L·T⁻², which is what lets `[kg]*[G]` convert to `[N]`.
 
 `expr.ts` composes them in `dimensionOf(UnitMap)`, and `sameKind()` compares the results. That is
 what `+`, `−`, comparisons and `[[unit]]` all consult before converting.
 
-**Force is primitive, not M·L·T⁻².** The catalog already treats `N` and `kg` as independent base
-units, and keeping `F` separate is precisely what stops `lbf` and `lbm` silently converting into
-each other — on a structural calculation that is the difference that matters. A physics text would
-derive force; here that would be a bug. See [`design-decisions.md`](design-decisions.md).
+**Force is derived: M·L·T⁻².** So `2 [kg] * 1 [G]` converts to `19.6133 N` and
+`1 [slug] * 1 [ft_s2]` to exactly `1 lbf` — a newton _is_ kg·m/s². It was briefly primitive (`F`)
+on the mistaken belief that this was what separated `lbf` from `lbm`; mass is `M` and force is
+`M·L·T⁻²`, so they differ regardless. See [`design-decisions.md`](design-decisions.md).
 
-Two categories may legitimately share a signature — `energy` and `torque` are both F·L, as J and
-N·m are — and converting between them is valid. `volume` and `section_modulus` likewise share L³.
+Two categories may legitimately share a signature — `energy` and `torque` are both M·L²·T⁻², as J
+and N·m are — and converting between them is valid. `volume` and `section_modulus` likewise share
+L³. Those two pairs are the **only** shared signatures, which `tests/unit_catalog_test.ts` pins.
 
 A symbol the catalog does not know becomes **its own dimension**, so an invented unit only ever
 matches itself instead of converting into something real. That is a containment measure, not a
@@ -88,7 +90,12 @@ validation one: unknown tags are still accepted — see [`known-issues.md`](know
 2. `system` — `'metric'`, `'english'`, or `'both'`. This drives the picker, not the math.
 3. `symbol` is display-only and may contain unicode; `id` is what users type in `[...]` and must be
    ASCII and unique within the category.
-4. Add `baseUnits` **only** if the unit-value identity is exact (see above).
+4. Add `baseUnits` **only** if the unit-value identity is exact (see above) — **and only if the unit
+   should lose its own name on screen.** A unit with `baseUnits` is expanded at parse time and can
+   never display as itself again: that is right for `ksi` (so `E * I` cancels to `kip·in²`) and
+   wrong for `J`, whose decomposition was removed in v2.3.30 because a joule should read as `J`.
+   Since `CATEGORY_DIMENSION` exists, expansion is **no longer needed for cross-category
+   conversion** — `dimensionOf` handles that — so add it only for cancellation, not compatibility.
 5. Check the id does not collide across categories in `UNIT_LOOKUP` — the map is flat.
 6. **Watch the Greek-substitution trap**: a unit id like `psi` or `rho` must render through
    `transformUnit()`, never `transformPiece()`. See [`conventions.md`](conventions.md).

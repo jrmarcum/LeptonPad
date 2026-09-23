@@ -47,6 +47,16 @@ export async function importPackKey(base64Key: string): Promise<CryptoKey> {
  * Encrypt a plaintext string with an AES-256-GCM CryptoKey.
  * Returns { iv, ciphertext } — both base64-encoded strings suitable for JSON storage.
  */
+/**
+ * ⚠️ INTENTIONALLY UNCALLED — do not remove as dead code.
+ *
+ * This is step 3 of the key lifecycle above: the pack-**authoring** half, used when a super/admin
+ * creates a distributable template pack. That authoring UI is not built yet (see the storefront
+ * item in `cmem/roadmap.md`), so this and its `b64Encode` helper have no call sites today. Kept
+ * deliberately — Jon, 2026-09-23: "Keep the scaffolding. We will use it later."
+ *
+ * A dead-code audit flags both every time; this note is the answer.
+ */
 export async function encryptTemplate(
   plaintext: string,
   key: CryptoKey,

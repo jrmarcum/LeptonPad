@@ -176,6 +176,56 @@ It applies to `+`, `−` **and** comparisons together, deliberately: two rules w
 which operation had which. What does **not** convert is a different kind — see
 [`units.md`](units.md) on why force is primitive, which is what keeps `lbf` and `lbm` apart.
 
+## A trailing `[unit]` declares a plain number and converts a dimensioned one (2026-09-23, v2.3.29)
+
+It used to relabel in both cases: `l = 12 [ft]; x = l [in]` reported `12 in` — the unit changed and
+the number did not. Agreed with Jon on 2026-09-22 and held until `sameKind` existed, so the new
+conversion could be checked rather than trusted.
+
+**Why the split rather than "always convert":** `x = 150 [mm]` and `A = b*h [mm^2]` must keep
+working, and there is nothing to convert _from_ in either — the result is a plain number. So
+"declare" is exactly the dimensionless case, which is why the change left existing sheets alone.
+
+It turns one previously-silent mistake into an error: `L * 12 [in/ft]`, written meaning to cancel
+the ft, used to give `300 in/ft` and now reports `Can't convert ft to in/ft`. The parenthesised
+`L * (12 [in/ft])` is the correct form and still gives `300 in`.
+
+## `J` and `W` display as themselves; pressure still expands (2026-09-23, v2.3.30)
+
+Jon: _"I do not want to render J as m*N or N*m. If the user wants the J unit that is what needs to
+display."_ Their `baseUnits` were removed, which also made them consistent with `kWh`, `cal`, `BTU`
+and `hp` — named units in the same two categories that never had a decomposition.
+
+**Pressure deliberately still expands.** `E * I` must cancel to `kip·in²` rather than accumulate
+`ksi·in⁴`; that is a real cancellation inside one expression. Energy and power are normally written
+rather than derived, so there is nothing to cancel.
+
+**Why not expand and re-collapse for display?** Because `N·m` is both torque and energy. After
+expansion the two are indistinguishable, so any reverse lookup would have to guess — the ambiguity
+this file already warns about under compound expansion. Not expanding is the only honest fix.
+
+**This was only safe after `CATEGORY_DIMENSION` (2.3.24).** Expansion used to be the sole mechanism
+letting one category's units interoperate with another's; `dimensionOf` now supplies that directly.
+The same change a week earlier would have broken every cross-category conversion. **A new
+capability can retire an old workaround — check what was only propping the workaround up.**
+
+## The math font is a setting, and the default avoids old-style figures (2026-09-23, v2.3.28)
+
+Georgia — the original hardcoded face — draws 3 4 5 7 9 below the baseline. Those are old-style
+(text) figures, correct for prose and wrong for a calculation sheet, and they were there from the
+beginning; adding the font list is simply what surfaced them.
+
+Three responses rather than one, because no single one is sufficient:
+`font-variant-numeric: lining-nums` on every math element (fixes any face carrying the `lnum`
+feature — classic Georgia does not), the default moved to **Cambria**, and Georgia and Palatino kept
+but sorted last and labelled "low digits" so the behaviour is visible before it is chosen.
+
+**Only OS-resident faces are offered.** A webfont would need bundling or would fail to load exactly
+when someone is working offline, and this is a PWA that promises to work offline.
+
+Unlike line spacing, the font is a **per-browser** preference rather than part of the project file —
+it is a reading preference, where spacing is sheet layout.
+
 ## The catalog is the whole vocabulary — units cannot be defined (2026-09-23, v2.3.27)
 
 An unknown unit id used to be accepted as a **phantom unit**: `[ksii]` displayed as `5 ksii`, never
@@ -193,13 +243,33 @@ definition mechanism later is far cheaper than recovering from sheets full of ph
 **Consequence to know:** an existing sheet containing a phantom unit now shows an error on that row.
 That is the point — it was always wrong — but it is a visible behaviour change on old files.
 
-## Force is a primitive dimension, not M·L·T⁻² (2026-09-23)
+## Force is DERIVED, M·L·T⁻² (2026-09-23 — corrected the same day)
 
-Dimensionally, force is derived. Here it is primitive, because the unit catalog already treats `N`
-and `kg` as independent base units and because `lbf` and `lbm` must never convert into one another.
-Deriving force would make them the same kind and `1 [lbf] + 1 [lbm]` would quietly produce a number.
-The cost is that momentum (M·L·T⁻¹) does not match force×time; that comparison is exotic, and the
-`lbf`/`lbm` one is everyday.
+Force was briefly given its own primitive dimension `F`, on the reasoning that this was what kept
+`lbf` and `lbm` from converting into each other. **That reasoning was wrong.** Mass is `M` and
+force is `M·L·T⁻²`; the two signatures differ either way, so the protection never depended on it.
+What making force primitive _did_ do was break a relationship engineers write constantly:
+
+```
+2 [kg] * 1 [G] [[N]]          → 19.6133 N   — a newton IS kg·m/s²
+1 [slug] * 1 [ft_s2] [[lbf]]  → 1 lbf       — exact, by definition
+1 [lbm]  * 1 [ft_s2] [[lbf]]  → 0.031081    — = 1/32.174, also correct
+```
+
+Jon caught it: _"We need to be able to convert the [kg]*[G] into [N] as the multiplication creates
+this necessity for units cancelation."_
+
+**The conversion factors needed no change** — every unit's factor is relative to its own category's
+SI base, and the SI bases are coherent (N = kg·m/s² exactly), so the arithmetic already worked.
+Only the dimensional signature was refusing it. Every existing conversion was re-verified unchanged
+(ksi↔MPa, J↔N·m, hp↔W, kN·m↔kip·ft, density, affine temperature).
+
+**The protections that matter all survive**, because they never rested on force being primitive:
+`1 [lbf] + 1 [lbm]`, `1 [lbf] [[lbm]]` and `1 [N] [[kg]]` are all still errors.
+
+The lesson worth keeping: **a dimensional model is a claim about physics, and a wrong claim shows up
+as a refused conversion rather than a crash.** Check a new signature against the relationships
+users actually write, not only against the ones you are trying to forbid.
 
 ## Line spacing lives on the row, and the block control overwrites every row (2026-09-23, v2.3.19)
 

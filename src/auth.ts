@@ -219,9 +219,14 @@ async function _syncEntitlements(): Promise<void> {
     entitlementsStale = false;
     lastSyncedAt = Date.now();
 
-    localStorage.setItem(LS_ROLE, currentRole);
-    localStorage.setItem(LS_PACKS, JSON.stringify([...ownedPackIds]));
-    localStorage.setItem(LS_SYNCED, String(lastSyncedAt));
+    // Caching is a convenience; failing to cache must not look like a failed sync, so these are
+    // guarded separately from the fetch above. Without this, blocked site data sent a
+    // successful sync into the catch below and marked good entitlements stale.
+    try {
+      localStorage.setItem(LS_ROLE, currentRole);
+      localStorage.setItem(LS_PACKS, JSON.stringify([...ownedPackIds]));
+      localStorage.setItem(LS_SYNCED, String(lastSyncedAt));
+    } catch { /* private mode / blocked storage — the live sync above still stands */ }
   } catch {
     // Server unreachable. Fall back to cache so the user keeps working — but
     // mark the state stale so the UI can say so rather than implying the server
@@ -232,14 +237,26 @@ async function _syncEntitlements(): Promise<void> {
 }
 
 function _restoreFromCache(): void {
-  currentRole = (localStorage.getItem(LS_ROLE) as UserRole | null) ?? 'free';
+  // Every read is guarded, not just the JSON.parse. Accessing localStorage THROWS outright where
+  // site data is blocked (sandboxed iframe, some private modes) — and this runs on every
+  // signed-out boot, inside start()'s single try/catch, before any UI is built. An unguarded
+  // throw here therefore rendered a completely blank app, which is the opposite of the
+  // offline-first promise at the top of this file. state.ts and main.ts already guard theirs.
+  const read = (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+  currentRole = (read(LS_ROLE) as UserRole | null) ?? 'free';
   try {
-    const raw = JSON.parse(localStorage.getItem(LS_PACKS) ?? '[]');
+    const raw = JSON.parse(read(LS_PACKS) ?? '[]');
     ownedPackIds = new Set(Array.isArray(raw) ? (raw as string[]) : []);
   } catch {
     ownedPackIds = new Set();
   }
-  const synced = Number(localStorage.getItem(LS_SYNCED));
+  const synced = Number(read(LS_SYNCED));
   lastSyncedAt = Number.isFinite(synced) && synced > 0 ? synced : null;
 }
 

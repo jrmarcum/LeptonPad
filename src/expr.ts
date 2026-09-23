@@ -603,14 +603,19 @@ function minMax(name: string, args: Quantity[]): Quantity {
   if (args.length === 0) throw new Error(`${name}() needs at least one value`);
   const values = args.length === 1 && args[0].m ? args[0].m!.flat() : args;
   for (const v of values) noMatrix(v, `${name}()`);
-  let best = values[0];
-  let unit = best.u;
-  for (const q of values.slice(1)) {
-    unit = addU(unit, q.u); // errors on a genuine mismatch, allows a bare 0
-    const take = name === 'max' ? q.v > best.v : q.v < best.v;
-    if (take) best = q;
+  // Compare in ONE unit. These used to compare raw `.v` behind an exact-equality check, so
+  // `max(1 [ft], 6 [in])` was an error while `1 [ft] + 6 [in]` converts — and had the check ever
+  // been relaxed without converting, it would have returned the larger *number* rather than the
+  // larger *quantity*. The first unit-bearing argument sets the unit, as it does for `+`.
+  const ref = values.find((q) => Object.keys(cleanU(q.u)).length > 0) ?? values[0];
+  let best: Quantity | null = null;
+  for (const q of values) {
+    const r = alignUnits(ref, q, `${name}()`, true);
+    if (best === null || (name === 'max' ? r.v > best.v : r.v < best.v)) {
+      best = { v: r.v, u: ref.u };
+    }
   }
-  return { v: best.v, u: addU(unit, best.u) };
+  return best!;
 }
 
 /**
@@ -622,11 +627,16 @@ function minMax(name: string, args: Quantity[]): Quantity {
  */
 function interp(args: Quantity[]): Quantity {
   const lerp = (x: Quantity, x1: Quantity, y1: Quantity, x2: Quantity, y2: Quantity): Quantity => {
-    addU(addU(x.u, x1.u), x2.u); // x, x1 and x2 must share a unit — throws if they do not
-    const yu = addU(y1.u, y2.u);
-    if (x2.v === x1.v) throw new Error('interp(): the two x values are the same');
-    const t = (x.v - x1.v) / (x2.v - x1.v);
-    return { v: y1.v + t * (y2.v - y1.v), u: yu };
+    // x, x1 and x2 are brought into x's unit, and y2 into y1's — the same-kind rule `+` uses.
+    // They previously had to match exactly, so a table in ft could not be read at a value in in;
+    // and the raw subtraction below would have been meaningless if that check were merely dropped.
+    const a = alignUnits(x, x1, 'interp()', true);
+    const b = alignUnits(x, x2, 'interp()', true);
+    const y2c = alignUnits(y1, y2, 'interp()', true);
+    const yu = addU(y1.u, y2c.u);
+    if (b.v === a.v) throw new Error('interp(): the two x values are the same');
+    const t = (x.v - a.v) / (b.v - a.v);
+    return { v: y1.v + t * (y2c.v - y1.v), u: yu };
   };
 
   if (args.length === 5) {
@@ -728,7 +738,14 @@ function parseUnitExpr(s: string): UnitMap {
       const ci = t.indexOf('^');
       if (ci >= 0) {
         name = t.slice(0, ci).trim();
-        exp = Number(t.slice(ci + 1).trim());
+        const rawExp = t.slice(ci + 1).trim();
+        exp = Number(rawExp);
+        // `Number('')` is 0, and cleanU then strips the zero exponent — so `[mm^]` silently became
+        // DIMENSIONLESS and would afterwards add to anything (`500 [mm^] + 3 [kg]` gave 503 kg).
+        // `[mm^x]` gave NaN, which survives cleanU and propagates as a phantom `mm^NaN`.
+        if (rawExp === '' || !Number.isFinite(exp)) {
+          throw new Error(`Malformed unit exponent: "${t}"`);
+        }
       } else {
         name = t;
         exp = 1;
@@ -898,6 +915,12 @@ function lex(src: string): Tok[] {
         s += src[i++];
         if (i < src.length && /[+-]/.test(src[i])) s += src[i++];
         while (i < src.length && /\d/.test(src[i])) s += src[i++];
+      }
+      // The scan above accepts any run of digits and dots, so `1.2.3` arrives here as ONE token
+      // and `parseFloat` would silently return 1.2 — a typo quietly changing a dimension. `2e`
+      // (a mistyped exponent) likewise became 2. Reject the token instead of truncating it.
+      if (!/^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(s)) {
+        throw new Error(`Malformed number: "${s}"`);
       }
       out.push({ t: 'NUM', v: s });
       continue;
@@ -1140,9 +1163,11 @@ function roundTo(name: string, x: Quantity, spec: Quantity): Quantity {
     const f = Math.pow(10, spec.v);
     return { v: Math.round(x.v * f) / f, u: x.u };
   }
-  addU(x.u, spec.u); // the step must be in the same unit as x
-  if (!(spec.v > 0)) throw new Error(`${name}(): the step must be greater than zero`);
-  return { v: op(x.v / spec.v) * spec.v, u: x.u };
+  // The step is converted into x's unit rather than required to match it exactly, so
+  // `roundup(d [in], 1 [mm])` works the way `d + 1 [mm]` does.
+  const step = alignUnits(x, spec, `${name}()`, true);
+  if (!(step.v > 0)) throw new Error(`${name}(): the step must be greater than zero`);
+  return { v: op(x.v / step.v) * step.v, u: x.u };
 }
 
 // Constants (2026-09-22, revised 2026-09-23). Structural sheets use `e` (eccentricity) and `\tau`
@@ -1595,7 +1620,19 @@ class Parser {
             }
             return { v: Math.atan2(a.v, b.v), u: {} };
           }
-          if (name === 'mod') return { v: ((a.v % b.v) + b.v) % b.v, u: {} };
+          if (name === 'mod') {
+            // Units were discarded entirely: `mod(7 [ft], 3 [ft])` returned a bare 1 instead of
+            // 1 ft, and `mod(7 [ft], 3 [in])` returned 1 computed from raw magnitudes in two
+            // different units. A remainder carries the unit of the value being divided.
+            const r = alignUnits(a, b, 'mod()', true);
+            let m = ((a.v % r.v) + r.v) % r.v;
+            // Converting the divisor leaves float residue: 7 ft mod 3 in came out as 1.55e-15 ft
+            // rather than 0. Snap both ends, the way det() and the matrix identity already do —
+            // a remainder that is a whole number of divisors should read as zero.
+            const tol = 1e-9 * Math.abs(r.v);
+            if (m < tol || Math.abs(m - Math.abs(r.v)) < tol) m = 0;
+            return { v: m, u: a.u };
+          }
           if (name === 'round' || name === 'roundup' || name === 'rounddown') {
             return roundTo(name, a, b);
           }
@@ -1655,7 +1692,11 @@ class Parser {
         }
         if (args.length === 3 && name === 'clamp') {
           const [x, lo, hi] = args;
-          return { v: Math.min(Math.max(x.v, lo.v), hi.v), u: addU(x.u, addU(lo.u, hi.u)) };
+          // Bounds convert into x's unit — `clamp(18 [in], 1 [ft], 2 [ft])` used to be an error,
+          // and comparing raw `.v` across units would have clamped to the wrong number.
+          const l = alignUnits(x, lo, 'clamp()', true);
+          const h = alignUnits(x, hi, 'clamp()', true);
+          return { v: Math.min(Math.max(x.v, l.v), h.v), u: addU(x.u, addU(l.u, h.u)) };
         }
 
         // User-defined single-arg function (fallback after built-ins)
@@ -2055,8 +2096,14 @@ function execNodes(
       }
       // Evaluate as a single flat statement
       const stmts = evalStatements(row.e, scope, fnScope);
+      // A row can hold several `;`-separated statements, and ALL of them run — the scope is
+      // mutated by each. Reporting only `stmts[0]` meant a row like `a = 1; b = 2*a` displayed
+      // a's result, and an error in any statement after the first was never shown at all: the
+      // row looked fine while the variable it was supposed to define stayed undefined.
+      // An error anywhere wins; otherwise the row's outcome is its LAST statement.
+      const shown = stmts.find((s) => s.error) ?? stmts[stmts.length - 1];
       results[node.rowIdx] = {
-        ...(stmts[0] ?? { raw: row.e, name: '', expr: row.e, value: NaN, unit: {} }),
+        ...(shown ?? { raw: row.e, name: '', expr: row.e, value: NaN, unit: {} }),
         active: true,
       };
     } else if (node.kind === 'if') {

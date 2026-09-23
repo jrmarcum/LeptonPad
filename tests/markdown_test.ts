@@ -52,6 +52,24 @@ Deno.test('expressions', async (t) => {
     assertEquals(text(prettifyExpr('x = A .* B')), 'x = A × B'); // matrix product
   });
 
+  await t.step('repeated division draws what it evaluates (the 2.3.31 divergence)', () => {
+    // `/` is left-associative: a/b/c is (a/b)/c. The renderer split at the FIRST top-level `/`,
+    // drawing a over (b/c) — so the stamped equation and the stamped number disagreed, by 10^6
+    // for `M/S/1000`. The nested fraction belongs in the NUMERATOR.
+    const shape = (h: string) =>
+      h.replace(/<span class="frac"><span>/g, 'F(').replace(/<\/span><span>/g, ' / ')
+        .replace(/<\/span><\/span>/g, ')').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+    assertEquals(shape(prettifyExpr('M/S/1000')), 'F(F(M / S) / 1000)');
+    assertEquals(shape(prettifyExpr('a/b/c/d')), 'F(F(F(a / b) / c) / d)');
+    // Explicit parentheses must still nest in the DENOMINATOR — that is a different expression.
+    assertEquals(shape(prettifyExpr('a/(b/c)')), 'F(a / F(b / c))');
+    // Cases that were already correct must stay correct.
+    assertEquals(shape(prettifyExpr('a*b/c')), 'F(a · b / c)');
+    assertEquals(shape(prettifyExpr('a/(b*c)')), 'F(a / b · c)');
+    assertStringIncludes(prettifyExpr('P/2 * x'), 'class="frac"'); // P/2 stays a fraction, · x after
+  });
+
   await t.step('any exponent is raised', () => {
     assertStringIncludes(prettifyExpr('y = x^2'), '<sup>2</sup>');
     assertStringIncludes(prettifyExpr('y = exp(-x/2)'), '<sup>');

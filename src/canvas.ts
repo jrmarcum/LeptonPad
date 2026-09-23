@@ -185,7 +185,9 @@ export class Canvas {
     } else if (block.type === 'math' && block.subtype === 'sect-prop') {
       buildSectPropBlock(el);
     } else if (block.type === 'math' && block.subtype === 'beam-def') {
-      buildBeamDefBlock(el, state.constants.E ?? 200000);
+      // A prefill for this block's own E input, not a global: state.constants no longer carries
+      // one. 200000 MPa is steel — the user overwrites it for any other material.
+      buildBeamDefBlock(el, 200000);
     } else if (block.type === 'summary') {
       buildFormulaBlock(el, block); // identical UI to formula block
       el.classList.add('summary-block');

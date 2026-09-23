@@ -70,14 +70,22 @@ release or two. The console string is free to change.
 
 ---
 
-## 6. `serve.ts` permanently mutates `dist/index.html`
+## 6. `serve.ts` permanently mutated `dist/index.html` — FIXED 2026-09-23 (v2.3.30)
 
-`serve.ts` injects `<script>new EventSource('/__sse');</script>` into `dist/index.html` and **writes
-it back to disk** (guarded by an `includes('/__sse')` check, so it happens once). `dev.ts` does the
-same for `/__dev_sse`.
+Both `serve.ts` and `dev.ts` injected their live-reload `EventSource` into `dist/index.html` and
+**wrote it back to disk**, so any `dist/` that had been served once carried a dev-only client that
+in production hammers an endpoint which does not exist.
 
-**Do not publish a `dist/` that has been served through `serve.ts` or `dev.ts`** — it carries a dev
-SSE client that will hammer a nonexistent endpoint in production. Always rebuild before deploying.
+Both now inject into the **response** and serve the index from memory, matched by a small
+`isIndexPath()` (`/` and `/index.html`); `dist/` stays exactly as `deno task build` produced it.
+`serve.ts` also picked up the `Cache-Control: no-store` that `dev.ts` already had.
+
+The committed `dist/index.html` was checked at the time and was clean — `build` regenerates it from
+`public/index.html`, so production was never affected. The exposure was only a `dist/` published
+after running `dev` or `serve` without rebuilding.
+
+**The general rule this leaves:** a dev server may add whatever it likes to what it _sends_, and
+nothing to what is on disk. Build output is an artifact of the build alone.
 
 ---
 
@@ -111,7 +119,7 @@ suppression that trains people to ignore the linter.
 **Partially addressed 2026-08-13:** the backend now has one — `deno task db:check`, ten assertions
 over the entitlement chain, which caught two real bugs on its first run.
 
-**`src/expr.ts` now has one too (2026-09-23):** `tests/` with 63 steps, run by `deno task test` and
+**`src/expr.ts` now has one too (2026-09-23):** `tests/` with 80 steps, run by `deno task test` and
 included in `deno task check`, covering unit algebra, conversions, precedence, constants, every
 built-in, matrices, the big operators and the rendering rules — with a named case for each bug fixed
 in this week's sessions. Writing it found one more: a trailing unit tag on a **function definition**
@@ -291,6 +299,34 @@ Fixed in v2.3.20: the row element mirrors its spacing into `dataset.sp` and `syn
 back. **Any field added to `FormulaRow` must be carried in `syncContent`, or it does not survive a
 keystroke.** `tests/formula_rows_test.ts` guards this by asserting on the function's source, with
 comments stripped so a comment mentioning a field cannot satisfy it.
+
+---
+
+## 18. Standard gravity was unreachable behind Grams — FIXED 2026-09-23
+
+`g` was declared in **two** categories: `mass` (Grams) and `acceleration` (Standard Gravity).
+`UNIT_LOOKUP` and `UNIT_CATEGORY_OF` are flat and **first-category-wins**, and mass is declared
+first — so the acceleration entry could never be reached. `a = 0.4 [G]` written for a seismic
+acceleration silently meant **0.4 grams**, and `m [kg] * 1 [g]` produced a kg·g quantity of
+dimension M². The comment above `UNIT_LOOKUP` claimed ids were not shared across categories; they
+were.
+
+Jon's fix: **gravity is `G`, grams stay `g`** — unit ids are case-sensitive, so the two coexist.
+`0.4 [G] [[m_s2]]` = 3.92266 m/s², `1 [G] [[ft_s2]]` = 32.17405 ft/s².
+
+`tests/unit_catalog_test.ts` now guards the whole class: no id may be shared by two categories of
+**different dimension** (sharing one at the same dimension is fine — `in3` is both volume and
+section modulus, both L³). It also checks every category has a `CATEGORY_DIMENSION` entry and every
+`baseUnits` key is itself a catalog unit — that second one matters because `baseUnits` expansion
+writes its keys straight into the `UnitMap` **without** the unknown-unit rejection that user input
+gets, so a typo there would recreate exactly the phantom units § 17 removed.
+
+**A second defect this exposed, fixed the same day:** `2 [kg] * 1 [G] [[N]]` was an error, because
+force had been given its own primitive dimension. Jon: _"We need to be able to convert the [kg]*[G]
+into [N] as the multiplication creates this necessity for units cancelation."_ Correct — a newton
+**is** kg·m/s². Force is now derived (M·L·T⁻²) and `lbf`/`lbm` are still separated, because mass is
+`M` and they never depended on force being primitive. See
+[`design-decisions.md`](design-decisions.md).
 
 ---
 

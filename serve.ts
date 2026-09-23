@@ -8,9 +8,13 @@ const port = 5173;
 // Serving it from memory keeps dist/ exactly as `deno task build` produced it.
 const sseSnippet = `  <script>new EventSource('/__sse');</script>\n  </body>`;
 const rawIndex = await Deno.readTextFile('dist/index.html');
-const devIndex = rawIndex.includes('/__sse')
-  ? rawIndex // already injected by an older build — serve as-is rather than double-inject
-  : rawIndex.replace('</body>', sseSnippet);
+// Strip any previously-injected client, THEN inject exactly one. The earlier version skipped
+// injection when it found `/__sse`, which was wrong twice over: it kept the stale on-disk snippet
+// it was meant to detect, and it missed `/__dev_sse` entirely — `'/__dev_sse'.includes('/__sse')`
+// is false — so a dist/ last touched by the old dev.ts double-injected.
+const devIndex = rawIndex
+  .replace(/[ \t]*<script>new EventSource\('\/__(?:dev_)?sse'\);<\/script>\s*\n?/g, '')
+  .replace('</body>', sseSnippet);
 
 /** The paths that must be answered with the injected HTML rather than the file on disk. */
 const isIndexPath = (p: string) => p === '/' || p === '/index.html';

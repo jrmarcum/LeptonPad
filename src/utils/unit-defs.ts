@@ -545,7 +545,11 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         system: 'english',
         baseUnits: { in: 1, s: -2 },
       },
-      { id: 'g', label: 'Standard Gravity', symbol: 'g', factor: 9.80665, system: 'both' },
+      // Uppercase G, because lowercase `g` is grams. Unit ids are case-sensitive, so the two
+      // coexist — but until 2026-09-23 this entry was also `g`, and UNIT_LOOKUP is first-wins with
+      // mass declared first, so standard gravity was UNREACHABLE: `0.4 [g]` silently meant
+      // 0.4 grams. Seismic accelerations are written in g, so that was a live trap.
+      { id: 'G', label: 'Standard Gravity', symbol: 'G', factor: 9.80665, system: 'both' },
     ],
   },
 
@@ -939,18 +943,6 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-export function getCategory(id: string): UnitCategory | undefined {
-  return UNIT_CATEGORIES[id as keyof typeof UNIT_CATEGORIES];
-}
-
-export function findUnitDef(categoryId: string, unitId: string): UnitDef | undefined {
-  return getCategory(categoryId)?.units.find((u) => u.id === unitId);
-}
-
-export function unitsBySystem(category: UnitCategory, system: UnitSystem): readonly UnitDef[] {
-  return category.units.filter((u) => u.system === system || u.system === 'both');
-}
-
 /**
  * Flat lookup from unit id → UnitDef, built from all categories at module load time.
  * Used by expr.ts to resolve conversion factors for [[targetUnit]] annotations.
@@ -1024,9 +1016,20 @@ export const UNIT_CATEGORY_OF: ReadonlyMap<string, string> = (() => {
  * {L:1} and so convert; `ft` and `kg` do not. Two categories may legitimately share a signature
  * (energy and torque are both F·L, as J and N·m are), and converting between them is valid.
  *
- * **Force is primitive rather than M·L·T⁻²** because the catalog treats N and kg as independent
- * base units. That is deliberate: it keeps `lbf` and `lbm` from silently converting into each
- * other, which on a structural calculation is the difference that matters.
+ * **Force is DERIVED: M·L·T⁻².** It was primitive (`F`) from 2026-09-23 until later the same day,
+ * on the reasoning that a separate dimension was what kept `lbf` and `lbm` apart. That reasoning
+ * was wrong — mass is `M` and force is `M·L·T⁻²`, so they differ either way — and making force
+ * primitive broke a relationship engineers actually write:
+ *
+ *   2 [kg] * 1 [G] [[N]]           → 19.6133 N     (a newton IS kg·m/s²)
+ *   1 [slug] * 1 [ft_s2] [[lbf]]   → 1 lbf         (and a slug·ft/s² IS a pound-force)
+ *
+ * The conversion factors needed no change: every unit's factor is relative to its own category's
+ * SI base, and the SI bases are coherent (N = kg·m/s² exactly), so the arithmetic already worked.
+ * Only the dimensional signature was blocking it.
+ *
+ * Two categories legitimately share a signature: **energy and torque** (both M·L²·T⁻², as J and
+ * N·m are) and **volume and section_modulus** (both L³). Converting between them is valid.
  */
 export const CATEGORY_DIMENSION: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   length: { L: 1 },
@@ -1035,18 +1038,18 @@ export const CATEGORY_DIMENSION: Readonly<Record<string, Readonly<Record<string,
   mass: { M: 1 },
   time: { T: 1 },
   temperature: { K: 1 },
-  force: { F: 1 },
-  forcePerUnitLength: { F: 1, L: -1 },
-  pressure: { F: 1, L: -2 },
-  energy: { F: 1, L: 1 },
-  power: { F: 1, L: 1, T: -1 },
+  force: { M: 1, L: 1, T: -2 },
+  forcePerUnitLength: { M: 1, T: -2 },
+  pressure: { M: 1, L: -1, T: -2 },
+  energy: { M: 1, L: 2, T: -2 },
+  power: { M: 1, L: 2, T: -3 },
   velocity: { L: 1, T: -1 },
   acceleration: { L: 1, T: -2 },
   angle: { A: 1 },
   momentum: { M: 1, L: 1, T: -1 },
   angular_momentum: { M: 1, L: 2, T: -1 },
   angular_acceleration: { A: 1, T: -2 },
-  torque: { F: 1, L: 1 },
+  torque: { M: 1, L: 2, T: -2 },
   density: { M: 1, L: -3 },
   area_moi: { L: 4 },
   mass_moi: { M: 1, L: 2 },

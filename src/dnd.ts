@@ -149,7 +149,6 @@ export function syncTitleBlocks() {
     state.titleBlock = {
       project: '',
       by: '',
-      sheetNo: '',
       subject: '',
       subject2: '',
       subject3: '',
@@ -241,7 +240,6 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
     {
       project: '',
       by: '',
-      sheetNo: '',
       subject: '',
       subject2: '',
       subject3: '',
@@ -606,7 +604,11 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
   }
 
   const block: Block = {
-    id: `block-${Date.now()}`,
+    // Date.now() alone collides for two blocks created in the same millisecond — and block ids
+    // are DOM element ids, so getElementById then resolves to whichever came first and a child
+    // can be reparented into the wrong section. The multi-block tool path above already
+    // randomises; this is the same suffix.
+    id: `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type,
     subtype,
     x: canvasX - margins.left,

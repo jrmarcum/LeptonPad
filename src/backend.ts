@@ -27,8 +27,10 @@ export interface BackendUser {
 /** Result of an entitlement lookup. Shapes the sidebar and every pro gate. */
 export interface RoleInfo {
   role: UserRole;
-  trialExpiresAt: string | null;
   packIds: string[];
+  // `trialExpiresAt` removed 2026-09-23: it was populated from the API and never read — the
+  // "Demo trial active" line in license.ts keys off `currentRole === 'demo'`. The API still
+  // returns `trial_expires_at`, so re-add both ends if an expiry date is ever shown.
 }
 
 /** Result of redeeming a license code. `message` is shown to the user verbatim. */

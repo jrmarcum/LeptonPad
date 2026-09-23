@@ -8,8 +8,6 @@ import {
   type CustomModule,
   PAGE_SIZES,
   PX_PER_IN,
-  // deno-lint-ignore no-unused-vars
-  PX_PER_MM,
   TITLE_BLOCK_H,
   type TitleBlockData,
   type WorkspaceState,
@@ -76,7 +74,12 @@ export function setPageNumberingEnabled(v: boolean) {
 export const state: WorkspaceState = {
   projectName: 'Untitled Project',
   blocks: [],
-  constants: { E: 200000 },
+  // Empty by design. This used to seed `E: 200000` — Young's modulus for steel, in MPa — into
+  // every sheet's scope. Because every other undefined name throws, that one silently supplied a
+  // dimensionless 200000 to a US engineer working in ksi, and the dimensional checker could not
+  // see it. Jon: "E in engineering is Young's modulus and is different for different materials …
+  // E would need to be defined for each specific material anyway." (2026-09-23)
+  constants: {},
 };
 
 // Shared variable scope — populated by formula blocks evaluated top-to-bottom
@@ -202,14 +205,15 @@ export let onSectionSummaryUpdate: ((sectionEl: HTMLElement, block: Block) => vo
 export let onRefreshAllSectionHeights: (() => void) | null = null;
 export let onSelectBlock: ((el: HTMLElement) => void) | null = null;
 export let onMoveGridCursor: ((x: number, y: number) => void) | null = null;
-export let onUpdatePageCount: (() => void) | null = null;
-export let onSyncPageSeparators: (() => void) | null = null;
-export let onClearSelection: (() => void) | null = null;
 export let onAddToSelection: ((el: HTMLElement) => void) | null = null;
 export let onRefreshCustomModulesList: (() => void) | null = null;
 export let onAppendCustomModuleToSidebar: ((mod: CustomModule) => void) | null = null;
-/** Fired after login/logout/role change so the sidebar login panel re-renders. */
-export let onAuthStateChange: (() => void) | null = null;
+// Removed 2026-09-23, all four verified to have ZERO `?.()` call sites anywhere in src/:
+//   onUpdatePageCount, onSyncPageSeparators, onClearSelection, onAuthStateChange
+// They were declared, given setters and registered in start(), but never invoked — the modules
+// that need those behaviours import and call them directly. onAuthStateChange documented a
+// contract ("fired after login/logout/role change") that was never honoured; the real mechanism
+// is auth.ts's own onAuthChange, which main.ts already registers a byte-identical callback with.
 
 export function setOnSectionSummaryUpdate(fn: typeof onSectionSummaryUpdate) {
   onSectionSummaryUpdate = fn;
@@ -223,15 +227,6 @@ export function setOnSelectBlock(fn: typeof onSelectBlock) {
 export function setOnMoveGridCursor(fn: typeof onMoveGridCursor) {
   onMoveGridCursor = fn;
 }
-export function setOnUpdatePageCount(fn: typeof onUpdatePageCount) {
-  onUpdatePageCount = fn;
-}
-export function setOnSyncPageSeparators(fn: typeof onSyncPageSeparators) {
-  onSyncPageSeparators = fn;
-}
-export function setOnClearSelection(fn: typeof onClearSelection) {
-  onClearSelection = fn;
-}
 export function setOnAddToSelection(fn: typeof onAddToSelection) {
   onAddToSelection = fn;
 }
@@ -240,9 +235,6 @@ export function setOnRefreshCustomModulesList(fn: typeof onRefreshCustomModulesL
 }
 export function setOnAppendCustomModuleToSidebar(fn: typeof onAppendCustomModuleToSidebar) {
   onAppendCustomModuleToSidebar = fn;
-}
-export function setOnAuthStateChange(fn: typeof onAuthStateChange) {
-  onAuthStateChange = fn;
 }
 
 // Re-export types so modules only need one import for both state and types

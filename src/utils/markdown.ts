@@ -103,6 +103,25 @@ export function topLevelIdx(s: string, ch: string): number {
   return -1;
 }
 
+/**
+ * The LAST top-level occurrence of `ch`.
+ *
+ * Division is left-associative — `a/b/c` means `(a/b)/c` — so a fraction must split at the last
+ * `/`, not the first. Splitting at the first drew `a` over `(b/c)`, i.e. `a·c/b`: the rendered
+ * equation and the computed number disagreed, and for `M/S/1000` they differed by 10⁶ with both
+ * looking entirely reasonable (found 2026-09-23).
+ */
+export function lastTopLevelIdx(s: string, ch: string): number {
+  let depth = 0;
+  let found = -1;
+  for (let i = 0; i <= s.length - ch.length; i++) {
+    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
+    else if (depth === 0 && s.slice(i, i + ch.length) === ch) found = i;
+  }
+  return found;
+}
+
 /** Strip one layer of outer matching parens if the whole string is wrapped. */
 export function stripOuter(s: string): string {
   s = s.trim();
@@ -435,7 +454,8 @@ export function renderExpr(raw: string): string {
   }
 
   // No top-level additive op — check for a top-level /
-  const divIdx = topLevelIdx(s, '/');
+  // LAST, not first: `/` is left-associative, so `a/b/c` is `(a/b)/c`. See lastTopLevelIdx.
+  const divIdx = lastTopLevelIdx(s, '/');
   if (divIdx >= 0) {
     const numStr = s.slice(0, divIdx).trim();
     const denStr = s.slice(divIdx + 1).trim();

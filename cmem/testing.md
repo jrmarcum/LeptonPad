@@ -2,7 +2,7 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**79 steps across 5 files** at v2.3.27, all against the real engine (pure functions in, `Quantity`
+**80 steps across 5 files** at v2.3.30, all against the real engine (pure functions in, `Quantity`
 out, no DOM).
 
 | File                         | Covers                                                                                                                             |
@@ -74,6 +74,14 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] `6 [in] > 0.5 [ft]` is **false** (they are equal) and `1 [ft] > 1 [in]` is **true**.
 - [ ] `b = 6 [in]; b > 8` errors; `b > 0` does not; `5 [kip] [[in]]` errors.
 - [ ] `[ksii]` errors with "did you mean ksi?" — and the rows **after** it still evaluate.
+- [ ] `l = 12 [ft]; x = l [in]` = **144 in** (a trailing tag converts); `x = 150 [mm]` still declares.
+- [ ] `L = 25 [ft]; s = L * 12 [in/ft]` errors; `L * (12 [in/ft])` = `300 in`.
+- [ ] `E = 5 [J]` displays **`5 J`**, not `m·N`; `1 [hp] [[W]]` = `745.7 W`; `1 [J] [[BTU]]` works.
+
+**Build hygiene**
+
+- [ ] Run `deno task dev` (or `serve`), then `git status` — `dist/index.html` must be **unchanged**.
+      Both servers inject their live-reload client into the response only.
 
 **Formula rows** (2026-09-23 features)
 

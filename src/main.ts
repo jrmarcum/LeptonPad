@@ -83,15 +83,11 @@ import {
   setMultiDragState,
   setOnAddToSelection,
   setOnAppendCustomModuleToSidebar,
-  setOnAuthStateChange,
-  setOnClearSelection,
   setOnMoveGridCursor,
   setOnRefreshAllSectionHeights,
   setOnRefreshCustomModulesList,
   setOnSectionSummaryUpdate,
   setOnSelectBlock,
-  setOnSyncPageSeparators,
-  setOnUpdatePageCount,
   setPAGE_H,
   setPageNumberingEnabled,
   setSelectedEl,
@@ -405,8 +401,11 @@ function renderAuthPanel(container: HTMLElement) {
     redeemBtn.addEventListener('click', async () => {
       const result = await showRedeemCodeDialog();
       if (result?.success) {
-        // Reload auth state so role/packs update immediately
-        await initAuth();
+        // NOT initAuth() — that is boot-once. It builds a fresh Clerk instance and pushes another
+        // onAuthChange + 'online' listener, neither of which is ever removed, so every redemption
+        // squared the number of callbacks fired by the next auth event. The role and packs are
+        // already refreshed by `refreshEntitlements()` inside showRedeemCodeDialog(), so all that
+        // is needed here is a re-render.
         renderAuthPanel(container);
         _refreshProBadges(container);
         alert(result.message);
@@ -963,23 +962,18 @@ async function start() {
         _refreshProBadges(container);
       }
     });
-    setOnAuthStateChange(() => {
-      const container = document.getElementById('sidebar-left');
-      if (container) {
-        renderAuthPanel(container);
-        _refreshProBadges(container);
-      }
-    });
+    // (The identical closure was also registered through setOnAuthStateChange here. That slot was
+    //  never invoked by anything, so it was dead weight duplicating the onAuthChange call above.)
 
-    // Wire callback slots — breaks circular deps between modules
+    // Wire callback slots — breaks circular deps between modules.
+    // Only the slots that are actually invoked; setOnUpdatePageCount / setOnSyncPageSeparators /
+    // setOnClearSelection were removed 2026-09-23 with zero `?.()` call sites — those functions
+    // are imported and called directly where they are needed.
     setOnSectionSummaryUpdate(updateSectionSummary);
     setOnRefreshAllSectionHeights(refreshAllSectionHeights);
     setOnSelectBlock(selectBlock);
     setOnAddToSelection(addToSelection);
     setOnMoveGridCursor(moveGridCursor);
-    setOnUpdatePageCount(updatePageCount);
-    setOnSyncPageSeparators(syncPageSeparators);
-    setOnClearSelection(clearSelection);
     setOnRefreshCustomModulesList(() => {
       const list = document.getElementById('custom-modules-list');
       if (!list) return;
@@ -1532,6 +1526,18 @@ async function start() {
     // right-clicking the block elsewhere (its label, or any non-row block) sets the block default,
     // which every row without a setting of its own follows.
     const SPACINGS = [1, 1.5, 2];
+
+    /**
+     * The row-spacing actions belonging to THIS block, or null when it has no rows of its own.
+     * Scoped by block type rather than by searching the subtree, because a section block holds
+     * its children inside its own element — a subtree search reaches into them.
+     */
+    // deno-lint-ignore no-explicit-any
+    const rowActionsOf = (el: HTMLElement, b?: { type: string }): any => {
+      if (b?.type !== 'formula' && b?.type !== 'summary') return null;
+      // deno-lint-ignore no-explicit-any
+      return (el.querySelector('.formula-rows') as any)?._formulaCtxActions ?? null;
+    };
     const mkSpacingGroup = (headerText: string, onPick: (v: number) => void) => {
       const group = document.createElement('div');
       group.className = 'ctx-formula-group';
@@ -1574,10 +1580,14 @@ async function start() {
         b.lineSpacing = v;
         // Formula and summary blocks keep spacing on their rows, so overwrite every row rather
         // than relying on a cascade — the block control is "set all rows", nothing subtler.
-        // deno-lint-ignore no-explicit-any
-        const acts = (el.querySelector('.formula-rows') as any)?._formulaCtxActions;
+        //
+        // Gate on the block's TYPE, not on finding `.formula-rows` in its subtree: a section
+        // block contains its children in its own DOM, so querySelector found the first nested
+        // formula block and stamped only that one, leaving the section and its other children
+        // untouched.
+        const acts = rowActionsOf(el, b);
         if (acts) acts.setAllRowSpacing(v);
-        else applyBlockLineSpacing(el, b); // text blocks have no rows — the variable drives them
+        else applyBlockLineSpacing(el, b); // text and section blocks — the variable drives them
       }
     });
 
@@ -1744,9 +1754,8 @@ async function start() {
       } else {
         // Rows hold the truth, so report what they actually say: mark a value only when every row
         // agrees, otherwise mark none rather than claiming a setting the block does not have.
-        // deno-lint-ignore no-explicit-any
-        const acts = (target.querySelector('.formula-rows') as any)?._formulaCtxActions;
         const b = state.blocks.find((bl) => bl.id === target.id);
+        const acts = rowActionsOf(target, b);
         blockSpacing.mark(acts ? acts.getUniformSpacing() : (b?.lineSpacing ?? 1));
       }
 
@@ -1758,7 +1767,19 @@ async function start() {
     // Render any pre-loaded blocks
     state.blocks.forEach(renderBlock);
   } catch (e) {
-    console.error('Wasm Load Error:', e);
+    // This catch covers the WHOLE of start(), not just the WASM load — `await init()` and
+    // `await initAuth()` both run before any UI exists, so anything that throws here leaves a
+    // blank page. Say what actually failed instead of blaming WASM, and put it on screen:
+    // a silent white page with one console line is the worst possible report.
+    console.error('LeptonPad failed to start:', e);
+    const msg = document.createElement('div');
+    msg.style.cssText =
+      'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;' +
+      'font:14px system-ui,sans-serif;color:#dc2626;background:#fff;padding:2rem;text-align:center';
+    msg.textContent = `LeptonPad failed to start: ${
+      e instanceof Error ? e.message : String(e)
+    }. Please reload; if it persists, check the browser console.`;
+    document.body.appendChild(msg);
   }
 }
 

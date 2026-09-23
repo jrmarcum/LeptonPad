@@ -2,9 +2,8 @@
 // Section block — collapsible container with scoped variable namespace
 // ---------------------------------------------------------------------------
 
-import { evalExpr as _evalExpr } from '../../expr.ts';
 import { formatUnit } from '../../expr.ts';
-import { type Block, GRID_SIZE } from '../../types.ts';
+import { type Block, GRID_SIZE, sectionPrefix } from '../../types.ts';
 import {
   canvas,
   CANVAS_H,
@@ -107,15 +106,21 @@ export function refreshAllSectionHeights() {
 export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
   const summary = sectionEl.querySelector<HTMLElement>('.section-summary');
   if (!summary) return;
-  const prefix = (block.sectionName || 'section') + '__';
+  const prefix = sectionPrefix(block.sectionName);
 
   // Entries are HTML: names go through the same renderer as formula rows (\phi_P_nr → φ, M_n →
   // subscript), units through transformUnit (psi never becomes ψ). Both escape their input.
   const summaryVars = sectionSummaryVarNames.get(sectionEl.id);
   const entries = summaryVars && summaryVars.size > 0
     ? [...summaryVars].map(([k, typed]) => {
-      const v = globalScope[prefix + k] ?? globalScope[k];
-      if (!v) return null;
+      // EXACT lookup only. The `?? globalScope[k]` fallback that used to be here printed a
+      // same-named GLOBAL when the section's own variable was missing — and a section variable
+      // that shadows a global is deliberately not exported under the prefix, so a section
+      // redefining `L` showed the outer `L` on its summary line while computing with its own.
+      // A summary line is read at a glance and stamped; it must never show another scope's value.
+      const v = globalScope[prefix + k];
+      // Missing is stated, not dropped — a silently absent output reads as "nothing to report".
+      if (!v) return `${transformPiece(typed)} = <span class="section-summary-missing">?</span>`;
       if (v.m) return `${transformPiece(typed)} = ${matrixResultHtml(v.m)}`;
       const unit = formatUnit(v.u);
       return `${transformPiece(typed)} = ${fmtNum(v.v)}${unit ? ' ' + transformUnit(unit) : ''}`;
@@ -235,9 +240,20 @@ export function sectionAtPoint(cx: number, cy: number): HTMLElement | null {
 // ---------------------------------------------------------------------------
 
 const SECTION_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-let _sectionColorIdx = 0;
+/**
+ * Derived from how many sections exist, NOT from a module-level counter.
+ *
+ * A counter survived New Project and Load — `clearProjectState()` resets blocks, scopes, cursor
+ * and file handle, but could not reach a `let` in this module — so a fresh project carried on
+ * mid-cycle from the previous one. Deriving it means there is no state to forget to reset, which
+ * is how `nextFigureNum()` in figure.ts already works.
+ */
 export function nextSectionColor(): string {
-  return SECTION_COLORS[_sectionColorIdx++ % SECTION_COLORS.length];
+  // Counts sections that ALREADY have a colour — the one being built does not yet (its caller
+  // assigns `block.sectionColor` on the next line), so the first section of a project gets the
+  // first colour rather than the second.
+  const n = state.blocks.filter((b) => b.type === 'section' && b.sectionColor).length;
+  return SECTION_COLORS[n % SECTION_COLORS.length];
 }
 
 /** Return the next available auto-name: section1, section2, … */
@@ -413,6 +429,7 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       resizeHandle.removeEventListener('pointermove', onMove);
       resizeHandle.removeEventListener('pointerup', onUp);
+      resizeHandle.removeEventListener('pointercancel', onUp);
       resizeHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
       // Shift all blocks below by however much the section grew/shrank
@@ -422,6 +439,7 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     };
     resizeHandle.addEventListener('pointermove', onMove);
     resizeHandle.addEventListener('pointerup', onUp);
+    resizeHandle.addEventListener('pointercancel', onUp);
   });
 
   // ── Section content click → move grid cursor (bypass canvas block guard) ──

@@ -79,9 +79,10 @@ across dev restarts and you spend an hour debugging code that is not running.
 - Opens the browser with `new Deno.Command('cmd', {args: ['/c','start', …]})` — **Windows-only**. On
   another OS the server still works; only auto-open fails.
 
-`serve.ts` mirrors the SSE shutdown for a built `dist/`, but note it **writes the SSE snippet into
-`dist/index.html` permanently** (guarded by an `includes('/__sse')` check). Do not serve a `dist/` you
-are about to publish through `serve.ts` without rebuilding.
+`serve.ts` mirrors the SSE shutdown for a built `dist/`. Since v2.3.30 **both servers inject their
+live-reload client into the response and never onto disk** — `dist/` stays exactly as
+`deno task build` produced it, so a `dist/` that has been served is safe to publish. It used to be
+written into `dist/index.html` permanently; see [`known-issues.md`](known-issues.md) § 6.
 
 ## Deploy
 

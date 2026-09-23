@@ -302,7 +302,7 @@ export function clearProjectState() {
   const tbToggle = document.getElementById('title-block-toggle') as HTMLInputElement | null;
   if (tbToggle) tbToggle.checked = false;
   state.projectName = 'Untitled Project';
-  state.constants = { E: 200000 };
+  state.constants = {}; // no implicit E — see state.ts
   for (const k in globalScope) delete globalScope[k];
   for (const k in globalFnScope) delete globalFnScope[k];
   clearSelection();
@@ -420,8 +420,20 @@ export function loadProject(proj: Record<string, unknown>) {
     }
   }
 
-  const consts = proj.global_constants as Record<string, number> | undefined;
-  if (consts) Object.assign(state.constants, consts);
+  // REPLACE, not merge. `Object.assign` left the previous project's constants in scope, so
+  // opening project B after project A let a name B never defined resolve to A's leftover value
+  // instead of erroring — cross-project contamination of the calculation scope.
+  //
+  // A bare `E` is dropped on the way in. Every file saved before 2026-09-23 carries
+  // `global_constants: { E: 200000 }` from the old hardcoded seed, and keeping it would
+  // re-inject steel's Young's modulus (in MPa) into that sheet's scope forever. E belongs to a
+  // material, so it must be defined on the sheet; an undefined E is now an error, as it should
+  // always have been. A user-defined constant that happens to be named E is indistinguishable
+  // here — but there has never been a UI for defining one, so in practice this only ever
+  // matches the old seed.
+  const consts = { ...(proj.global_constants as Record<string, number> | undefined ?? {}) };
+  delete consts.E;
+  state.constants = consts;
 
   const rawBlocks = proj.blocks as Record<string, unknown>[] | undefined ?? [];
   for (const raw of rawBlocks) {
@@ -439,7 +451,10 @@ export function loadProject(proj: Record<string, unknown>) {
       : rawType as Block['type'];
 
     const block: Block = {
-      id: (raw.id as string) ?? `block-${Date.now()}`,
+      // A file whose blocks carry no ids would otherwise get the SAME id for every block, since
+      // they are all created within one millisecond — they would then all resolve to the first
+      // element. Same random suffix as dropBlock.
+      id: (raw.id as string) ?? `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type,
       subtype: raw.subtype as string | undefined,
       x: (raw.x as number) ?? 0,
@@ -579,6 +594,17 @@ export async function saveProject(saveAs = false) {
       return;
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
+      // Anything else — permission revoked, disk full, a failed write — falls through to the
+      // download path below. That is a reasonable rescue, but it used to happen SILENTLY: the
+      // user believed the .json on disk had been updated when it had not, and only a stray file
+      // in Downloads said otherwise. Say what happened before doing something different.
+      console.error('Save to the chosen file failed; falling back to a download.', e);
+      setFileHandle(null); // the handle is no longer trustworthy — re-prompt next save
+      alert(
+        `Could not save to the file on disk: ${
+          (e as Error).message || 'unknown error'
+        }\n\nDownloading a copy instead — your work is in your Downloads folder, not the original file.`,
+      );
     }
   }
   const blob = new Blob([serializeProject()], { type: 'application/json' });

@@ -1,6 +1,6 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.3.27 (2026-09-23)
+## Where the project stands — v2.3.30 (2026-09-23)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
 unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG plotting with unit-propagating
@@ -66,11 +66,20 @@ The test suite landed first, at Jon's direction, and then found or enabled every
 | 2.3.25 | `kN-mm` added (`J`, `lbm`, `kg` were already there).                                      |
 | 2.3.26 | `[[unit]]` refuses different kinds — `5 [kip] [[in]]` had reported 875634 in.             |
 | 2.3.27 | Unknown unit ids rejected with a did-you-mean; no phantom units, no user-defined units.   |
+| 2.3.28 | Math Display font list; lining figures, after Georgia's old-style digits were reported.   |
+| 2.3.29 | A trailing `[unit]` converts instead of relabelling — the last of the three agreed items. |
+| 2.3.30 | `J`/`W` display as themselves; `serve.ts` and `dev.ts` stop writing into `dist/`.         |
 
-Four of these were **silent wrong answers**, not crashes — the failure mode this product cares most
-about. Three were in unit handling and had been there for the engine's whole life; the fourth
-(spacing) was introduced and caught the same day. Detail in [`math-engine.md`](math-engine.md),
-[`units.md`](units.md) and [`known-issues.md`](known-issues.md) §§ 16–17.
+**Five of these were silent wrong answers**, not crashes — the failure mode this product cares most
+about: comparisons ignoring units, `[[unit]]` converting across kinds, a trailing tag relabelling
+instead of converting, phantom units, and line spacing being erased on every keystroke. The first
+four had been in unit handling for the engine's whole life; the fifth was introduced and caught the
+same day. Detail in [`math-engine.md`](math-engine.md), [`units.md`](units.md) and
+[`known-issues.md`](known-issues.md) §§ 16–17.
+
+The order mattered. The test suite came first at Jon's direction, and `CATEGORY_DIMENSION` — added
+only to answer "are these the same kind?" — later made both the `[[unit]]` kind check and
+"J displays as J" small changes rather than impossible ones.
 
 ## Open items
 

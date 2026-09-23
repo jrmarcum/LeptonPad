@@ -4,7 +4,7 @@
 // The math engine is pure — expressions in, `Quantity` out, no DOM — so it can be exercised
 // directly. These helpers keep each assertion to one readable line.
 
-import { assertAlmostEquals, assertEquals, assertMatch, assertThrows } from '@std/assert';
+import { assertAlmostEquals, assertEquals, assertMatch } from '@std/assert';
 import {
   evalFormulaRows,
   evalStatements,
@@ -81,4 +81,4 @@ export function matrixText(src: string, scope: Scope = {}): string {
   ).join('; ') + ']';
 }
 
-export { assertAlmostEquals, assertEquals, assertMatch, assertThrows };
+export { assertAlmostEquals, assertEquals, assertMatch };

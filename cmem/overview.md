@@ -8,7 +8,7 @@ blocks group related work under a scoped variable namespace.
 The product model is a **calculation sheet an engineer can hand to a reviewer** — page-sized canvas,
 title block, page numbering, print-fidelity layout. It is not a notebook or a REPL.
 
-**Current version: 2.1.4** (`deno.json`, 2026-08-13). Proprietary — see [`licensing.md`](licensing.md).
+**Current version: 2.3.30** (`deno.json`, 2026-09-23). Proprietary — see [`licensing.md`](licensing.md).
 
 ## Repo layout
 
@@ -58,7 +58,7 @@ LeptonPad/
 │   │   ├── _math-block-helpers.ts
 │   │   └── pro/section.ts  # Section block — collapsible container, gated to pro+
 │   ├── utils/
-│   │   ├── unit-defs.ts    # Unit catalog — 22 categories, SI factors, baseUnits decomposition
+│   │   ├── unit-defs.ts    # Unit catalog — 23 categories, SI factors, CATEGORY_DIMENSION
 │   │   ├── units.ts        # convert() and friends
 │   │   ├── markdown.ts     # Markdown + math-expression rendering
 │   │   └── theme.ts
@@ -71,8 +71,11 @@ LeptonPad/
 └── THIRD_PARTY_NOTICES.md  # MIT texts for Clerk, Neon, @std/*, @jrmarcum/wasmtk
 ```
 
-Excluded from git (`.gitignore`): `dist/`, `.env`, `target/`, `version_history/`, and **`CLAUDE.md`**
-— which is why project memory moved here.
+Excluded from git (`.gitignore`): `.env*`, `target/`, `version_history/`, and `*.zone` (DNS exports
+are private). **`dist/` IS committed** — Deno Deploy serves it, so the build output is part of the
+release. **`CLAUDE.md` is tracked** as of 2026-08-13 (verified again 2026-09-23 with
+`git ls-files CLAUDE.md`); it being gitignored is what caused project memory to move here, and that
+is history, not the current state.
 
 ## Key source files
 

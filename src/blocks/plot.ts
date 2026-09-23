@@ -161,6 +161,16 @@ export function parsePlotConfig(content: string): PlotConfig {
   if (!Array.isArray(cfg.yMarkers)) cfg.yMarkers = [];
   delete cfg.markers;
 
+  // The spread above takes whatever the file holds, at whatever type. A hand-edited or truncated
+  // project could therefore set `nPts: 0`, and the sampling loop divides by it — `i / cfg.nPts`
+  // is NaN, so every sample coordinate becomes NaN and the curve silently vanishes rather than
+  // reporting anything. Clamp the numeric fields that the renderer divides by or iterates over.
+  const num = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  cfg.nPts = Math.max(2, Math.round(num(cfg.nPts, DEFAULT_PLOT.nPts)));
+  cfg.xMin = num(cfg.xMin, DEFAULT_PLOT.xMin);
+  cfg.xMax = num(cfg.xMax, DEFAULT_PLOT.xMax);
+
   return cfg;
 }
 
@@ -720,11 +730,13 @@ function showPlotMarkerDelete(
 
   document.body.appendChild(popup);
 
+  // Detach when the popup goes away by ANY route — a button inside it, or being superseded by
+  // another popup — not only when a click lands outside. Those paths removed the element and
+  // left this listener holding a detached node until the next mousedown anywhere.
   const closeOutside = (e: MouseEvent) => {
-    if (!popup.contains(e.target as Node)) {
-      popup.remove();
-      document.removeEventListener('mousedown', closeOutside);
-    }
+    if (popup.isConnected && popup.contains(e.target as Node)) return;
+    popup.remove();
+    document.removeEventListener('mousedown', closeOutside);
   };
   setTimeout(() => document.addEventListener('mousedown', closeOutside), 0);
 }
@@ -935,11 +947,13 @@ function showPlotMarkerInput(
   inp.focus();
   inp.select();
 
+  // Detach when the popup goes away by ANY route — a button inside it, or being superseded by
+  // another popup — not only when a click lands outside. Those paths removed the element and
+  // left this listener holding a detached node until the next mousedown anywhere.
   const closeOutside = (e: MouseEvent) => {
-    if (!popup.contains(e.target as Node)) {
-      popup.remove();
-      document.removeEventListener('mousedown', closeOutside);
-    }
+    if (popup.isConnected && popup.contains(e.target as Node)) return;
+    popup.remove();
+    document.removeEventListener('mousedown', closeOutside);
   };
   setTimeout(() => document.addEventListener('mousedown', closeOutside), 0);
 }
@@ -1381,11 +1395,13 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       rightHandle.removeEventListener('pointermove', onMove);
       rightHandle.removeEventListener('pointerup', onUp);
+      rightHandle.removeEventListener('pointercancel', onUp);
       rightHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
     rightHandle.addEventListener('pointermove', onMove);
     rightHandle.addEventListener('pointerup', onUp);
+    rightHandle.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'ew-resize';
   });
 
@@ -1408,11 +1424,13 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       bottomHandle.removeEventListener('pointermove', onMove);
       bottomHandle.removeEventListener('pointerup', onUp);
+      bottomHandle.removeEventListener('pointercancel', onUp);
       bottomHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
     bottomHandle.addEventListener('pointermove', onMove);
     bottomHandle.addEventListener('pointerup', onUp);
+    bottomHandle.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'ns-resize';
   });
 

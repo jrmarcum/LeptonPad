@@ -7,16 +7,12 @@
 
 import { PX_PER_IN, PX_PER_MM } from '../types.ts';
 import { marginUnit } from '../state.ts';
-export type { UnitCategory, UnitDef, UnitSystem } from './unit-defs.ts';
-export { findUnitDef, getCategory, UNIT_CATEGORIES, unitsBySystem } from './unit-defs.ts';
-import type { UnitDef } from './unit-defs.ts';
 
-// General unit conversion using factors and optional affine offsets (temperature).
-// WASM-READY: (f64, f64, f64, f64, f64) -> f64
-export function convert(value: number, from: UnitDef, to: UnitDef): number {
-  const base = value * from.factor + (from.offset ?? 0);
-  return (base - (to.offset ?? 0)) / to.factor;
-}
+// Removed 2026-09-23 as dead code, all verified to have zero call sites:
+//   convert(value, from, to)            — expr.ts converts via UNIT_LOOKUP factors directly
+//   findUnitDef / getCategory / unitsBySystem  — re-exported here, imported by nobody
+//   the UnitCategory / UnitDef / UnitSystem re-exports, which only these signatures needed
+// Import them from './unit-defs.ts' directly if they are ever wanted again.
 
 // WASM-READY: (f64) -> f64
 export function mmToPx(mm: number): number {

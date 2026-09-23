@@ -12,7 +12,7 @@ await Promise.all([
   Deno.copyFile('public/manifest.webmanifest', 'dist/manifest.webmanifest'),
   Deno.copyFile('public/index.html', 'dist/index.html'),
   Deno.copyFile('public/LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
-  Deno.copyFile('public/sample_project.json', 'dist/sample_project.json'),
+  // Not shipped — see build.ts. Kept in public/ as a reference for the project-file format.
   writeConfigJs(version),
 ]);
 

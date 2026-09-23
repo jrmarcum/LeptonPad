@@ -76,6 +76,31 @@ Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => 
     assertValue('E = 29000 [ksi]; I = 100 [in^4]; EI = E * I', 2900000, 'in^2·kip');
   });
 
+  await t.step('a malformed number is rejected, not truncated', () => {
+    // The lexer accepts any run of digits and dots, so `1.2.3` arrives as ONE token and
+    // parseFloat silently returned 1.2 — a double-tap on the decimal key quietly changing a
+    // dimension. `2e` returned 2 the same way.
+    assertError('x = 1.2.3', /Malformed number: "1\.2\.3"/);
+    assertError('x = 3.5.2 [in]', /Malformed number/);
+    assertError('x = 2e', /Malformed number/);
+    // Every well-formed spelling still parses.
+    assertValue('x = 1.5', 1.5);
+    assertValue('x = .5', 0.5);
+    assertValue('x = 1.', 1);
+    assertValue('x = 1e3', 1000);
+    assertValue('x = 2.5e-3', 0.0025);
+  });
+
+  await t.step('a malformed unit exponent is rejected, not silently dropped', () => {
+    // `Number('')` is 0 and cleanU strips a zero exponent, so `[mm^]` became DIMENSIONLESS and
+    // then absorbed any unit it met: `500 [mm^] + 3 [kg]` returned 503 kg.
+    assertError('A = 500 [mm^]', /Malformed unit exponent/);
+    assertError('A = 500 [mm^x]', /Malformed unit exponent/);
+    assertError('B = 500 [mm^] + 3 [kg]', /Malformed unit exponent/);
+    assertValue('A = 3 [in^2]', 3, 'in^2');
+    assertValue('A = 3 [mm^-2]', 3, '1/mm^2'); // negative exponents are still fine
+  });
+
   await t.step('an unknown unit is rejected, not invented (2.3.27)', () => {
     // `[ksii]` used to become a phantom unit: it displayed as `5 ksii`, never cancelled, and only
     // failed much later at conversion. There is deliberately no way to define a unit.
@@ -135,6 +160,15 @@ Deno.test('[[targetUnit]] conversion', async (t) => {
     assertValue('x = 1 [kN-m] [[kN-mm]]', 1000, 'kN·mm');
     assertValue('M = 50 [kN-m] [[kip-ft]]', 36.8781, 'ft·kip', 1e-4);
     assertValue('x = 1 [kN-mm] + 1 [N-m]', 2, 'kN·mm'); // same kind, converts
+  });
+
+  await t.step('G is standard gravity, g is grams', () => {
+    // They coexist because unit ids are case-sensitive. Gravity used to be `g` too, which made it
+    // unreachable behind Grams — `0.4 [g]` in a seismic calc silently meant 0.4 grams.
+    assertValue('a = 0.4 [G] [[m_s2]]', 3.9226600, 'm/s^2', 1e-6);
+    assertValue('a = 1 [G] [[ft_s2]]', 32.17404856, 'ft/s^2', 1e-6);
+    assertValue('m = 500 [g] [[kg]]', 0.5, 'kg');
+    assertValue('a = 1 [G] + 1 [m_s2]', 1.1019716213, 'G', 1e-9); // left unit wins
   });
 
   await t.step('mass, energy and force units are all present', () => {
@@ -210,6 +244,18 @@ Deno.test('comparisons', async (t) => {
     assertError('x = 1 [lbf] > 1 [lbm]', /Unit mismatch/); // force is not mass
   });
 
+  await t.step('mass × acceleration is a force — F = m·a converts', () => {
+    // Force is DERIVED (M·L·T⁻²), so a newton is literally kg·m/s². It was briefly primitive,
+    // which blocked this; the conversion factors never needed to change, only the signature.
+    assertValue('W = 2 [kg] * 1 [G] [[N]]', 19.6133, 'N', 1e-4);
+    assertValue('m = 10 [kg]; a = 3 [m_s2]; F = m*a [[N]]', 30, 'N', 1e-9);
+    assertValue('F = 1 [slug] * 1 [ft_s2] [[lbf]]', 1, 'lbf', 1e-9); // exact, by definition
+    assertValue('F = 1 [lbm] * 1 [ft_s2] [[lbf]]', 0.0310809502, 'lbf', 1e-9); // = 1/32.174
+    // …and the protection that actually matters survives it: mass is M, force is M·L·T⁻².
+    assertError('x = 1 [lbf] [[lbm]]', /Can't convert lbf to lbm/);
+    assertError('x = 1 [N] [[kg]]', /Can't convert N to kg/);
+  });
+
   await t.step('a comparison against a bare number is refused', () => {
     // `b > 8` where b is in inches is not a check — it is 6 against 8. Addition still allows a
     // bare operand (`1 [ft] + 1`), because that has always meant 2 ft.
@@ -247,6 +293,22 @@ Deno.test('constants and variable names', async (t) => {
   await t.step('Euler is the function exp(), and e belongs to the user', () => {
     assertValue('x = exp(1)', Math.E);
     assertValue('e = 0.5 [in]; P = 10 [kip]; M = P * e', 5, 'in·kip');
+  });
+
+  await t.step("E is NOT predefined — Young's modulus is per material", () => {
+    // `state.constants` used to seed E = 200000 (steel, in MPa) into every sheet, so an undefined
+    // E silently answered where every other undefined name throws — dimensionless, invisible to
+    // the unit checker, and ~7× wrong for anyone working in ksi.
+    assertError('x = E', /Undefined: E/);
+    assertError('x = E * 2', /Undefined: E/);
+    // Defined explicitly, it behaves like any other variable.
+    assertValue('E = 29000 [ksi]; x = E * 2', 58000, 'kip/in^2');
+    assertValue(
+      'E = 29000 [ksi]; I = 800 [in^4]; P = 10 [kip]; L = 20 [ft]; d = P*L^3/(48*E*I) [[in]]',
+      0.1241379310,
+      'in',
+      1e-9,
+    );
   });
 
   await t.step('a constant cannot be assigned', () => {
@@ -324,6 +386,30 @@ Deno.test('functions', async (t) => {
     assertError(table + 'x = interp(30 [ft], H, Kz)', /outside the table/);
     assertError('x = interp(5, {3, 1, 2}, {1, 2, 3})', /must increase/);
     assertError('x = interp(5, {1, 2}, {1, 2, 3})', /X has 2 values/);
+  });
+
+  await t.step('the unit-consuming built-ins convert same-kind arguments too', () => {
+    // These compared raw `.v` behind an exact-equality check, so `max(1 [ft], 6 [in])` was an
+    // error while `1 [ft] + 6 [in]` converted. Worse, had the check simply been relaxed they
+    // would have returned the larger NUMBER rather than the larger QUANTITY.
+    assertValue('m = max(1 [ft], 6 [in])', 1, 'ft');
+    assertValue('m = min(1 [ft], 6 [in])', 0.5, 'ft');
+    assertValue('x = clamp(18 [in], 1 [ft], 2 [ft])', 18, 'in');
+    assertValue('x = clamp(30 [in], 1 [ft], 2 [ft])', 24, 'in');
+    assertValue('d = 0.7381 [in]; x = roundup(d, 1 [mm])', 0.7480315, 'in', 1e-7);
+    assertValue('x = interp(18 [in], 1 [ft], 100 [psf], 2 [ft], 200 [psf])', 150, 'lbf/ft^2');
+    assertValue('m = max(0, 5 [kip])', 5, 'kip'); // a bare operand is still allowed
+    assertError('m = max(1 [kip], 5 [in])', /Unit mismatch/); // a different kind still errors
+  });
+
+  await t.step('mod carries the unit of the value being divided', () => {
+    // It discarded units entirely: mod(7 [ft], 3 [ft]) returned a bare 1, and mod(7 [ft], 3 [in])
+    // returned 1 computed from raw magnitudes in two different units.
+    assertValue('x = mod(7 [ft], 3 [ft])', 1, 'ft');
+    assertValue('x = mod(7 [ft], 3 [in])', 0, 'ft'); // 84 in is exactly 28 × 3 in — snapped to 0
+    assertValue('x = mod(84 [in], 3 [in])', 0, 'in');
+    assertValue('x = mod(7, 3)', 1);
+    assertValue('x = mod(-1, 3)', 2); // stays positive
   });
 
   await t.step('assorted built-ins keep their unit rules', () => {

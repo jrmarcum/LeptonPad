@@ -23,11 +23,21 @@ import { Clerk } from '@clerk/clerk-js/headless';
 import type { Backend, BackendUser, RedeemResult, RoleInfo } from '../backend.ts';
 import type { UserRole } from '../types.ts';
 
+// Read LAZILY, not captured at import time.
+//
+// `/config.js` sets `globalThis.__LP_CONFIG__`, and these used to be module-level `const`s
+// evaluated the moment this module was imported. That works today only because index.html loads
+// config.js as a classic script before the deferred module bundle, AND because the bundler
+// inlines the dynamic import of this file. Change either — make config.js `defer`/`async`, or
+// have the bundler emit a real chunk — and both constants silently become '', which boots the
+// app permanently signed out behind one console warning, with every Pro gate reading as "Free".
+// A function call costs nothing here and removes the ordering dependency entirely.
+// main.ts already reads the same global lazily.
 // deno-lint-ignore no-explicit-any
-const cfg = (globalThis as any).__LP_CONFIG__ ?? {};
+const cfg = (): any => (globalThis as any).__LP_CONFIG__ ?? {};
 
-const PUBLISHABLE_KEY: string = cfg.clerkPublishableKey ?? '';
-const API_BASE: string = (cfg.apiBaseUrl ?? '').replace(/\/$/, '');
+const publishableKey = (): string => cfg().clerkPublishableKey ?? '';
+const apiBase = (): string => (cfg().apiBaseUrl ?? '').replace(/\/$/, '');
 
 export class NeonClerkBackend implements Backend {
   // deno-lint-ignore no-explicit-any
@@ -36,13 +46,13 @@ export class NeonClerkBackend implements Backend {
   private loaded = false;
 
   async init(): Promise<void> {
-    if (!PUBLISHABLE_KEY) {
+    if (!publishableKey()) {
       console.warn('[backend] No Clerk publishable key configured — running signed out.');
       return;
     }
 
     try {
-      this.clerk = new Clerk(PUBLISHABLE_KEY);
+      this.clerk = new Clerk(publishableKey());
       await this.clerk.load({});
       this.loaded = true;
 
@@ -151,7 +161,6 @@ export class NeonClerkBackend implements Backend {
 
     return {
       role: (data.role as UserRole) ?? 'free',
-      trialExpiresAt: data.trial_expires_at ?? null,
       packIds: Array.isArray(data.pack_ids) ? data.pack_ids : [],
     };
   }
@@ -203,12 +212,12 @@ export class NeonClerkBackend implements Backend {
   }
 
   private async call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
-    if (!API_BASE) throw new Error('No API URL configured.');
+    if (!apiBase()) throw new Error('No API URL configured.');
 
     const jwt = await this.token();
     if (!jwt) throw new Error('Not signed in.');
 
-    const res = await fetch(API_BASE + path, {
+    const res = await fetch(apiBase() + path, {
       method,
       headers: {
         'Authorization': `Bearer ${jwt}`,

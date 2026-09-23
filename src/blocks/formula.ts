@@ -11,8 +11,9 @@ import {
   type FormulaRow,
   type Quantity,
   type Scope,
+  type Statement,
 } from '../expr.ts';
-import { type Block } from '../types.ts';
+import { type Block, sectionPrefix } from '../types.ts';
 import {
   canvas,
   CANVAS_W,
@@ -61,7 +62,18 @@ export function parseFormulaRows(content: string): FormulaRow[] {
         return row;
       });
     }
-  } catch { /* fall through */ }
+  } catch {
+    // Content that STARTS like JSON but fails to parse is corrupt, not legacy. Falling through
+    // to the semicolon split would shred a truncated JSON blob into nonsense rows — and
+    // syncContent() would then write that interpretation back over the original on the next
+    // keystroke. Keep the raw text intact in a single row instead: it is visible, it is still
+    // recoverable by hand, and nothing is silently rewritten.
+    if (content.trimStart().startsWith('[')) {
+      console.error('Formula block content is not valid JSON; preserving it as raw text.');
+      return [{ e: content, d: '' }];
+    }
+    /* otherwise fall through — genuine legacy semicolon format */
+  }
   return content.split(';').map((s) => ({ e: s.trim(), d: '' }));
 }
 
@@ -148,14 +160,9 @@ export function matrixResultHtml(m: Quantity[][]): string {
 }
 
 /** Apply evalFormulaRows results to a formula block's DOM result spans. */
-export function applyEvalResults(
-  formulaEl: HTMLElement,
-  // deno-lint-ignore no-explicit-any
-  stmts: any[],
-) {
+export function applyEvalResults(formulaEl: HTMLElement, stmts: Statement[]) {
   const rowEls = Array.from(formulaEl.querySelectorAll<HTMLElement>('.formula-row'));
-  // deno-lint-ignore no-explicit-any
-  stmts.forEach((stmt: any, i: number) => {
+  stmts.forEach((stmt, i) => {
     const rowEl = rowEls[i];
     if (rowEl) {
       rowEl.classList.toggle('formula-row--inactive', stmt.active === false && !stmt.rowType);
@@ -259,7 +266,7 @@ export function reEvalAllFormulas() {
     if (!block) continue;
 
     if (block.type === 'section') {
-      const prefix = (block.sectionName || 'section1') + '__';
+      const prefix = sectionPrefix(block.sectionName);
       const sectionScope: Scope = { ...globalScope };
       const sectionFnScope: FnScope = { ...globalFnScope };
       const sectionAliasKeys = new Set<string>();
@@ -541,8 +548,11 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
 
     // deno-lint-ignore no-explicit-any
     if (!(rowsEl as any)._rowUndoStack) (rowsEl as any)._rowUndoStack = [];
+    // `FormulaRow[] & { idx?: number }[]` — the previous annotation — parses as an INTERSECTION
+    // of two array types, not an array of rows carrying an index. The `as any` on the right meant
+    // the mistake was never challenged, and the same stack is typed correctly further down.
     // deno-lint-ignore no-explicit-any
-    const rowUndoStack: FormulaRow[] & { idx?: number }[] = (rowsEl as any)._rowUndoStack;
+    const rowUndoStack: Array<FormulaRow & { idx?: number }> = (rowsEl as any)._rowUndoStack;
 
     const depths = computeDepths(rowData);
     const containerStack: HTMLElement[] = [rowsEl];
@@ -1283,11 +1293,13 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     const onUp = () => {
       resizeHandle.removeEventListener('pointermove', onMove);
       resizeHandle.removeEventListener('pointerup', onUp);
+      resizeHandle.removeEventListener('pointercancel', onUp);
       resizeHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
     };
     resizeHandle.addEventListener('pointermove', onMove);
     resizeHandle.addEventListener('pointerup', onUp);
+    resizeHandle.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'ew-resize';
   });
   el.appendChild(resizeHandle);
