@@ -224,3 +224,52 @@ Ctrl+Arrow moved it and Ctrl+Delete removed it. `shiftBlocksVertical` now also s
 Overlay positions are never saved — `syncTitleBlocks()` rebuilds them at `i * PAGE_H + margins.top` —
 so an already-displaced sheet corrects itself on reload or on toggling the title block.
 `resolveOverlapsRight` already excluded title blocks; **any new `.block` loop must too.**
+
+---
+
+## 15. The repo lives on an exFAT drive — three symptoms, one cause (diagnosed 2026-09-23)
+
+`D:` is **exFAT**, not NTFS (`Get-Volume -DriveLetter D`), with a **256 KB allocation unit**
+(`AllocationUnitSize: 262144`). That single fact explains three things that look unrelated:
+
+**a. "fatal: detected dubious ownership"** on every git command. exFAT records no ownership, so git
+cannot verify the directory belongs to you. Permanently silenced 2026-09-23 with
+`git config --global --add safe.directory D:/Programs/.../LeptonPad` — the entry now exists, so the
+`-c safe.directory=…` prefix earlier sessions used is no longer needed.
+
+**b. "could not write multi-pack-index: Permission denied" → "task 'geometric-repack' failed"** after
+every commit and push. Git's auto-maintenance repacks, then tries to rename the new pack and index
+over the old ones. On this volume a file that git still has memory-mapped cannot be replaced, so the
+rename fails with `Permission denied` or `File exists`. **The repack itself succeeds first** — so
+each failed run left a complete ~4 MB duplicate pack behind. The commit and the push were never
+affected; only the cleanup was. Same failure mode as the `public/sw.js` "user-mapped section open"
+build abort in [`build-and-deploy.md`](build-and-deploy.md) § Release checklist.
+
+**c. `.git` had grown to 109 MB for a repo with 13 MB of packs.** 338 loose objects × a 256 KB
+minimum allocation ≈ 86 MB of pure slack. Every small file on this drive costs 256 KB.
+
+**What was done** (2026-09-23, repo verified `git fsck --connectivity-only` clean afterwards):
+
+| Step                                                     | Effect                                             |
+| -------------------------------------------------------- | -------------------------------------------------- |
+| `git config maintenance.auto false` + `gc.auto 0` (local) | Commits stop triggering the failing repack         |
+| `git prune-packed`                                        | Dropped 338 loose objects already inside a pack    |
+| Kept `pack-737a5ed…`, retired the other four              | It held **exactly** the 1084 reachable objects — it _was_ the consolidated pack `git repack -ad` kept failing to rename into place |
+
+Result: 5 packs → 1, `.git` **109 MB → 18 MB**, no error on commit. The retired packs held only
+unreachable history and one byte-identical duplicate; everything reachable is also on GitHub.
+
+**Maintenance from here is manual and occasional** — auto-gc is off by design:
+
+```
+git prune-packed          # safe any time
+git multi-pack-index write # works standalone; it is repack that cannot rename
+```
+
+`git repack -ad` will still fail if its output hashes to a pack name already on disk. That is not a
+corruption — it means the pack it wants already exists. Check with
+`git rev-list --objects --all | wc -l` against `git verify-pack -v <pack>.idx`; if the counts match,
+the remaining packs are redundant.
+
+**The real fix is to move the repo to an NTFS volume**, which would retire all three symptoms and the
+`sw.js` build abort with it. Not done — Jon's call.

@@ -182,10 +182,14 @@ CORS with no useful error in the app.
    section open") because VS Code / the Deno LSP held `public/sw.js`, the build aborted, and a commit
    went out with a stale `dist/`. The script only writes when the cache name is out of date, so
    updating that one line in `public/sw.js` by another route (the editor, or an agent's Edit tool)
-   lets the build proceed.
+   lets the build proceed. This is the drive, not the script: `D:` is exFAT and will not let a
+   memory-mapped file be replaced — see [`known-issues.md`](known-issues.md) § 15, which covers the
+   same failure hitting git's own repack.
 6. `dist/config.js` needs no check — Deno Deploy regenerates it, and with no `.env` present it
    defaults `apiBaseUrl` to the relative `/api`.
-7. Commit, then push `main` — **this deploys to production.**
+7. Commit, then push `main` — **this deploys to production.** A `geometric-repack`/`multi-pack-index`
+   error printed after the push is the exFAT drive, not a failed push; confirm with `git log` and
+   read [`known-issues.md`](known-issues.md) § 15 before chasing it.
 8. Optionally tag it (`git tag -a X.Y.Z`, matching branch) to keep the release history.
 9. Confirm `https://leptonpad.com/sw.js` shows the new `leptonpad-vX.Y.Z`, then verify in a browser
    with an existing cache, not just a hard-refresh.
