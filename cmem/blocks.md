@@ -66,6 +66,49 @@ status earns a colour: `err` in red, and a comparison as a green **OK** or a red
 `Statement.isTest`. The `if`/`elseif` branch markers deliberately keep `▶ true` / `▷ false`: they
 report which branch executed, not whether a design check passes.
 
+## Input rows and locks (v2.5.0, 2026-09-23)
+
+**An input row is a field the reader fills in.** The variable name renders locked in its own
+column; only the value is editable, and it stays editable however locked the rest of the block is.
+That is the whole point of declaring one — it is what makes a purchased template usable without
+opening the template itself. Three fields on `FormulaRow`:
+
+| Field | Meaning                                                                                                   |
+| ----- | --------------------------------------------------------------------------------------------------------- |
+| `in`  | the author's **stable id** for this input — seeded from the variable name, independent of it from then on |
+| `uk`  | the unit kind the value must be, a key of `CATEGORY_DIMENSION` (optional)                                 |
+| `lk`  | this row is locked against accidental edits                                                               |
+
+**The values live on the block, not in the row** — `Block.inputs`, keyed by `in`. See
+[`architecture.md`](architecture.md) for the format and [`security-model.md`](security-model.md)
+for why that placement is what lets a licensed pack work at all.
+
+**A value must be a literal**: a number or a `{…}` vector, either with an optional `[unit]`. A
+formula is refused, and the field is outlined red with the reason in its tooltip — the entry is
+still recorded rather than discarded, so nothing the user typed is lost. `uk` is checked
+**dimensionally**, so a `force` input takes kip, kN or lbf alike; an unrecognised `uk` in a template
+is ignored rather than locking the user out of their own sheet.
+
+**Authoring**: right-click a row → **"make input row"**. The id is seeded from the variable name and
+the unit kind is **inferred from the unit already typed** (`10 [kip]` → force), so the common case
+asks nothing. A dropdown then adjusts the requirement. Offered only on a named, non-control row —
+`if`/`for` take a condition, not a value.
+
+**Two locks, different in kind.** `🔒 lock row` in the row menu is **accident protection**: it stops
+a reader tabbing through a sheet and retyping a coefficient. It is a flag in a file on the user's
+own disk, so it is not access control, and it must never be described as though it were. A locked
+row renders normally, refuses focus, drops out of Alt+Arrow navigation, and **hides its own delete
+button** — deleting it is the accident the lock exists to prevent.
+
+The **pack lock** is the other kind: every row of a block from a purchased pack is read-only except
+its declared inputs, resolved through the parent section so child formula blocks are covered. It is
+not enforced by a flag but by the plaintext never reaching disk. It also closed the last audit lead
+— those edits were always discarded on save, and refusing them is the honest version of that. See
+[`design-decisions.md`](design-decisions.md) § Two locks.
+
+⚠️ **Untested end to end**: nothing in the tree sets `packId` yet, so no one has opened a real pack
+block — [`known-issues.md`](known-issues.md) § 22.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:
@@ -91,6 +134,14 @@ reliably for hover-reveal. This is a rule that was paid for — see [`convention
   underscores (`/__+/g → '_'`) precisely so a user-typed name can never forge a namespace separator.
 - **Names are unique.** Renaming checks every other section block and reverts the title element if the
   candidate collides. `nextSectionName()` generates the default (`section1`, …).
+- **Rendering is not gated; only creating is** (v2.4.2). `buildSectionBlock` used to refuse to render
+  a section for a user without creation rights, so opening a file someone sent you showed
+  "Pro required to create sections" across the block — the sheet could not be read or printed, which
+  is the opposite of what a feature tier is for. **Receiving a calculation sheet is not creating
+  one.** Creation is still gated where creation happens: both placement paths in `main.ts` test
+  `dataset.requiresPro && !canCreateSection()`, and the sidebar marks the module locked. Gating it a
+  third time at render bought nothing and cost every reader the content. A pack section the user does
+  **not** own is still withheld — that is licensing, not a tier.
 - **Flat storage, logical nesting.** Children are not nested in `state.blocks`; each child carries
   `parentSectionId`. `state.childToSection` is the runtime reverse index, rebuilt on load and never
   persisted.

@@ -43,9 +43,11 @@ browser ──Clerk SDK──▶ Clerk           (sign in → session JWT)
 
 ## What changed in the code
 
-**New: `src/backend.ts`** — a nine-method interface over two concerns: identity (`init`,
-`currentUser`, `onAuthChange`, `signIn`, `signUp`, `verifyEmailCode`, `signOut`) and entitlement
-(`getMyRole`, `getPackKey`, `redeemLicenseCode`). Nothing else in `src/` may import a vendor SDK, and
+**New: `src/backend.ts`** — an interface over two concerns: identity (`init`, `currentUser`,
+`onAuthChange`, `signIn`, `signUp`, `verifyEmailCode?`, `signOut`) and entitlement (`getMyRole`,
+`getPackKey`, `redeemLicenseCode`). **`verifySecondFactor?` joined the identity half in v2.4.0**,
+when sign-in stopped being single-step — see
+[`auth-and-licensing.md`](auth-and-licensing.md) § Two-factor sign-in. Nothing else in `src/` may import a vendor SDK, and
 `getBackend()` returns the singleton. **This seam is why the migration touched two files instead of
 the whole app** — keep it even with one implementation.
 

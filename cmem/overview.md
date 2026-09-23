@@ -8,7 +8,7 @@ blocks group related work under a scoped variable namespace.
 The product model is a **calculation sheet an engineer can hand to a reviewer** — page-sized canvas,
 title block, page numbering, print-fidelity layout. It is not a notebook or a REPL.
 
-**Current version: 2.3.34** (`deno.json`, 2026-09-23). Proprietary — see [`licensing.md`](licensing.md).
+**Current version: 2.5.0** (`deno.json`, 2026-09-23). Proprietary — see [`licensing.md`](licensing.md).
 
 ## Repo layout
 
@@ -37,7 +37,7 @@ LeptonPad/
 │   ├── main.ts             # Entry point — sidebar, modals, event wiring, keyboard, start()
 │   ├── state.ts            # ALL shared mutable state + the callback-slot registry
 │   ├── types.ts            # Shared interfaces + canvas/page constants
-│   ├── expr.ts             # The math engine — lexer, parser, units, matrices, control flow (1718 lines)
+│   ├── expr.ts             # The math engine — lexer, parser, units, matrices, control flow (2368 lines)
 │   ├── canvas.ts           # Canvas class — DOM element, snap grid, margin guide, page separators
 │   ├── dnd.ts              # Drag-and-drop, block placement, marquee selection, multi-drag
 │   ├── backend.ts          # The provider-agnostic backend contract — the ONLY vendor seam
@@ -49,8 +49,8 @@ LeptonPad/
 │   ├── persistence.ts      # Project serialize/deserialize, save/load, encrypted block handling
 │   ├── solver.ts           # 11-line WASM loader shim — aliased as `solver` in the import map
 │   ├── blocks/
-│   │   ├── formula.ts      # Formula + Summary blocks — live evaluation (1059 lines)
-│   │   ├── plot.ts         # Plot block — SVG built as a string in TypeScript (1294 lines)
+│   │   ├── formula.ts      # Formula + Summary blocks — live evaluation, input rows (1659 lines)
+│   │   ├── plot.ts         # Plot block — SVG built as a string in TypeScript (1463 lines)
 │   │   ├── figure.ts       # Figure/image block — paste or click-to-upload
 │   │   ├── text.ts         # Markdown text block
 │   │   ├── beam-def.ts     # Beam deflection math block (calls WASM)
@@ -62,7 +62,7 @@ LeptonPad/
 │   │   ├── units.ts        # convert() and friends
 │   │   ├── markdown.ts     # Markdown + math-expression rendering
 │   │   └── theme.ts
-│   └── styles/main.css     # ALL application styles (1910 lines)
+│   └── styles/main.css     # ALL application styles (2477 lines)
 ├── public/                 # Static shell — index.html, sw.js, manifest, logo, sample project
 │   └── config.js           # ⚠️ shape reference only — NEVER shipped; dist/config.js is generated
 ├── .env.example            # Browser config template (publishable values) — committed
@@ -71,27 +71,38 @@ LeptonPad/
 └── THIRD_PARTY_NOTICES.md  # MIT texts for Clerk, Neon, @std/*, @jrmarcum/wasmtk
 ```
 
-Excluded from git (`.gitignore`): `.env*`, `target/`, `version_history/`, and `*.zone` (DNS exports
-are private). **`dist/` IS committed** — Deno Deploy serves it, so the build output is part of the
-release. **`CLAUDE.md` is tracked** as of 2026-08-13 (verified again 2026-09-23 with
+Excluded from git (`.gitignore`): `.env*`, `target/`, `version_history/`, `*.zone` (DNS exports are
+private) — **and `dist/`**.
+
+⚠️ **`dist/` is gitignored, not committed.** An earlier version of this file claimed the opposite.
+Verified 2026-09-23: `.gitignore` line 3 is `dist/`, and `git check-ignore -v dist/config.js` names
+that rule. Eight build outputs were force-added past it and are tracked — `index.html`, `main.js`,
+`main.css`, `sw.js`, `manifest.webmanifest`, `solver.wasm`, `LeptonPadLogo.png`,
+`sample_project.json` (`git ls-files dist`). **`dist/config.js` is NOT among them**, and must not
+be: it is generated at build time by `scripts/write-config.ts` from env / `.env` and would carry
+real credentials into the repo. So the rule is per-file, not per-directory — a new file placed in
+`dist/` is invisible to git unless someone force-adds it, which is a deployment trap worth
+remembering. See [`build-and-deploy.md`](build-and-deploy.md).
+
+**`CLAUDE.md` is tracked** as of 2026-08-13 (verified again 2026-09-23 with
 `git ls-files CLAUDE.md`); it being gitignored is what caused project memory to move here, and that
 is history, not the current state.
 
 ## Key source files
 
-| File                        | Role                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/expr.ts`               | **The heart of the product.** Tokenizer → recursive-descent `Parser` → evaluator over `Quantity = {value, unit: UnitMap}`. Owns dimensional analysis, compound-unit expansion, `[[targetUnit]]` conversion, affine temperature, user functions, and the statement/control-flow layer (`if`/`for`). Everything a formula block shows comes from here. See [`math-engine.md`](math-engine.md). |
-| `src/state.ts`              | Every piece of shared mutable state: canvas dimensions, margins, the `WorkspaceState` project object, `globalScope`/`globalFnScope`, selection sets, drag state, the section maps, and the **callback slots** that break circular imports. Modules import it directly and mutate in place — no dependency injection.                                                                         |
-| `src/main.ts`               | Entry point. Builds the sidebar, the login modal, the auth panel, pro-gate dialogs, keyboard handling, and `start()` — which is where every callback slot in `state.ts` gets registered, before any user event can fire.                                                                                                                                                                     |
-| `src/blocks/formula.ts`     | The Formula and Summary blocks — the primary user surface. Live evaluation on input, row-by-row rendering, unit display, comparison pass/fail.                                                                                                                                                                                                                                               |
-| `src/blocks/plot.ts`        | Builds an SVG **as a string** (`<svg …>` concatenation), then attaches a live crosshair group with `createElementNS`. Propagates the range-bound unit onto the sweep variable.                                                                                                                                                                                                               |
-| `src/blocks/pro/section.ts` | Collapsible container. Owns section variable scoping (`sectionName` → `beam1__L`), child-block parenting, accent color, and the pro+ gate.                                                                                                                                                                                                                                                   |
-| `src/utils/unit-defs.ts`    | The 23-category unit catalog with SI `factor`, the `CATEGORY_DIMENSION` signatures that answer "same kind?", optional affine `offset`, `system` (metric/english/both), and the `baseUnits` decomposition that makes compound units cancel correctly.                                                                                                                                         |
-| `src/persistence.ts`        | Project JSON in and out, including the **encryption invariant** — only ciphertext is ever serialized. See [`security-model.md`](security-model.md).                                                                                                                                                                                                                                          |
-| `src/backend.ts`            | The nine-method contract over identity and entitlement. **Nothing else in `src/` may import a vendor SDK** — that rule is what made the 2026-08-13 provider swap a contained change.                                                                                                                                                                                                         |
-| `api/main.ts`               | The entitlement API. Verifies a Clerk JWT, then calls one of three Neon functions with the id it extracted. **The user id never comes from the request** — that single rule replaced every RLS policy.                                                                                                                                                                                       |
-| `db/schema.sql`             | Five tables and three functions, each taking `p_user_id` as its first argument. No RLS, because no client connects to Postgres. Two CHECK constraints do real security work — a license code can never grant `super`.                                                                                                                                                                        |
+| File                        | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/expr.ts`               | **The heart of the product.** Tokenizer → recursive-descent `Parser` → evaluator over `Quantity = {value, unit: UnitMap}`. Owns dimensional analysis, compound-unit expansion, `[[targetUnit]]` conversion, affine temperature, user functions, and the statement/control-flow layer (`if`/`for`). Also defines `FormulaRow` — including the v2.5.0 input-row fields `in` (stable author-assigned id), `uk` (required unit kind, a `CATEGORY_DIMENSION` key) and `lk` (accident lock). Everything a formula block shows comes from here. See [`math-engine.md`](math-engine.md). |
+| `src/state.ts`              | Every piece of shared mutable state: canvas dimensions, margins, the `WorkspaceState` project object, `globalScope`/`globalFnScope`, selection sets, drag state, the section maps, and the **callback slots** that break circular imports. Modules import it directly and mutate in place — no dependency injection.                                                                                                                                                                                                                                                             |
+| `src/main.ts`               | Entry point. Builds the sidebar, the login modal, the auth panel, pro-gate dialogs, keyboard handling, and `start()` — which is where every callback slot in `state.ts` gets registered, before any user event can fire.                                                                                                                                                                                                                                                                                                                                                         |
+| `src/blocks/formula.ts`     | The Formula and Summary blocks — the primary user surface. Live evaluation on input, row-by-row rendering, unit display, comparison pass/fail. Since v2.5.0 it also renders **input rows** (locked variable name in its own column, a literal-only value cell, dimensional check against `uk`) and honours `lk`, which makes a row unenterable and hides its delete button.                                                                                                                                                                                                      |
+| `src/blocks/plot.ts`        | Builds an SVG **as a string** (`<svg …>` concatenation), then attaches a live crosshair group with `createElementNS`. Propagates the range-bound unit onto the sweep variable.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/blocks/pro/section.ts` | Collapsible container. Owns section variable scoping (`sectionName` → `beam1__L`), child-block parenting, accent color, and the pro+ gate.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/utils/unit-defs.ts`    | The 23-category unit catalog with SI `factor`, the `CATEGORY_DIMENSION` signatures that answer "same kind?", optional affine `offset`, `system` (metric/english/both), and the `baseUnits` decomposition that makes compound units cancel correctly.                                                                                                                                                                                                                                                                                                                             |
+| `src/persistence.ts`        | Project JSON in and out, including the **encryption invariant** — only ciphertext is ever serialized. See [`security-model.md`](security-model.md).                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/backend.ts`            | The nine-method contract over identity and entitlement. **Nothing else in `src/` may import a vendor SDK** — that rule is what made the 2026-08-13 provider swap a contained change.                                                                                                                                                                                                                                                                                                                                                                                             |
+| `api/main.ts`               | The entitlement API. Verifies a Clerk JWT, then calls one of three Neon functions with the id it extracted. **The user id never comes from the request** — that single rule replaced every RLS policy.                                                                                                                                                                                                                                                                                                                                                                           |
+| `db/schema.sql`             | Five tables and three functions, each taking `p_user_id` as its first argument. No RLS, because no client connects to Postgres. Two CHECK constraints do real security work — a license code can never grant `super`.                                                                                                                                                                                                                                                                                                                                                            |
 
 ## Mental model
 

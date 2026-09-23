@@ -9,7 +9,7 @@ A browser-based engineering calculation pad PWA. Users build calculation sheets 
 - **Math**: TypeScript — `src/expr.ts` handles units, dimensional analysis, matrices, sums and
   integrals, and control flow
 - **Solver**: three arithmetic functions compiled to WASM (`solver/solver.ts` → `dist/solver.wasm`)
-- **Auth**: Clerk (email + password)
+- **Auth**: Clerk (email + password, with two-factor when the instance requires it)
 - **Database**: Neon Postgres, reached only through a small API (`api/main.ts`) on Deno Deploy
 - **Encryption**: Web Crypto API (AES-256-GCM) for purchased section template protection
 - **Deploy**: one Deno Deploy project serves the static site from `dist/` and the API — pushing
@@ -96,7 +96,7 @@ Sign-up confirmation and the MFA step share one code field in the dialog.
 | `src/blocks/figure.ts`       | Figure/image block                                             |
 | `src/blocks/text.ts`         | Markdown text block                                            |
 | `src/blocks/pro/section.ts`  | Section block — gated to pro+                                  |
-| `src/utils/unit-defs.ts`     | Unit catalog — 22 categories, English + metric, SI factors     |
+| `src/utils/unit-defs.ts`     | Unit catalog — 23 categories, English + metric, SI factors     |
 | `src/utils/units.ts`         | Unit conversion helpers and `convert()` function               |
 | `src/utils/markdown.ts`      | Markdown and math-expression rendering                         |
 | `src/styles/main.css`        | All application styles                                         |
@@ -120,6 +120,9 @@ Sign-up confirmation and the MFA step share one code field in the dialog.
 Arrow keys on their own move the caret inside a cell and `Shift` + arrow selects text, so cell
 navigation uses `Alt`. `Ctrl` + arrow moves the whole block on the page, even while a cell has
 focus. Line spacing (1 / 1.5 / 2) is on the right-click menu — per row, or per block.
+
+Cells you cannot edit — a locked row, or the name half of an input row — are skipped by `Alt` +
+arrow, so tabbing through a template lands only on the fields you are meant to fill in.
 
 ## Formula block unit syntax
 
@@ -179,6 +182,33 @@ Right-click a formula row → **Significant digits (this row)**, or the block's 
 block)**, to choose 3 / 4 / 6 / 8 / 10. The default is 6. This is **display only** — the stored
 value is always the full double, and hovering a result shows it unrounded — so changing it never
 changes a calculation. It is saved with the project, so a reviewer sees the same digits you did.
+
+### Input rows
+
+Right-click a formula row → **make input row** to turn it into a field someone else fills in. The
+variable name is locked and only the value stays editable, so a sheet you hand to a colleague can
+be filled in without its formulas being disturbed:
+
+```
+P = 25 [kip]        ← only the value can be typed into
+M = P*L/4           ← locked
+```
+
+An input takes a **value, not a formula** — a number or a `{1, 2, 3}` vector, with an optional
+unit. You can also require a _kind_ of unit: set an input to **force** and it will accept `kip`,
+`kN` or `lbf` and reject a length. The requirement is guessed from whatever unit you already typed,
+so most of the time there is nothing to set.
+
+### Locking a row
+
+Right-click a formula row → **lock row** to protect it from accidental edits. A locked row still
+renders and prints normally; it just cannot be typed into or deleted until you unlock it. This
+guards against the common accident — someone tabbing through a sheet and retyping a coefficient —
+and is not a security feature: the setting lives in the project file, and anyone who means to
+change it can.
+
+Rows in a **purchased section template** work the other way round: everything is read-only except
+the input rows the template's author marked, and those are the only values saved back.
 
 ### Project files
 
@@ -388,6 +418,8 @@ formula rows, results, plot cells and `$…$` math in text blocks, and are remem
 ## Section template encryption
 
 Purchased section templates are AES-256-GCM encrypted. The key is derived server-side as `HMAC-SHA256(pack_secret, user_id)` — unique to each buyer — and cached in `localStorage` for offline use. Only the ciphertext and IV are ever written to the project JSON; decrypted content is never persisted. Copying a project file does not transfer template access, because the key is tied to the user's account rather than to the file.
+
+The one thing saved in the clear is the values you type into the template's **input rows** — those are your numbers, not the author's work, which is what makes a purchased template usable without ever writing its formulas to disk.
 
 ## Backend setup (one-time)
 

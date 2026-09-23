@@ -24,6 +24,27 @@ How it holds in code (`src/persistence.ts`):
 files.** The two flags exist for different purposes — `encrypted` is a render-time signal, the
 `encIv`/`encContent` pair is the storage truth.
 
+### The one thing that IS written in plaintext beside the ciphertext (v2.5.0, 2026-09-23)
+
+`Block.inputs` — a `Record<string, string>` of the values a user typed into **author-declared input
+rows**, keyed by the row's stable `in` id. It is serialized for every block, pack blocks included.
+
+This does not weaken the invariant, and the reason is worth stating exactly, because it is the test
+any future exception has to pass:
+
+> **The inputs are not the licensed content — the formulas are.** A saved value is the engineer's own
+> number (`P = 25 [kip]`). The template body it flows into stays ciphertext and is never decrypted to
+> disk. Copying the project file still grants no template access.
+
+The problem it solved: a licensed pack could be read but not **used**. Every edit was dropped on save
+because the serializer re-emits the ciphertext (audit lead 4, left open in v2.4.1 precisely because
+the honest options all cost something). Declaring which rows are inputs dissolves the trade instead
+of making it — see [`design-decisions.md`](design-decisions.md) § Input rows.
+
+⚠️ **Do not extend this to "just the edited rows" or "just the small ones."** The line is
+_author-declared input, validated as a literal_. A value that can hold an expression can hold a
+formula, and a formula copied out of a template is the template.
+
 ## Where the boundary is
 
 Under the retired Supabase stack, RLS plus `auth.uid()` inside a `security definer` function was the
@@ -107,15 +128,26 @@ that ever stops being true.
    create a blank section block. **The real boundary is `get_pack_key`** — you can draw an empty
    section, you cannot obtain purchased content. Correct place to draw the line for a client-side app,
    but do not describe blank-section creation as "secured."
-2. **Pack keys are cached in `localStorage` (`lp_pk_<packId>`) and survive logout.** Anyone with
+
+   Since v2.4.2, **rendering** a section is not gated at all — only creating one is. A render gate
+   meant a recipient could not read or print a sheet someone sent them, which is the opposite of
+   what a feature tier is for. An unowned **pack** section is still withheld; that is licensing, and
+   the content genuinely is not theirs.
+1. **Row locks (`FormulaRow.lk`, v2.5.0) are accident protection, not access control.** The flag sits
+   in a file on the user's own disk and anyone who means to remove it can. It exists to stop a reader
+   tabbing through a sheet and retyping a coefficient. **Never describe it as protecting anything
+   from a determined user** — that is what pack encryption is for, and conflating the two would have
+   an engineer trusting the wrong mechanism. The pack lock is different in kind: it is not enforced
+   by the flag but by the plaintext never existing on disk.
+1. **Pack keys are cached in `localStorage` (`lp_pk_<packId>`) and survive logout.** Anyone with
    access to the device profile can read the base64 key and decrypt that user's pack content offline.
    Accepted so offline use and logout/re-login keep working. If it ever needs tightening, the move is
    a session-scoped `IndexedDB` store with a non-extractable key, not deleting the cache — the
    offline requirement is real.
-3. **`localStorage` is readable by any script on the origin.** There is no third-party script tag on
+1. **`localStorage` is readable by any script on the origin.** There is no third-party script tag on
    the page (Clerk is bundled, not CDN-loaded), and that is the whole mitigation: **do not add a CDN
    script tag to `public/index.html`.**
-4. **The Clerk publishable key is public by design.** It identifies the Clerk instance and grants
+1. **The Clerk publishable key is public by design.** It identifies the Clerk instance and grants
    nothing on its own; it is safe in `dist/config.js`.
 
 ## Local-only files (never commit)
@@ -130,8 +162,9 @@ that ever stops being true.
 
 ## Review checklist for changes in this area
 
-- [ ] Does `serializeProject()` still write ciphertext only? Save a project containing an owned pack
-      block and **grep the saved file for a known plaintext string**.
+- [ ] Does `serializeProject()` still write ciphertext only, apart from `Block.inputs`? Save a
+      project containing an owned pack block and **grep the saved file for a known plaintext string
+      from the template body** — the input values are expected to be there, the formulas are not.
 - [ ] Does `decryptTemplate()`'s `null` still propagate as "unavailable" rather than empty?
 - [ ] Any new API route: does it take the user id from the verified JWT and nowhere else?
 - [ ] Any new database function: does it take `p_user_id` as a parameter rather than trusting input?

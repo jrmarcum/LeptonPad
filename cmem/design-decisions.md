@@ -320,6 +320,76 @@ donated to the row underneath, so a row's setting looked like it applied to its 
 property of the content and saves with the project — it is not a display preference like text size,
 because a sheet's layout should look the same on someone else's screen.
 
+## Input rows: the licensing problem dissolved rather than traded (2026-09-23, v2.5.0)
+
+A licensed pack template could be read but not **used**. Every edit was dropped on save because
+`serializeProject()` re-emits the ciphertext, and `security-model.md` forbids writing plaintext.
+That was audit lead 4 in v2.4.1, deliberately left open: the three honest options were re-encrypting
+with the per-user key (forcing `serializeProject` to become async), saving plaintext (breaking the
+invariant), or making pack blocks read-only (handing someone a template they cannot use).
+
+Jon's counter-proposal was better than all three, and the insight is one sentence:
+
+> **The inputs are not the licensed content — the formulas are.**
+
+So a template author declares which rows are **inputs**. Only those values are saved, as plaintext
+beside the ciphertext, because they are the engineer's own numbers. The template body stays
+encrypted and untouched. No re-encryption, no async serializer, no broken invariant, and a licensed
+template that actually works. **When a constraint and a requirement seem to be in direct conflict,
+check whether they are really talking about the same thing** — here they were not.
+
+Four decisions fell out of it, each with a failure it prevents:
+
+**Values are keyed to an author-assigned id, never to row position.** A later version of a pack that
+inserts a row above an input must still find that input's value. Matching by index would shift every
+saved number quietly onto the wrong row — plausible values, wrong rows, no error. The id is also
+independent of the variable name, so an author can rename `P` to `P_u` without orphaning every value
+saved against it.
+
+**An input value must be a literal** — a number or a `{…}` vector, with an optional unit. Not
+squeamishness about expressions: a value is stored outside the template and re-applied to whatever
+version is opened next. `10 [kip]` means the same thing every time; `2*L` picks up whatever `L` is
+next time. It is also the line that keeps the plaintext exception safe — a field that can hold an
+expression can hold a formula, and a formula out of a template is the template.
+
+**The variable name is locked, in its own column.** Downstream formulas refer to it by name, so
+letting it be retyped turns a working template into a sheet of undefined variables with no hint of
+what happened.
+
+**A required unit kind is checked dimensionally, not by name** (`uk`, a key of `CATEGORY_DIMENSION`),
+so a `force` input accepts kip, kN or lbf alike. It reuses the same machinery as `sameKind` — see
+[`units.md`](units.md). When an author marks a row as an input, the kind is **inferred** from the
+unit already typed rather than asked for.
+
+## Two locks, and only one of them is enforcement (2026-09-23, v2.5.0)
+
+Jon asked whether other cells should get a lock "that can only be removed by the owner." They should
+get a lock; it cannot be owner-only, and saying so plainly mattered more than shipping the stronger
+claim.
+
+**In a browser PWA the file is on the user's disk and the code runs on their machine.** A `locked`
+flag in the JSON can be deleted by anyone who means to. An owner-only lock would be a guarantee the
+product cannot keep, and **an engineer who trusted it would be trusting the wrong thing** — worse
+than not offering it.
+
+So there are two mechanisms, deliberately different in kind:
+
+|                    | `FormulaRow.lk`                          | Pack lock                                   |
+| ------------------ | ---------------------------------------- | ------------------------------------------- |
+| Protects against   | accidents                                | a determined user                           |
+| Enforced by        | a flag anyone can remove                 | the plaintext never being on disk           |
+| Applies to         | any row the author picks                 | every row of a pack block except its inputs |
+| Honest description | "protect this row from accidental edits" | licensing                                   |
+
+The accident case is the one that actually happens: someone tabs through a sheet you sent them and
+retypes a coefficient without noticing. A locked row also hides its own delete button — deleting it
+is precisely the accident the lock exists to prevent, and offering the button beside a row you
+cannot type into would make the lock look decorative.
+
+The pack lock is also what finally closed audit lead 4 honestly. Those edits were **always**
+discarded; refusing them is the truthful version of what already happened, and it only became
+acceptable once input rows gave the user somewhere legitimate to type.
+
 ## Cell navigation is Alt+Arrow because nothing else was free (2026-09-23, v2.3.21)
 
 Plain arrows move the caret inside a cell, `Shift`+arrow selects text — both needed for editing —

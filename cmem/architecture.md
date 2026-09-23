@@ -131,9 +131,22 @@ that would otherwise clear a selection right after a band drag ends.
   hardcoded Young's-modulus seed. See [`design-decisions.md`](design-decisions.md) and
   [`known-issues.md`](known-issues.md) § 19.
 - **Per-row fields on a formula block** live inside `content` (itself JSON): `e`, `d`, `type`,
-  `ref`, `sp` (line spacing) and `sd` (significant digits). **Anything added here must also be
-  written back by `syncContent()`** or it is destroyed on the next keystroke — § 16, and there is a
-  source-guard test for exactly this.
+  `ref`, `sp` (line spacing), `sd` (significant digits), and since v2.5.0 `in` (the stable id of an
+  author-declared input row), `uk` (the unit kind that input requires), and `lk` (the row is locked
+  against accidental edits). **Anything added here must also be written back by `syncContent()`** or
+  it is destroyed on the next keystroke — § 16. The source-guard test for this now reads its field
+  list straight off the `FormulaRow` interface, so a new field is covered the moment it is declared.
+- **`inputs` on a block** (v2.5.0) — `Record<string, string>`, the values a user typed into input
+  rows, keyed by the row's `in` id. It sits at **block level, deliberately outside `content`**,
+  because for a pack block `content` is re-emitted as ciphertext and anything inside it is dropped
+  on save. Keyed by id and never by row position, so a later template version that inserts a row
+  above an input still finds that input's value. An id with no matching row is kept, not pruned.
+  See [`security-model.md`](security-model.md) for why writing these in plaintext does not weaken
+  the encryption invariant.
+- ⚠️ **`loadProject()`'s block literal is an explicit allowlist.** A field written by
+  `serializeProject()` but absent from that literal is dropped on load in total silence — which is
+  exactly what happened to `lineSpacing` from v2.3.19 until v2.5.0 ([`known-issues.md`](known-issues.md)
+  § 21). Adding a `Block` field means editing **both** ends in the same commit.
 
 ## PWA layer
 

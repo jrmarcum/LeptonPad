@@ -1,18 +1,19 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.3.34 (2026-09-23)
+## Where the project stands — v2.5.0 (2026-09-23)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
 unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG plotting with unit-propagating
 sweep variables, markdown text, figures, collapsible sections with scoped namespaces, custom
-multi-block user tools, page-sized canvas with title block and page numbering, PWA install and
-offline operation, Clerk auth with four roles, one-time license codes, and AES-256-GCM encrypted
-purchasable template packs.
+multi-block user tools, author-declared input rows and per-row accident locks, page-sized canvas
+with title block and page numbering, PWA install and offline operation, Clerk auth with four roles
+and two-factor sign-in against a production instance, one-time license codes, and AES-256-GCM
+encrypted purchasable template packs.
 
-~13k lines across `src/` (11k TS + 2.1k CSS), `api/`, `db/`, `solver/`, and the build scripts.
-`dist/main.js` is **426 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
+~16k lines across `src/` (13.9k TS + 2.5k CSS), `api/`, `db/`, `solver/`, and the build scripts.
+`dist/main.js` is **450 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
 one Deno Deploy project serving both the site and the API at `/api`, and **a push to `main` is the
-deploy**.
+deploy**. v2.5.0 (`a1030c7`) was pushed 2026-09-23 and is therefore in production.
 
 ### The 2026-09-22 session — the math and notation layer, in 14 releases
 
@@ -88,20 +89,56 @@ The order mattered. The test suite came first at Jon's direction, and `CATEGORY_
 only to answer "are these the same kind?" — later made both the `[[unit]]` kind check and
 "J displays as J" small changes rather than impossible ones.
 
+### The 2026-09-23 session, continued — sign-in, then the audit leads (v2.3.35 → v2.5.0)
+
+Six more releases the same day. The first three were forced by Jon being locked out of his own admin
+account; the last three closed the audit's remaining debt.
+
+| Rel    | What                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ |
+| 2.3.35 | Bumped the service-worker cache so a new Clerk key actually reached browsers — see the deploy trigger. |
+| 2.3.36 | Report **which** sign-in step Clerk is asking for, instead of a generic failure.                       |
+| 2.4.0  | **Two-factor sign-in.** Clerk returned `needs_second_factor` and the app had no step to show for it.   |
+| 2.4.1  | Closed five of the six open audit leads — [`known-issues.md`](known-issues.md) § 19.                   |
+| 2.4.2  | A section **renders** for everyone; only **creating** one is gated.                                    |
+| 2.5.0  | Author-declared **input rows** and **two kinds of row lock**; the sixth and last audit lead closed.    |
+
+**v2.3.35 is the deploy trigger in miniature.** A correct new Clerk key was deployed and browsers
+kept using the old one, because the service-worker cache name had not changed. The fix was a version
+bump, not code — which is exactly why "a version bump is not a deploy" is in `INDEX.md`.
+
+**v2.4.2 was a gate in the wrong place.** Opening a file containing a section showed "Pro required to
+create sections" across the whole block, so a recipient could neither read nor print a sheet sent to
+them. Rendering is now unconditional and only the create path is gated — consistent with the standing
+decision that section _creation_ is not worth defending server-side.
+
+**v2.5.0 is the one with a design behind it**, and the reasoning is in
+[`design-decisions.md`](design-decisions.md) §§ "Input rows: the licensing problem dissolved rather
+than traded" and "Two locks, and only one of them is enforcement". In short: a licensed pack template
+could be read but not used, because every edit was discarded on save by the encryption invariant. The
+insight that dissolved it is that **the inputs are not the licensed content — the formulas are**. A
+template author now declares which rows are inputs; only those values save, as plaintext beside the
+ciphertext, keyed to a stable author-assigned id (`FormulaRow.in`) rather than to row position, so a
+later pack version that inserts a row above an input still finds its value. An input must hold a
+literal, and its required unit kind (`uk`) is checked dimensionally so a `force` input takes kip, kN
+or lbf alike. Alongside it, two locks that are deliberately different in kind: `FormulaRow.lk`
+protects a row from **accidents** and is honestly described that way, because a flag in a file on the
+user's own disk cannot be enforcement; the pack lock is the real one, and it works by the plaintext
+never being on disk. v2.5.0 also fixed § 21 — block-level `lineSpacing` was serialized but never read
+back, so it reverted to single on every reload from v2.3.19 onward.
+
 ## Open items
 
-**0. Six audit leads that were never reproduced.** Reported by the 2026-09-23 sweeps, each needs a
-browser and none was confirmed, so they are leads rather than findings: the plot range silently
-falling back to a default span; `sect-prop`/`beam-def` inputs not persisting and leaving a stale
-result on screen; a failed pack decrypt rendering blank; pack edits discarded on save; an unknown
-`block.type` overwriting its own content; and summary comparisons silently dropped. Full list with
-the reasoning in [`known-issues.md`](known-issues.md) § 19.
+**0. ~~Six audit leads that were never reproduced.~~ ALL CLOSED 2026-09-23** — five fixed in v2.4.1,
+the sixth (pack edits discarded on save) closed in v2.5.0 by changing the design rather than the code
+path. Each was verified in the code before being changed. Kept in
+[`known-issues.md`](known-issues.md) § 19 because the _shape_ recurs: every one was a
+plausible-looking wrong answer rather than a crash.
 
-**1. A custom domain + Clerk production instance — the one thing blocking live sign-in.**
-The deployed site runs fine and the API is healthy, but Clerk is a DEVELOPMENT instance and its
-dev-browser handshake does not work on a deployed domain. A production instance needs CNAME records
-on a domain you control, which `*.deno.net` cannot provide. Everything else — canvas, math, plots,
-save/load — already works live, because the backend is only a gate. — [`auth-and-licensing.md`](auth-and-licensing.md)
+**1. ~~A custom domain + Clerk production instance.~~ DONE.** The production instance
+`clerk.leptonpad.com` exists and is live on `https://leptonpad.com`, and two-factor sign-in against
+it shipped in v2.4.0. This item used to read as the one thing blocking live sign-in; it no longer
+blocks anything. — [`auth-and-licensing.md`](auth-and-licensing.md)
 
 **2. Decide how third-party notices reach someone who only receives the deployed site.**
 `THIRD_PARTY_NOTICES.md` is complete and correct but is not copied into `dist/`; `@clerk/clerk-js` is
@@ -113,10 +150,29 @@ It paid for itself immediately, exposing a dropped unit tag on function definiti
 underpinning the whole unit-correctness series below. What is still uncovered is anything with a
 DOM. — [`testing.md`](testing.md)
 
-**4. The section-pack storefront.** The database side is complete and **verified** —
-`create_section_pack()` generates the secret, `mint_license_codes()` issues codes, redemption and key
-derivation pass `deno task db:check`. What is missing is the payment flow and the pack-authoring UI
-for a super user. Today packs are created by SQL helper and unlocked with manually minted codes.
+**4. The section-pack storefront — still the big missing piece.** The database side is complete and
+**verified** — `create_section_pack()` generates the secret, `mint_license_codes()` issues codes,
+redemption and key derivation pass `deno task db:check`. What is missing is the payment flow and the
+pack-authoring UI for a super user. Today packs are created by SQL helper and unlocked with manually
+minted codes.
+
+⚠️ **The hard blocker is on the client side, and it is recorded in
+[`known-issues.md`](known-issues.md) § 22: nothing in the tree ever sets `packId`.** It is read in
+`persistence.ts` (load, decrypt, serialize) and in `section.ts` (the unowned-pack placeholder), and
+assigned nowhere — no code path authors, purchases or places a pack block. So the encryption
+invariant, the per-user key derivation and the v2.5.0 pack lock are correct **by construction and
+untested end to end**; no one has ever opened a real pack block. A second unresolved question sits
+under it: a pack section's **children** are ordinary top-level blocks carrying `parentSectionId`, and
+they serialize their own `content` in **plaintext** — only the section block's own `content` is
+encrypted, and `buildSectionBlock` never reads it. As shaped today the storefront would write the
+template body in the clear. Whoever builds it has to settle how a pack's child blocks are carried
+before anything is sold. (`encryptTemplate()` in `src/crypto.ts` has no caller and is kept
+deliberately — do not remove it in a dead-code sweep.)
+
+**4a. No UI for renaming an input's `in` id.** The stable id is seeded from the variable name when a
+row is marked as an input and is independent of it thereafter — which is the point, since an author
+must be able to rename `P` to `P_u` without orphaning every saved value. But once assigned there is
+no way to change the id itself. That is fine until a template author needs to correct one.
 
 ### ✅ DECIDED 2026-08-13: Merchant of Record, not Stripe direct
 
@@ -142,10 +198,11 @@ The integration is small:
 2. One webhook: verify the signature, then either grant the pack or mint a code.
 3. It lands on `redeem_license_code`, which already exists and passes `db:check`.
 
-⚠️ **Sequence matters: do the Clerk production migration BEFORE the first sale.** Pack keys are
-`HMAC-SHA256(pack_secret, clerk_user_id)`, and Clerk user ids do not survive a dev → production
-move — so anything sold beforehand becomes permanently undecryptable. Verified 2026-08-13 that the
-database is still clean (0 packs, 0 codes, 0 secrets), so the migration is currently free.
+✅ **The sequencing hazard is spent.** Pack keys are `HMAC-SHA256(pack_secret, clerk_user_id)` and
+Clerk user ids do not survive a dev → production move, so anything sold before the migration would
+have become permanently undecryptable. The production instance `clerk.leptonpad.com` went live
+before any sale and while the database was still clean, so nothing was stranded. Keep the rule in
+mind only if a Clerk instance is ever moved again.
 
 **5. `'table'` block type** — declared in the `Block['type']` union with no implementation. Either
 build it or remove it from the union.
@@ -161,7 +218,9 @@ build it or remove it from the union.
 - **A state-management framework.** The mutable `state.ts` singleton plus callback slots is the right
   size for a single-user, single-document browser app.
 - **Server-side enforcement of section _creation_.** The boundary that matters is `get_pack_key`;
-  drawing an empty section is not worth defending. — [`security-model.md`](security-model.md)
+  drawing an empty section is not worth defending. v2.4.2 narrowed the client gate to match — a
+  section **renders** for everyone, and only creating one is gated.
+  — [`security-model.md`](security-model.md)
 - **A second backend implementation.** `src/backend.ts` keeps the seam so a future swap stays cheap,
   but there is one implementation and adding a speculative second would be cost without benefit.
 

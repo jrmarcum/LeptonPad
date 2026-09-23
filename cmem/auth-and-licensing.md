@@ -92,7 +92,11 @@ would orphan every pack already sold under the old key.
 - `accessSummary()` produces the sidebar string: "Full access (super)" / "Pro — all features" /
   "Demo trial active" / "N template pack(s)" / "Free — no packs".
 
-## ⚠️ The Clerk instance is a DEVELOPMENT instance — origins must be allowlisted
+## ⚠️ The Clerk instance WAS a development instance — origins must be allowlisted
+
+**Superseded 2026-09-23: a Clerk production instance now serves the live site.** The history below is
+kept because two of its rules outlived the fix — every origin must be allowlisted, and a Clerk error
+that names a credential is frequently not about the credential.
 
 Verified 2026-08-13 via `GET https://api.clerk.com/v1/instance`:
 
@@ -148,8 +152,93 @@ instances.
 | Production keys      | `pk_live_` / `sk_live_` replacing the `pk_test_` pair |
 | Own SSO credentials  | Clerk's shared dev OAuth credentials are dev-only     |
 
-Until then: **auth works locally, and the deployed site serves everything except sign-in.** The rest of
-the app — canvas, math engine, plots, save/load — is unaffected, because the backend is only a gate.
+That held until **2026-09-23**, when the production instance was created and
+`CLERK_PUBLISHABLE_KEY` became a `pk_live_` key. Live sign-in works now. Getting there cost three
+releases, below.
+
+## The production key existed but browsers did not have it — v2.3.35 (2026-09-23)
+
+`/config.js` is rendered per request from the Deno Deploy environment, so the switch to the
+production key took effect **on the server** the moment the env var changed — `curl` confirmed it.
+But `/config.js` is also in the service worker's `PRECACHE` list and the worker is cache-first, so
+every browser kept serving the config it had cached under `leptonpad-v2.3.34`, still carrying the old
+`pk_test` key. Bumping the version — which renames the SW `CACHE` — is what actually delivered the
+key. Full chain: [`build-and-deploy.md`](build-and-deploy.md) § "Changing a Deno Deploy env var ALSO
+needs a version bump".
+
+**A development instance and a production instance are separate user directories.** So the symptom
+was not "wrong key" but "wrong account store": the password could be reset in the Clerk dashboard and
+still be rejected by the site, because the site was authenticating against a directory the account
+does not live in.
+
+## The error threw away the one fact needed to act on it — v2.3.36 (2026-09-23)
+
+`signIn()` had returned a flat "Additional verification is required to sign in." for **every**
+non-`complete` status. v2.3.36 changed only the reporting: it `console.warn`s
+`{ status, first, second }` and returns a message naming the status plus the supported factors —
+"Sign-in needs another step that this app cannot show (`<status>` — first factor: …; second
+factor: …)".
+
+That named the real state on the first attempt after deploying it: status **`needs_second_factor`**,
+`supportedFirstFactors` = `password`, `email_code`, `reset_password_email_code`, and
+`supportedSecondFactors` = `email_code`.
+
+## Two-factor sign-in — v2.4.0 (2026-09-23)
+
+The production instance **enforces MFA** and the app had no step for it. The password was accepted,
+Clerk returned `needs_second_factor`, and sign-in stopped. **Every MFA-enabled user was locked out**,
+not only the admin — it surfaced as Jon being unable to sign into his own admin account while he
+could sign into the Clerk dashboard and reset the password there, which made the account look broken
+rather than the flow unfinished.
+
+The flow, in `src/backends/neon-clerk.ts`:
+
+1. `signIn()` calls `clerk.client.signIn.create({ identifier, password })`. Status `complete` →
+   `setActive({ session: createdSessionId })`, done.
+2. Status **`needs_second_factor`** with a non-empty `supportedSecondFactors` → pick a strategy in
+   the order **`totp`, `email_code`, `phone_code`, `backup_code`**, falling back to
+   `supportedSecondFactors[0]`. The order prefers what the user already holds: `totp` and
+   `backup_code` need **no prepare step and no second device**; `email_code` and `phone_code` have to
+   be **sent**, so `prepareSecondFactor({ strategy })` is called for those two only.
+3. It returns `{ error: null, needsSecondFactor: true, secondFactorLabel }`, the label naming the
+   source — "your authenticator app" / "your email" / "your phone" / "your backup codes" — so the
+   prompt can say where to look.
+4. The chosen strategy is held on the backend instance (`private secondFactorStrategy`) because
+   `attemptSecondFactor` must be given **the same strategy that was prepared**. With none stored,
+   `verifySecondFactor()` returns "No verification is in progress. Start signing in again."
+5. `verifySecondFactor(code)` → `attemptSecondFactor({ strategy, code })`; on `complete` it calls
+   `setActive` and clears the stored strategy.
+
+**No new dialog.** The login modal already had a one-time-code field for confirming a new address, so
+it serves both; a `codeKind` flag (`'mfa'` | `'signup'`) in `src/main.ts` selects the verifier and the
+wording. On `needsSecondFactor` the email and password fields hide, the code field appears, the button
+becomes "Verify", and the prompt reads "Enter the verification code from _`secondFactorLabel`_."
+
+**Contract:** `Backend.signIn` gained `needsSecondFactor` and `secondFactorLabel`;
+`verifySecondFactor?()` is **optional** on the interface for the same reason `verifyEmailCode?()` is —
+a provider without MFA does not need one. `auth.ts`'s `verifySecondFactor()` returns a stated error
+("…which is not available here.") when the backend lacks the method, rather than throwing.
+
+### ⚠️ Clerk's sign-in is a state machine, not a boolean
+
+**An auth flow that handles the success path and one generic failure is indistinguishable, from the
+user's side, from a broken account.** That is the whole of this incident: the app treated any
+non-`complete` status as failure, so an account that was fine and merely mid-flow reported the same
+thing as a bad password.
+
+Clerk's statuses are `complete`, `needs_identifier`, `needs_first_factor`, `needs_second_factor`,
+`needs_new_password`. **Only `complete` and `needs_second_factor` are performed.** The rest are
+_named_ by the v2.3.36 message and go no further:
+
+- **`needs_first_factor` with `email_code`** — passwordless sign-in. `signIn()` only ever submits a
+  password as the first factor, so a user with no password cannot sign in through this modal at all.
+- **`needs_first_factor` with `reset_password_email_code`, then `needs_new_password`** — a forced or
+  requested password reset. There is no "forgot password" path in the app; the Clerk dashboard is it.
+- **`needs_identifier`** — not reachable from this modal, which always sends an identifier.
+
+If MFA enrolment, passwordless sign-in, or in-app password reset is ever turned on in the Clerk
+dashboard, **the status is already legible in the error and the console — the work is adding the
+step, not finding the cause.**
 
 ## Sign-up flow — Clerk uses a code, not a link
 

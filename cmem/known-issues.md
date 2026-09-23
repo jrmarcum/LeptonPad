@@ -385,20 +385,80 @@ file-handle save degraded to a download silently. The figure block wrote a blank
 over unparseable content. Corrupt formula JSON was shredded on `;` and written back. A
 multi-statement row reported only its first statement, hiding an error in any later one.
 
-### Still OPEN — reported by a sweep, never reproduced
+### The six leads — ALL NOW CLOSED (five in v2.4.1, the sixth in v2.5.0)
 
-These need a browser and were **not** verified, so treat them as leads:
+Each was verified in the code before being changed. They are kept here because the _shape_ of them
+recurs: every one was a plausible-looking wrong answer rather than a crash.
 
-1. Plot range silently falls back to a default span when a bound variable fails to resolve, with
-   axes relabelled and no error — a moment diagram read off a wrong span.
-2. `sect-prop` / `beam-def` inputs are never persisted, and a bad input leaves the _previous_
-   result on screen beside the new inputs.
-3. A failed pack decrypt renders a blank section — no lock badge, no error.
-4. Pack edits are discarded on save and the original ciphertext rewritten.
-5. An unknown `block.type` renders as a contenteditable div that overwrites `content` on blur
-   (`'table'` is declared with no implementation — § 8).
-6. Summary-block comparisons are silently dropped when they fail to evaluate, so a missing check
-   reads as "all pass".
+1. **Plot range substituted a span instead of reporting** — FIXED v2.4.1. `resolveRangeQty` caught
+   an eval error and returned `parseFloat(expr)` or the stored number, then drew the curve over it
+   with the axes relabelled to match. A renamed bound variable, or `2L` (`parseFloat` gives 2),
+   produced a normal-looking diagram over the **wrong length**. Plot bounds in _different_ units
+   were unchecked too, so `from L1 [ft] to L2 [in]` swept raw numbers from two scales.
+2. **`sect-prop` / `beam-def` inputs were never persisted** — FIXED v2.4.1. Neither builder received
+   the `Block`, so `serializeProject` had nothing to write: reopening silently reset both to their
+   defaults while still displaying a confidently formatted result. Second half: `if (!isNaN(...))`
+   simply did not run on bad input, leaving the **previous** result on screen beside the new values.
+   Invalid input now blanks the result to an em dash.
+3. **A failed pack decrypt rendered a blank section** — FIXED v2.4.1. `if (!key) return` and a
+   missing `else` both ended the chain silently, and because the serializer omits plaintext the
+   content is `''` — so the section rendered empty and _normal_: no lock badge, no error, and no
+   `.catch()` either. Every exit now leaves an `[Unavailable: …]` placeholder naming the reason.
+4. **Pack edits discarded on save** — CLOSED v2.5.0, by changing the design rather than the code
+   path. Held open through v2.4.1 and v2.4.2 as a product decision, because every available option
+   cost something. **Input rows removed the trade**: the rows an author declares as inputs are the
+   only editable ones, their values save as plaintext beside the ciphertext, and the rest of a pack
+   block is now honestly read-only instead of silently discarding edits. See
+   [`design-decisions.md`](design-decisions.md) § Input rows and § Two locks.
+5. **An unknown `block.type` rendered as a contenteditable div** — FIXED v2.4.1. It overwrote
+   `block.content` with its own flattened text on blur: structured data destroyed by clicking in and
+   out again. Now read-only with an "Unsupported block" notice, so the block round-trips and a build
+   that understands the type recovers it. Removing the fallback also let TypeScript prove the chain
+   exhaustive.
+6. **Summary comparisons that failed to evaluate were dropped** — FIXED v2.4.1. The summary showed
+   only the checks that worked — all ticks — and **a silently absent check reads as a passing one**.
+   They are now carried with their error and rendered amber: broken is its own state, neither pass
+   nor fail.
+
+---
+
+## 21. `lineSpacing` was written but never read back — FIXED 2026-09-23 (v2.5.0)
+
+`serializeProject()` wrote `out.lineSpacing`, and the block literal in `loadProject()` never listed
+it. Block-level line spacing therefore **reverted to single on every reload**, from the day it was
+added (v2.3.19) until v2.5.0.
+
+Worth its own entry because of how it hides: the setting looked _forgotten_, which reads as a
+feature that was never finished rather than a bug — and the value was in the file the whole time, so
+anyone who checked the saved JSON would have seen it written correctly and concluded the save path
+was fine. It was.
+
+**The check that catches this class:** a field added to the serializer must be added to the loader in
+the same commit, and `loadProject()`'s block literal is an explicit allowlist — a field absent from
+it is dropped in silence. Grep both directions when adding a `Block` field. (This is the same shape
+as § 16, where `syncContent()` destroys any row field it does not copy back.)
+
+---
+
+## 22. Nothing in the tree sets `packId` — the pack pipeline is scaffolding meeting scaffolding
+
+Verified 2026-09-23 by grepping the whole tree: `packId` is **read** in `persistence.ts` (load,
+decrypt, serialize) and `section.ts` (the unowned-pack placeholder), and **never assigned**. No code
+path authors, purchases or places a pack block.
+
+Consequences to keep in mind before trusting anything pack-shaped:
+
+- The encryption invariant, the per-user key derivation and the v2.5.0 pack lock are all correct **by
+  construction** and **untested end to end**. No one has ever opened a real pack block.
+- The section-pack storefront in [`roadmap.md`](roadmap.md) is the missing half.
+- `encryptTemplate()` in `src/crypto.ts` has no caller. It was deliberately kept (Jon, 2026-09-23:
+  _"Keep the scaffolding. We will use it later."_) — do **not** remove it in a dead-code sweep.
+
+⚠️ There is also an unresolved question here: a pack section's **children** are ordinary top-level
+blocks carrying `parentSectionId`, and they serialize their own `content` in plaintext. Only the
+section block's own `content` is encrypted, and `buildSectionBlock` never reads it. Whoever builds
+the storefront has to settle how a pack's child blocks are actually carried — the current shape
+would write the template body in the clear.
 
 ---
 

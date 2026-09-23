@@ -2,16 +2,16 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**97 steps across 6 files** at v2.3.34, all against the real engine (pure functions in, `Quantity`
-out, no DOM).
+**103 steps across 6 files** at v2.5.0 (2026-09-23), all against the real engine (pure functions in,
+`Quantity` out, no DOM).
 
-| File                         | Covers                                                                                                                                                                                                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `tests/_helpers.ts`          | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.                                                                                                                                                             |
-| `tests/expr_units_test.ts`   | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                                                                                                                                                                  |
-| `tests/expr_matrix_test.ts`  | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot.                                                                                                                                                   |
-| `tests/markdown_test.ts`     | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                                                                                                                                                                   |
-| `tests/formula_rows_test.ts` | `parseFormulaRows` round-trips and `fmtNum` formatting, plus the **source guard** on `syncContent` below. Also `tests/unit_catalog_test.ts`: no id shared across categories of different dimension, every category has a `CATEGORY_DIMENSION`, every `baseUnits` key is a real unit. |
+| File                         | Covers                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests/_helpers.ts`          | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.                                                                                                                                                                                                       |
+| `tests/expr_units_test.ts`   | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                                                                                                                                                                                                            |
+| `tests/expr_matrix_test.ts`  | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot.                                                                                                                                                                                             |
+| `tests/markdown_test.ts`     | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                                                                                                                                                                                                             |
+| `tests/formula_rows_test.ts` | `parseFormulaRows` round-trips and `fmtNum` formatting, the **input rows** group added in v2.5.0, plus the **source guard** on `syncContent` below. Also `tests/unit_catalog_test.ts`: no id shared across categories of different dimension, every category has a `CATEGORY_DIMENSION`, every `baseUnits` key is a real unit. |
 
 **Every fixed bug has a case**, named after it: the `-x^2` precedence, `==` as a comparison, the
 comparison's trailing unit, the phantom `1` unit, the singular determinant returning exactly 0, the
@@ -26,13 +26,44 @@ reported 875634 in, and `[ksii]` was accepted as a unit. Where a fix changed a b
 pinned, the assertion was **rewritten to the new value rather than deleted**, so the change shows up
 in the diff on purpose.
 
+### Input rows (v2.5.0, 2026-09-23)
+
+`Deno.test('input rows', …)` in `formula_rows_test.ts` covers the pure half of the feature:
+
+- **`splitInputRow`** — name/value split on the assignment and not on a comparison; `P =` and a bare
+  `P` both yield an empty value, because an author ships the row blank for the user to fill.
+- **`validateInputValue`** — accepts numbers, signed decimals, exponents and `{…}` vectors, each
+  with an optional `[unit]`; refuses `2*L`, `L`, `sin(0)`, `1 + 1`, `{a, 2}`. The refusal is the
+  point: a value that lives outside the encrypted template must mean the same thing wherever it is
+  re-applied, and `2*L` picks up whatever `L` happens to be next time.
+- **Unit kinds checked dimensionally, not by name** — `10 [kip]`, `44 [kN]` and `9 [lbf]` all
+  satisfy `force`; `10 [in]` and a bare `10` do not. An **unrecognised** kind must not block the
+  user — a template naming a kind the engine does not know locks its buyer out of their own sheet.
+- **`inputUnitKindOf`** — infers the kind from what the author already typed, and returns
+  `undefined` rather than guessing when there is nothing to infer from.
+- **`in` / `uk` / `lk` survive `parseFormulaRows`**, and an unset `lk` stays `undefined`.
+
 ### The source guard
 
 `syncContent()` rebuilds a formula block's rows from the DOM on every keystroke, so a field it
 forgets is destroyed (§ 16 of [`known-issues.md`](known-issues.md)). There is no DOM in the runner,
-so `formula_rows_test.ts` asserts on the **source** of that function — that it writes back every
-optional `FormulaRow` field — after stripping comments, so a comment that merely mentions a field
-cannot satisfy it. It is not a pretty test; it is the one that would have caught the bug.
+so `formula_rows_test.ts` asserts on the **source** of that function — that it contains
+`obj.<field> =` for every `FormulaRow` field — after stripping comments, so a comment that merely
+mentions a field cannot satisfy it. It is not a pretty test; it is the one that would have caught
+the bug.
+
+**Changed in v2.5.0: the field list is no longer written in the test.** It is read off the
+`FormulaRow` interface in `src/expr.ts` by regex, filtering out `e` and `d` (always written
+unconditionally), and the guard fails if fewer than five fields are found — so a renamed or moved
+interface breaks loudly instead of silently guarding nothing.
+
+**The general rule, and the transferable part: a source guard with a hand-maintained list silently
+stops covering the newest field — which is exactly the field most likely to be missed.** The
+original guard listed `['type', 'ref', 'sp', 'sd']` by hand. `in`, `uk` and `lk` were added to
+`FormulaRow` in v2.5.0 and the guard kept passing while covering none of them; each would have
+failed the identical way `sp` did — round-tripping through parse but not through `syncContent`, so
+the value vanished the first time anyone typed in the block. Deriving the list from the type puts a
+new field under the guard the moment it is added, with no one having to remember.
 
 What the rest of the toolchain still catches:
 
@@ -45,6 +76,11 @@ What the rest of the toolchain still catches:
 **What is still only eyeball-verified:** anything needing a DOM — block placement and drag, the text
 block's editor, section layout, the plot's SVG and crosshair, persistence, and the service worker.
 The manual checklist below covers those and stays the release gate for them.
+
+**The suite covers no DOM, and v2.5.0 is mostly DOM.** The input-row validators and the parse
+round-trip are tested; everything else the release added — the right-click marking, the input row's
+rendering, the name/value edit split, and both kinds of lock — is unverified by any test and needs
+manual browser checking. A green `deno task check` says nothing about it.
 
 ## Why this matters more here than in most projects
 
@@ -108,6 +144,17 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] A comparison row shows green **OK** / red **NG**; an `if` row still shows `▶ true` / `▷ false`.
 - [ ] A normal result is the same font and colour as the formula; `err` is red.
 - [ ] The heading rule and the description/reference column rules are near-black, not pale grey.
+
+**Input rows and locks** (v2.5.0, 2026-09-23 — none of this is covered by a test)
+
+- [ ] Right-click a row → mark it as an input. The **name locks** and only the value stays
+      editable; typing in the name does nothing.
+- [ ] An input row with a required unit kind **rejects a wrong-kind unit** — `10 [in]` where the
+      row wants `force` — and accepts any force unit (`kip`, `kN`, `lbf`).
+- [ ] Lock a row, then confirm **the delete button is gone** while it is locked; unlock it and the
+      button comes back.
+- [ ] Type input values, save the project, reload it — **the values are still there**, and the
+      `in`/`uk`/`lk` markings survived with them (the § 16 failure mode: fine until you type).
 
 **Functions and control flow**
 
@@ -207,6 +254,11 @@ Assertions 1 and 6 exist because both failed the first time this was run. See
    so copy the wording from the source.
 5. **When a behaviour is disputed, pin the current one with a comment saying so**, as the trailing-
    unit case in `expr_units_test.ts` does. Then the change shows up in the diff on purpose.
+6. **A source guard derives its checklist from the type it guards — never from a list typed beside
+   it.** The `syncContent` guard listed four field names by hand and kept passing through the three
+   fields v2.5.0 added, covering none of them. It now reads `FormulaRow` out of `src/expr.ts`, so a
+   new field is guarded the moment it exists. A list that must be updated by hand to stay correct
+   will eventually be wrong, and it fails by **passing**.
 
 **Where to extend next:** `unit-defs.ts` (round-trip every unit through `toBase`/`fromBase` and
 assert no definition is unreachable), then `persistence.ts` (`parseProjectJson` on malformed input —

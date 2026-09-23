@@ -193,6 +193,24 @@ _source_ that it writes back every optional `FormulaRow` field, stripping commen
 comment that merely mentions a field cannot satisfy it. Ugly, and it would have caught the bug. —
 [`known-issues.md`](known-issues.md) § 16
 
+**A source guard must derive what it checks from the type it is guarding, never from a list copied
+beside it.** That `syncContent` guard, written after the `sp` line-spacing loss, listed
+`['type', 'ref', 'sp', 'sd']` by hand. When `in`, `uk` and `lk` were added to `FormulaRow` in
+v2.5.0 the guard still passed while covering **none** of them — the three newest fields, each one
+positioned to fail exactly the way `sp` had. Fixed by reading the field names off the `FormulaRow`
+interface in `src/expr.ts`, so a new field is guarded the moment it is declared. The general form:
+**a check that must be updated by hand to stay correct will eventually be wrong, and it fails
+silently — it keeps passing.** — [`known-issues.md`](known-issues.md) § 16,
+[`testing.md`](testing.md)
+
+**When a stated constraint and a user requirement look like a direct conflict, check whether they
+are actually about the same thing before trading one against the other.** "Pack templates must stay
+encrypted" versus "the engineer must be able to enter their numbers" produced three options that
+each gave something up — an async serializer, a broken invariant, or a read-only template. None was
+needed: the inputs are not the licensed content, the formulas are, so the two claims never touched.
+A conflict you can only resolve by paying for it is worth re-reading first. —
+[`design-decisions.md`](design-decisions.md)
+
 **Re-measure before quoting any number.** Line counts, version strings, category counts, and pass
 counts in these files go stale silently, and a stale number is worse than none because it reads as
 current.
