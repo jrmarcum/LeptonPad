@@ -792,6 +792,15 @@ function isSingleTempUnit(umap: UnitMap): boolean {
  *   This correctly handles compound units such as {N:1, mm:-2} → {ksi:1}.
  */
 function applyTargetUnit(q: Quantity, targetUmap: UnitMap): Quantity {
+  // A conversion between different kinds of quantity is not a conversion, it is a wrong number
+  // wearing a unit: `5 [kip] [[in]]` used to report 875634 in, and `100 [ksi] [[ft]]` billions of
+  // feet. Factor scaling will happily multiply anything, so the kind has to be checked first.
+  if (!sameKind(q.u, targetUmap)) {
+    throw new Error(
+      `Can't convert ${formatUnit(q.u) || 'a plain number'} to ${formatUnit(targetUmap)} — ` +
+        'they measure different kinds of quantity',
+    );
+  }
   // Affine temperature path: only when both sides are a single temperature unit
   if (isSingleTempUnit(q.u) && isSingleTempUnit(targetUmap)) {
     const src = UNIT_LOOKUP.get(Object.keys(q.u)[0])!;

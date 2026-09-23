@@ -76,6 +76,15 @@ Deno.test('[[targetUnit]] conversion', async (t) => {
     assertValue('l = 12 [ft]; x = l^2 [[in^2]]', 20736, 'in^2');
   });
 
+  await t.step('converting between different kinds is refused', () => {
+    // Factor scaling multiplies anything, so without a kind check these came back as real-looking
+    // answers: `5 [kip] [[in]]` reported 875634 in, `100 [ksi] [[ft]]` billions of feet (2.3.26).
+    assertError('x = 5 [kip] [[in]]', /Can't convert kip to in/);
+    assertError('x = 12 [in] [[kg]]', /different kinds/);
+    assertError('x = 100 [ksi] [[ft]]', /Can't convert/);
+    assertError('x = sin(1) [[in]]', /plain number/);
+  });
+
   await t.step('moment units convert across the metric/imperial line', () => {
     // kN·mm was missing until 2.3.25 — and an unknown tag becomes a phantom unit rather than an
     // error, so `[kN-mm]` had been quietly producing something that could never convert.
