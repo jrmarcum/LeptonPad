@@ -25,6 +25,29 @@ declared in the union but has no dedicated block module; treat it as reserved, n
 
 Those two math blocks and `src/solver.ts` are the **entire** WASM footprint of the product.
 
+## Formula rows — spacing, navigation, and what a result looks like (2026-09-23)
+
+**Line spacing (1 / 1.5 / 2).** Right-click a row for "Line spacing (this row)", or the block's
+label for "Line spacing (whole block)", which **overwrites every row**. Spacing is a property of
+the row (`sp` on `FormulaRow`), saved with the project — not a display preference, because a
+sheet's layout should look the same on someone else's screen. `1` is never stored. The CSS reads
+`--row-space` alone and splits the extra space half above / half below the row. Text blocks have no
+rows, so they follow `--block-line-space` on the block element instead (`.md-view` line-height).
+Why rows rather than a cascade: [`design-decisions.md`](design-decisions.md).
+
+**Alt+Arrow moves between cells** — left/right through the columns and on into the next row,
+up/down to the same column one row away. Alt is the only free modifier, and the handler always
+calls `preventDefault` because Alt+Left/Right is the browser's Back/Forward. Two structural traps
+it has to respect: `else`/`end` rows **hide** their expression cell, and an `if`/`for` header row
+keeps its description and reference **on the group wrapper, not on the row** — so cells are
+gathered from the group too and sorted by document position rather than append order.
+
+**What the result column shows.** A result is set in the same serif face, size and colour as the
+expression that produced it — it is part of the calculation, not a separate kind of thing. Only a
+status earns a colour: `err` in red, and a comparison as a green **OK** or a red **NG**, driven by
+`Statement.isTest`. The `if`/`elseif` branch markers deliberately keep `▶ true` / `▷ false`: they
+report which branch executed, not whether a design check passes.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

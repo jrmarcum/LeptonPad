@@ -29,8 +29,45 @@ Private helpers, all pure, all operating on `UnitMap`:
 | `mulU` / `divU` | Add / subtract exponents.                                                                 |
 | `powU`          | Multiply exponents by `n`.                                                                |
 | `eqU`           | Structural equality after cleaning.                                                       |
-| `addU`          | **Requires `eqU`** — addition and subtraction of mismatched units is an error, by design. |
+| `addU`          | The unit of a sum. Operands are lined up by `alignUnits` first — see below.               |
+| `dimensionOf`   | `UnitMap` → signature in L/M/T/F/K/A. An unknown symbol becomes its own dimension.        |
+| `sameKind`      | Do two unit maps measure the same thing? The test behind every conversion.                |
+| `alignUnits`    | Converts the right operand into the left's unit, or throws. Used by `+`, `−` and compare. |
 | `formatUnit`    | `UnitMap` → display string.                                                               |
+
+## Same-kind conversion (2026-09-23, v2.3.24) — read before touching `+`, `−` or a comparison
+
+Until 2.3.23 **comparisons ignored units entirely**: `compare()` read the raw `.v` off both sides.
+`1 [ft] > 1 [in]` was false, `1 [ft] == 12 [in]` was false, and `6 [in] > 0.5 [ft]` was **true**.
+A wrong pass/fail, silently, on a sheet someone stamps. Addition was safe but blunt — it refused
+`1 [ft] + 1 [in]` outright and made the user do the arithmetic.
+
+One rule now covers both: **operands of the same kind convert, the left-hand unit wins, a different
+kind is an error.**
+
+```
+1 [ft] + 1 [in]      → 1.0833 ft        12 [in] + 1 [ft]  → 24 in
+1 [ft] > 1 [in]      → true             6 [in] > 0.5 [ft] → false (equal)
+200 [MPa] > 20 [ksi] → true             20 [C] > 50 [F]   → true (affine)
+1 [ft] + 1 [kg]      → error            1 [lbf] + 1 [lbm] → error
+```
+
+Two deliberate asymmetries:
+
+- **A comparison refuses a bare number; addition allows one.** `b > 8` where `b` is in inches checks
+  nothing — it is 6 against 8. But `1 [ft] + 1` has always meant 2 ft, so that stays. The `bareOk`
+  argument to `alignUnits` is that distinction and nothing else.
+- **Zero is exempt everywhere.** Zero carries no dimension, so `M > 0` and `P != 0` stay idiomatic.
+
+Conversion routes through `applyTargetUnit`, so affine temperature and compound units are handled by
+the code that already solved them rather than a second implementation.
+
+### The trailing tag on a comparison
+
+`b > 8 [in]` used to have its `[in]` stripped as a whole-statement tag — which a comparison then
+discards (the 2.3.10 `isTest` rule) — so it silently degraded to `b > 8`. `evalStatements` now skips
+the whole-statement strip for any statement containing a comparison operator (`CMP_OP_RE`), leaving
+the tag for the parser to bind to the `8`, which is what the user wrote.
 
 ## Compound-unit expansion — the central design decision
 
@@ -54,6 +91,7 @@ never changes the numeric value — only the bookkeeping.
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
 | `x = 150 [mm]`           | **Declares** the unit. No numeric conversion; labels the result and feeds dimensional analysis. |
 | `x = F [kN] [[lbf]]`     | **Converts** the result to `lbf`. `x` is then stored in `lbf` for everything downstream.        |
+| `x = 5 [kip] [[in]]`     | **Error** since 2.3.26 — the kinds differ. It used to report `875634 in`.                       |
 | `delta(x) = expr [[in]]` | Function definition — the conversion is applied **on every call**, not at definition time.      |
 
 ### Inline `[unit]` tags (v2.2.3, 2026-09-21)
@@ -315,13 +353,21 @@ can define a variable, define a function, or just display a result.
 
 ## Invariants
 
-1. **`addU` must stay strict.** Silently coercing mismatched units would turn a wrong calculation into
-   a plausible-looking number. In this product that is the worst possible failure.
+1. **Never coerce across kinds — convert within one.** Mismatched units must raise, because a
+   plausible wrong number is this product's worst possible output. Converting `in` to `ft` is not
+   coercion and is now done for the user; converting `kip` to `in` is, and raises. Every path that
+   compares or adds two quantities goes through `alignUnits`, and every conversion through
+   `applyTargetUnit`, which checks `sameKind` first. Three paths have been caught skipping this —
+   comparisons (2.3.23), addition of compatible units (2.3.24), and `[[unit]]` itself (2.3.26).
 2. **`cleanU` before comparing.** `{in: 0}` and `{}` are the same unit; only `cleanU` makes that true.
 3. **Expansion happens in `parseUnitExpr`, once.** Do not expand again downstream — exponents would
    double.
 4. **`applyTargetUnit` never mutates its input.** `Quantity` values flow through the evaluator; an
    in-place edit corrupts a cached scope entry.
+   4b. **A comparison's result is a check, not a number.** `compare()` marks it `isTest`, which
+   `applyStatementUnits` passes through untouched (so a trailing tag never labels a pass/fail) and
+   `Statement` now carries to the renderer, which draws **OK** or **NG**. Anything that rebuilds a
+   `Statement` must carry `isTest` with it or checks silently become bare `1`/`0` again.
 5. **Evaluation order is document order.** Any change here breaks existing user sheets.
 
 ## Related

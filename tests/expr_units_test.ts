@@ -53,6 +53,26 @@ Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => 
     assertValue('E = 29000 [ksi]; I = 100 [in^4]; EI = E * I', 2900000, 'in^2·kip');
   });
 
+  await t.step('an unknown unit is rejected, not invented (2.3.27)', () => {
+    // `[ksii]` used to become a phantom unit: it displayed as `5 ksii`, never cancelled, and only
+    // failed much later at conversion. There is deliberately no way to define a unit.
+    assertError('x = 5 [ksii]', /Unknown unit "ksii" — did you mean "ksi"\?/);
+    assertError('x = 5 [inn]', /did you mean "in"\?/);
+    assertError('n = 4 [bolts]', /Unknown unit "bolts"/);
+    assertError('x = 5 [zzzzzzzz]', /Unknown unit "zzzzzzzz"$/); // nothing close — no guess
+    assertError('x = 2 [kip] [[inchs]]', /Unknown unit "inchs"/); // also inside [[…]]
+  });
+
+  await t.step('a bad unit marks its own row and no others', () => {
+    // Both tags are parsed outside the per-statement try, so an unguarded throw here used to
+    // escape evalStatements and take the whole block down instead of marking one row.
+    const r = rows(['a = 1 [in]', 'b = 2 [inn]', 'c = 3 [ft]']);
+    assertEquals(r[0].error, undefined);
+    assertMatch(r[1].error ?? '', /Unknown unit/);
+    assertEquals(r[2].error, undefined);
+    assertEquals(r[2].value, 3);
+  });
+
   await t.step('[1/unit] is not a unit named "1"', () => {
     assertValue('x = 4 [kip] * 2 [1/kip]', 8, '');
     assertValue('y = 1 [1/s] * 3 [s]', 3, '');

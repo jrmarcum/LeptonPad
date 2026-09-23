@@ -1,9 +1,9 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.3.10 (2026-09-22)
+## Where the project stands — v2.3.27 (2026-09-23)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
-1,718-line unit-aware math engine, a 22-category unit catalog, SVG plotting with unit-propagating
+unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG plotting with unit-propagating
 sweep variables, markdown text, figures, collapsible sections with scoped namespaces, custom
 multi-block user tools, page-sized canvas with title block and page numbering, PWA install and
 offline operation, Clerk auth with four roles, one-time license codes, and AES-256-GCM encrypted
@@ -49,6 +49,29 @@ The trajectory is clear: **the unit and presentation layer is where the effort g
 where an engineering calculation pad either earns trust or loses it. The backend is a gate, kept
 deliberately small.
 
+### The 2026-09-23 session — tests, then the unit-correctness series (v2.3.17 → v2.3.27)
+
+The test suite landed first, at Jon's direction, and then found or enabled everything after it.
+
+| Rel    | What                                                                                      |
+| ------ | ----------------------------------------------------------------------------------------- |
+| 2.3.17 | `tests/` + `deno task check` runs it. Fixed: function definitions dropped their unit tag. |
+| 2.3.18 | Line spacing 1 / 1.5 / 2, per block and per row.                                          |
+| 2.3.19 | Rows own their spacing; the block control overwrites every row (Jon's design).            |
+| 2.3.20 | Fixed: `syncContent` erased spacing on every keystroke — § 16 of known-issues.            |
+| 2.3.21 | Alt+Arrow navigation between cells; readme gained a keyboard section.                     |
+| 2.3.22 | Ink-coloured rules; results in the calculation face; comparisons render **OK** / **NG**.  |
+| 2.3.23 | **Comparisons ignored units entirely** — `6 [in] > 0.5 [ft]` was true.                    |
+| 2.3.24 | Same-kind units convert in `+`, `−` and comparisons; `CATEGORY_DIMENSION` added.          |
+| 2.3.25 | `kN-mm` added (`J`, `lbm`, `kg` were already there).                                      |
+| 2.3.26 | `[[unit]]` refuses different kinds — `5 [kip] [[in]]` had reported 875634 in.             |
+| 2.3.27 | Unknown unit ids rejected with a did-you-mean; no phantom units, no user-defined units.   |
+
+Four of these were **silent wrong answers**, not crashes — the failure mode this product cares most
+about. Three were in unit handling and had been there for the engine's whole life; the fourth
+(spacing) was introduced and caught the same day. Detail in [`math-engine.md`](math-engine.md),
+[`units.md`](units.md) and [`known-issues.md`](known-issues.md) §§ 16–17.
+
 ## Open items
 
 **1. A custom domain + Clerk production instance — the one thing blocking live sign-in.**
@@ -62,10 +85,10 @@ save/load — already works live, because the backend is only a gate. — [`auth
 bundled and MIT requires its notice to travel with distributed copies. A link in an about panel is
 the usual answer. — [`licensing.md`](licensing.md)
 
-**3. Tests for `expr.ts`.** The highest-value, lowest-effort risk reduction available: pure functions,
-no DOM, and the module whose failure mode is a wrong number that looks right. A table-driven
-`Deno.test` over `evalExpr` would cover the unit algebra, compound expansion, `[[targetUnit]]`, and
-affine temperature. — [`testing.md`](testing.md)
+**3. ~~Tests for `expr.ts`.~~ DONE 2026-09-23** — `tests/`, 79 steps, wired into `deno task check`.
+It paid for itself immediately, exposing a dropped unit tag on function definitions and then
+underpinning the whole unit-correctness series below. What is still uncovered is anything with a
+DOM. — [`testing.md`](testing.md)
 
 **4. The section-pack storefront.** The database side is complete and **verified** —
 `create_section_pack()` generates the secret, `mint_license_codes()` issues codes, redemption and key

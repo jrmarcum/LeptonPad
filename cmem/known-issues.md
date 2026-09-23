@@ -273,3 +273,43 @@ the remaining packs are redundant.
 
 **The real fix is to move the repo to an NTFS volume**, which would retire all three symptoms and the
 `sw.js` build abort with it. Not done — Jon's call.
+
+---
+
+## 16. `syncContent()` silently destroys any formula-row field it does not copy — FIXED 2026-09-23
+
+A formula block stores its rows as JSON in `block.content`. Two functions move data across that
+boundary: `parseFormulaRows()` reads it, and **`syncContent()` rebuilds it from the row elements on
+every keystroke and blur**. `syncContent` only carried `e`, `d`, `type` and `ref`.
+
+So when per-row line spacing (`sp`) was added in v2.3.18, it round-tripped through parse but not
+through `syncContent`: the spacing was correct until the user typed anywhere in the block, at which
+point **every row's spacing was erased at once**. Reported as "a single row line spacing setting is
+overwriting all of the other rows", which is what it looks like from outside.
+
+Fixed in v2.3.20: the row element mirrors its spacing into `dataset.sp` and `syncContent` reads it
+back. **Any field added to `FormulaRow` must be carried in `syncContent`, or it does not survive a
+keystroke.** `tests/formula_rows_test.ts` guards this by asserting on the function's source, with
+comments stripped so a comment mentioning a field cannot satisfy it.
+
+---
+
+## 17. An unknown unit id became a phantom unit — FIXED 2026-09-23 (v2.3.27)
+
+`parseUnitExpr` accepted any name. `x = 5 [ksii]` displayed a normal-looking `5 ksii`, never
+cancelled with anything real, and failed only much later — at conversion — with "No SI conversion
+factor for unit". A typo that renders correctly on a calculation sheet is the worst failure mode
+this project has.
+
+Unknown ids now raise at parse time with a nearest-match hint (`did you mean "ksi"?`). Jon's ruling:
+_"any unsupported unit should be rejected"_, with **no** mechanism to define one — see
+[`design-decisions.md`](design-decisions.md).
+
+Two things the fix exposed:
+
+- Both `[unit]` and `[[unit]]` tags are parsed **outside** the per-statement `try` blocks in
+  `evalStatements`, so the new throw escaped and killed the whole block's evaluation instead of
+  marking one row. They now have their own guard. **Anything that can throw before those try blocks
+  takes every row down with it.**
+- An old sheet containing a phantom unit now shows an error on that row. Intended — it was always
+  wrong — but it is a visible change to existing files.

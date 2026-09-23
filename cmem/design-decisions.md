@@ -161,6 +161,67 @@ an `Undefined: e` error, never a wrong number. `pi` was the exception: plain `pi
 nobody names a variable `pi` and `pi*d^2/4` is everywhere; it is simply made unassignable. `tau` (2π)
 was dropped outright. Details: [`known-issues.md`](known-issues.md) §11.
 
+## Same-kind units convert and the left unit wins (2026-09-23, v2.3.24)
+
+Jon: _"autoconverting compatible units is probably the nicer thing to do for the users."_ The
+alternative — erroring on `1 [ft] + 1 [in]`, as the engine did for its whole life — is safe but
+makes the user do arithmetic the program is better placed to do.
+
+**The left-hand unit wins**, so the result reads in the unit written first: `1 [ft] + 1 [in]` is
+`1.0833 ft` and `12 [in] + 1 [ft]` is `24 in`. Picking the _smaller_ unit, or the SI one, would
+mean the answer's unit depends on a rule the user has to recall; the left operand is the one they
+are already looking at.
+
+It applies to `+`, `−` **and** comparisons together, deliberately: two rules would mean remembering
+which operation had which. What does **not** convert is a different kind — see
+[`units.md`](units.md) on why force is primitive, which is what keeps `lbf` and `lbm` apart.
+
+## The catalog is the whole vocabulary — units cannot be defined (2026-09-23, v2.3.27)
+
+An unknown unit id used to be accepted as a **phantom unit**: `[ksii]` displayed as `5 ksii`, never
+cancelled with anything, and only failed much later at conversion with "No SI conversion factor".
+A typo that renders normally on a calculation sheet is the exact silent fall-through this project
+treats as its worst failure. Unknown ids are now an error at parse time, with a nearest-match hint
+(`did you mean "ksi"?`) since typos are the cause in practice.
+
+Jon was offered a way to define units alongside the rejection — label-only, or fully derived — and
+chose **reject only**: _"any unsupported unit should be rejected."_ The catalog covers the domain
+(158 units, verified against AISC needs), and a count is dimensionally a plain number, so
+`n = 4 [bolts]` should be `n = 4`. If a real need appears the decision can be revisited; adding a
+definition mechanism later is far cheaper than recovering from sheets full of phantom units.
+
+**Consequence to know:** an existing sheet containing a phantom unit now shows an error on that row.
+That is the point — it was always wrong — but it is a visible behaviour change on old files.
+
+## Force is a primitive dimension, not M·L·T⁻² (2026-09-23)
+
+Dimensionally, force is derived. Here it is primitive, because the unit catalog already treats `N`
+and `kg` as independent base units and because `lbf` and `lbm` must never convert into one another.
+Deriving force would make them the same kind and `1 [lbf] + 1 [lbm]` would quietly produce a number.
+The cost is that momentum (M·L·T⁻¹) does not match force×time; that comparison is exotic, and the
+`lbf`/`lbm` one is everyday.
+
+## Line spacing lives on the row, and the block control overwrites every row (2026-09-23, v2.3.19)
+
+First built as a cascade — a block default that rows could override. Jon: _"maybe it should be row
+to row settings and the block setting overwrites each row setting??"_ That is better, and the reason
+is that a cascade has **two** places a row's spacing can come from, so "why is this row like that?"
+needs both checked. Now every row carries its own value and the block-level menu is a bulk edit.
+The CSS reads `--row-space` and nothing else.
+
+Spacing is **half above and half below** the row, not a bottom margin: as a margin it read as a gap
+donated to the row underneath, so a row's setting looked like it applied to its neighbour. It is a
+property of the content and saves with the project — it is not a display preference like text size,
+because a sheet's layout should look the same on someone else's screen.
+
+## Cell navigation is Alt+Arrow because nothing else was free (2026-09-23, v2.3.21)
+
+Plain arrows move the caret inside a cell, `Shift`+arrow selects text — both needed for editing —
+and `Ctrl`+arrow already moves the whole block, deliberately even while a cell has focus. `Alt` was
+the only modifier left. It has one cost worth knowing: `Alt`+`←`/`→` is the browser's Back/Forward,
+so the handler **always** calls `preventDefault`, including when the move is a no-op at the first or
+last cell — which is exactly where a user would otherwise be thrown out of the app mid-edit.
+
 ## The plot is an SVG string, the crosshair is DOM nodes
 
 `plot.ts` concatenates the static plot as an SVG string (cheap to rebuild wholesale on any config

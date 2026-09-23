@@ -30,7 +30,7 @@ interface UnitDef {
 the dimensional bookkeeping. `parseUnitExpr()` in `expr.ts` reads it. Adding `baseUnits` to a unit
 where the identity does not hold exactly would silently corrupt every calculation using that unit.
 
-## The 22 categories
+## The 23 categories
 
 `UNIT_CATEGORIES: Record<string, UnitCategory>`, each with an `siBase` symbol and a `units` array:
 
@@ -47,6 +47,7 @@ where the identity does not hold exactly would silently corrupt every calculatio
 | 9  | `energy`      | 20 | `mass_moi` (mass moment of inertia) |
 | 10 | `power`       | 21 | `section_modulus`                   |
 | 11 | `velocity`    | 22 | `warping_constant`                  |
+|    |               | 23 | `forcePerUnitLength` (plf, klf)     |
 
 The last four exist because this is a **structural engineering** tool: `area_moi`, `section_modulus`,
 and `warping_constant` are not general-purpose unit categories, they are section-property units.
@@ -54,7 +55,32 @@ and `warping_constant` are not general-purpose unit categories, they are section
 Every category carries **both English and metric** members; `system: 'both'` marks the units common
 to each (e.g. dimensionless-ish or SI-adopted units). `unitsBySystem(category, system)` filters for
 the UI pickers, and `UNIT_LOOKUP` is a flattened `ReadonlyMap<string, UnitDef>` built once at module
-load for O(1) id resolution.
+load for O(1) id resolution. **158 units** across the 23 categories as of 2026-09-23 (`kN-mm` was
+the most recent addition; `J`, `lbm` and `kg` were already present when asked for).
+
+## `CATEGORY_DIMENSION` — what makes "same kind?" answerable (2026-09-23)
+
+A `factor` alone cannot tell you whether two units are comparable: `kip` and `in` both have one, so
+factor scaling will cheerfully convert a force into a length. Two exports fix that:
+
+- **`UNIT_CATEGORY_OF`** — unit id → category id (first category wins, as in `UNIT_LOOKUP`).
+- **`CATEGORY_DIMENSION`** — category id → signature in primitive dimensions:
+  **L** length, **M** mass, **T** time, **F** force, **K** temperature, **A** angle.
+
+`expr.ts` composes them in `dimensionOf(UnitMap)`, and `sameKind()` compares the results. That is
+what `+`, `−`, comparisons and `[[unit]]` all consult before converting.
+
+**Force is primitive, not M·L·T⁻².** The catalog already treats `N` and `kg` as independent base
+units, and keeping `F` separate is precisely what stops `lbf` and `lbm` silently converting into
+each other — on a structural calculation that is the difference that matters. A physics text would
+derive force; here that would be a bug. See [`design-decisions.md`](design-decisions.md).
+
+Two categories may legitimately share a signature — `energy` and `torque` are both F·L, as J and
+N·m are — and converting between them is valid. `volume` and `section_modulus` likewise share L³.
+
+A symbol the catalog does not know becomes **its own dimension**, so an invented unit only ever
+matches itself instead of converting into something real. That is a containment measure, not a
+validation one: unknown tags are still accepted — see [`known-issues.md`](known-issues.md) § 17.
 
 ## Adding a unit — the checklist
 
@@ -66,6 +92,11 @@ load for O(1) id resolution.
 5. Check the id does not collide across categories in `UNIT_LOOKUP` — the map is flat.
 6. **Watch the Greek-substitution trap**: a unit id like `psi` or `rho` must render through
    `transformUnit()`, never `transformPiece()`. See [`conventions.md`](conventions.md).
+7. **A new _category_ also needs a `CATEGORY_DIMENSION` entry**, or nothing of that kind can be
+   compared, added or converted — `dimensionOf` falls back to treating each symbol as unique.
+8. **Verify both directions and one cross-system case.** `kN-mm` was added with
+   `1000 [kN-mm] → 1 kN·m`, `1 [kN-m] → 1000 kN·mm` and `50 [kN-m] → 36.8781 kip·ft`, then pinned
+   in `tests/expr_units_test.ts`. A factor that is wrong by 10³ still looks plausible in isolation.
 
 ## `src/utils/units.ts`
 

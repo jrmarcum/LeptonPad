@@ -1,6 +1,7 @@
 import {
   ANGLE_UNITS,
   CATEGORY_DIMENSION,
+  nearestUnitId,
   UNIT_CATEGORY_OF,
   UNIT_LOOKUP,
 } from './utils/unit-defs.ts';
@@ -736,9 +737,19 @@ function parseUnitExpr(s: string): UnitMap {
       // `[1/kip]`, `[1/s]` — the leading 1 is "no unit", not a unit named "1". Without this it
       // became a phantom symbol that never cancelled (seen as `1·kip^-1`).
       if (name === '1') continue;
-      // Expand compound units (e.g. ksi → kip⋅in⁻²) so unit cancellation works.
+      // An unknown id is a typo, not a new unit. Before 2.3.27 it became a phantom symbol that
+      // displayed like a real unit (`5 ksii`), never cancelled, and only failed much later at
+      // conversion — the silent fall-through this project treats as its worst failure mode.
+      // There is deliberately no way to define a unit: the catalog is the vocabulary.
       const def = UNIT_LOOKUP.get(name);
-      if (def?.baseUnits) {
+      if (!def) {
+        const hint = nearestUnitId(name);
+        throw new Error(
+          `Unknown unit "${name}"${hint ? ` — did you mean "${hint}"?` : ''}`,
+        );
+      }
+      // Expand compound units (e.g. ksi → kip⋅in⁻²) so unit cancellation works.
+      if (def.baseUnits) {
         for (const [bKey, bExp] of Object.entries(def.baseUnits)) {
           result[bKey] = (result[bKey] ?? 0) + sign * exp * bExp;
         }
@@ -1722,11 +1733,28 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     if (!s) continue;
 
     // Strip [[targetUnit]] first — double-bracket means "convert result to this unit"
+    //
+    // Both tags are parsed here, OUTSIDE the per-statement try blocks below, so a throw from
+    // parseUnitExpr would escape evalStatements and take the whole block's evaluation with it
+    // rather than marking one row. That was harmless while unknown units were accepted; since
+    // 2.3.27 they raise, so the tag parsing has its own guard.
     let targetUnit: UnitMap | undefined;
     let stmt = stripGreekMarks(s); // raw (s) keeps the marker for display
     const targetMatch = stmt.match(/\[\[([^\]]+)\]\]\s*$/);
     if (targetMatch) {
-      targetUnit = parseUnitExpr(targetMatch[1]);
+      try {
+        targetUnit = parseUnitExpr(targetMatch[1]);
+      } catch (e) {
+        results.push({
+          raw: s,
+          name: '',
+          expr: stmt,
+          value: NaN,
+          unit: {},
+          error: (e as Error).message,
+        });
+        continue;
+      }
       stmt = stmt.slice(0, targetMatch.index!).trim();
     }
 
@@ -1743,7 +1771,19 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     const unitMatch = stmt.match(/\[([^\]]+)\]\s*$/);
     const beforeTag = unitMatch ? stmt.slice(0, unitMatch.index!) : '';
     if (unitMatch && !beforeTag.includes('[') && !CMP_OP_RE.test(beforeTag)) {
-      tagUnit = parseUnitExpr(unitMatch[1]);
+      try {
+        tagUnit = parseUnitExpr(unitMatch[1]);
+      } catch (e) {
+        results.push({
+          raw: s,
+          name: '',
+          expr: stmt,
+          value: NaN,
+          unit: {},
+          error: (e as Error).message,
+        });
+        continue;
+      }
       tagText = unitMatch[0].trim();
       stmt = stmt.slice(0, unitMatch.index!).trim();
     }

@@ -2,14 +2,16 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-63 steps at first commit, all against the real engine (pure functions in, `Quantity` out, no DOM).
+**79 steps across 5 files** at v2.3.27, all against the real engine (pure functions in, `Quantity`
+out, no DOM).
 
-| File                        | Covers                                                                                                                             |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/_helpers.ts`         | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.           |
-| `tests/expr_units_test.ts`  | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                |
-| `tests/expr_matrix_test.ts` | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot. |
-| `tests/markdown_test.ts`    | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                 |
+| File                         | Covers                                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/_helpers.ts`          | `assertValue` / `assertError` / `matrixText` / `rows` — one readable line per case; `last()` expands dot notation first.           |
+| `tests/expr_units_test.ts`   | Unit tags and `[[conversion]]`, order of operations, comparisons, constants, every built-in function, control flow.                |
+| `tests/expr_matrix_test.ts`  | Literals, element-wise and scalar arithmetic, `.*`, transpose/det/inv/solve/el, the `noMatrix` guards, sum/prod/integral/findroot. |
+| `tests/markdown_test.ts`     | The mandatory backslash, subscripts, exponents, comparisons, big operators, matrices, markdown structure, XSS URL.                 |
+| `tests/formula_rows_test.ts` | `parseFormulaRows` round-trips, plus the **source guard** on `syncContent` described below.                                        |
 
 **Every fixed bug has a case**, named after it: the `-x^2` precedence, `==` as a comparison, the
 comparison's trailing unit, the phantom `1` unit, the singular determinant returning exactly 0, the
@@ -17,6 +19,20 @@ identity product with no 1e-16 dust, and the unclosed-bracket crash.
 
 Writing the suite immediately found a new one: **a trailing unit tag on a function definition was
 silently dropped** (`f(x) = x * 12 [in/ft]` computed without the in/ft). Fixed the same day.
+
+**The unit-correctness series of 2026-09-23** is all pinned here too, including the numbers that
+were wrong before: `1 [ft] > 1 [in]` was false, `6 [in] > 0.5 [ft]` was true, `5 [kip] [[in]]`
+reported 875634 in, and `[ksii]` was accepted as a unit. Where a fix changed a behaviour a test had
+pinned, the assertion was **rewritten to the new value rather than deleted**, so the change shows up
+in the diff on purpose.
+
+### The source guard
+
+`syncContent()` rebuilds a formula block's rows from the DOM on every keystroke, so a field it
+forgets is destroyed (§ 16 of [`known-issues.md`](known-issues.md)). There is no DOM in the runner,
+so `formula_rows_test.ts` asserts on the **source** of that function — that it writes back every
+optional `FormulaRow` field — after stripping comments, so a comment that merely mentions a field
+cannot satisfy it. It is not a pretty test; it is the one that would have caught the bug.
 
 What the rest of the toolchain still catches:
 
@@ -54,6 +70,20 @@ Run these after any change to `expr.ts`, `unit-defs.ts`, `markdown.ts`, `plot.ts
 - [ ] `E = 29000 [ksi]`, `E * I [in^4]` → displays `kip·in²` (expanded form is **correct**).
 - [ ] Mismatched addition (`1 [ft] + 1 [kg]`) still raises a visible error.
 - [ ] A unit id that renders with a Greek-substitution collision: **`psi` stays `psi`, not `ψ`**.
+- [ ] Same-kind conversion: `1 [ft] + 1 [in]` = `1.0833 ft`; `12 [in] + 1 [ft]` = `24 in`.
+- [ ] `6 [in] > 0.5 [ft]` is **false** (they are equal) and `1 [ft] > 1 [in]` is **true**.
+- [ ] `b = 6 [in]; b > 8` errors; `b > 0` does not; `5 [kip] [[in]]` errors.
+- [ ] `[ksii]` errors with "did you mean ksi?" — and the rows **after** it still evaluate.
+
+**Formula rows** (2026-09-23 features)
+
+- [ ] Right-click a row → Line spacing 2.0 affects that row only; type in another row and it
+      **stays** (the 2.3.20 regression). Right-click the block label → applies to every row.
+- [ ] Alt+↑/↓ moves between rows in the same column; Alt+←/→ walks the columns and into the next
+      row; Alt+← on the very first cell does **not** navigate the browser back.
+- [ ] A comparison row shows green **OK** / red **NG**; an `if` row still shows `▶ true` / `▷ false`.
+- [ ] A normal result is the same font and colour as the formula; `err` is red.
+- [ ] The heading rule and the description/reference column rules are near-black, not pale grey.
 
 **Functions and control flow**
 

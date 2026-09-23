@@ -135,10 +135,26 @@ left-hand unit wins, so the result reads in the unit you wrote first:
 - `1 [ft] > 1 [in]` → true; `6 [in] > 0.5 [ft]` → false (they are equal)
 - `20 [C] > 50 [F]` → true (affine conversion applied)
 
-A **different kind** of unit is an error, never a guess: `1 [ft] + 1 [kg]`, and `1 [lbf] + 1 [lbm]`
-— force and mass stay distinct. A **comparison against a bare number** is also refused, because
-`b > 8` where `b` is in inches checks nothing; write `b > 8 [in]`. Zero is the exception, since it
-carries no dimension, so `M > 0` and `P != 0` work as written.
+A **different kind** of unit is an error, never a guess: `1 [ft] + 1 [kg]`, `1 [lbf] + 1 [lbm]`
+(force and mass stay distinct), and `5 [kip] [[in]]`. A **comparison against a bare number** is also
+refused, because `b > 8` where `b` is in inches checks nothing; write `b > 8 [in]`. Zero is the
+exception, since it carries no dimension, so `M > 0` and `P != 0` work as written.
+
+**Unknown units are rejected.** `[ksii]` is an error suggesting `ksi`, not a new unit — the catalog
+is the whole vocabulary and there is no way to define one. A count is a plain number: write `n = 4`,
+not `n = 4 [bolts]`.
+
+### Comparison results
+
+A row that compares shows a green **OK** or a red **NG** rather than `1` or `0`:
+
+```
+\phi V_n = 154 [kip]
+V_u <= \phi V_n              OK
+```
+
+Every other result is set in the same face and colour as the formula that produced it; only `err`
+(red) and OK / NG carry a colour of their own.
 
 `[[targetUnit]]` performs real numeric conversion using the unit catalog in `src/utils/unit-defs.ts`. It handles:
 

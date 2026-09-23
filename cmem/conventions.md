@@ -87,8 +87,19 @@ branch. Pushing `main` alone left production on 2.1.4 while `main` held 2.2.0. �
 
 ## Math and units
 
-**`addU` stays strict.** Never coerce mismatched units to make an expression evaluate. In a
-calculation pad, a plausible wrong number is the worst possible output.
+**Convert within a kind; never coerce across one.** Same-kind operands are converted for the user
+(`1 [ft] + 1 [in]` → 1.0833 ft, left unit wins); a different kind raises. The check is `sameKind()`,
+built on `CATEGORY_DIMENSION`. In a calculation pad a plausible wrong number is the worst possible
+output, and three separate paths were caught producing one by skipping this — comparisons, addition,
+and `[[unit]]` conversion itself. — [`math-engine.md`](math-engine.md)
+
+**Every operation that puts two quantities together goes through one alignment helper.** `+`, `−`
+and comparison all call `alignUnits`; every conversion calls `applyTargetUnit`. When the rule lived
+separately in each, they drifted: addition refused mixed units while comparison ignored them
+entirely, for years, in the same file.
+
+**An unknown unit id is an error, not a new unit.** `parseUnitExpr` rejects anything outside the
+catalog. There is deliberately no way to define one. — [`design-decisions.md`](design-decisions.md)
 
 **Run `cleanU` before comparing unit maps.** `{in: 0}` and `{}` are the same unit only after cleaning.
 
@@ -161,13 +172,33 @@ read the role, derive the key — is ten SQL calls and needs no browser and no a
 it caught two defects in one pass that would otherwise have surfaced as a paying customer receiving
 nothing. — [`backend-migration.md`](backend-migration.md)
 
-**There is no test suite — so state what you verified and what you did not.** The verification bar on
-this project is an explicit list of what Jon needs to click. Do not report a change as working when
-what you mean is that it compiled. — [`testing.md`](testing.md)
+**Run `deno task check`, then state what it does NOT cover.** The suite (added 2026-09-23) covers the
+math engine and rendering; nothing with a DOM. So a green run is not a verified feature — the
+verification bar is still an explicit list of what Jon needs to click. Do not report a change as
+working when what you mean is that it compiled. — [`testing.md`](testing.md)
+
+**A rule you cannot express as a test, write as a source guard.** `syncContent()` rebuilds a formula
+block's rows from the DOM on every keystroke, so any field it forgets is destroyed — silently, and
+only once the user types. There is no DOM in the test runner, so the suite asserts on the function's
+_source_ that it writes back every optional `FormulaRow` field, stripping comments first so a
+comment that merely mentions a field cannot satisfy it. Ugly, and it would have caught the bug. —
+[`known-issues.md`](known-issues.md) § 16
 
 **Re-measure before quoting any number.** Line counts, version strings, category counts, and pass
 counts in these files go stale silently, and a stale number is worse than none because it reads as
 current.
+
+**Reproduce the reported bug before fixing it — the real one is often worse.** Jon reported that
+`b > 8` was "not checking the accompanying dimension". Running the three cases showed comparisons
+ignored units _entirely_: `6 [in] > 0.5 [ft]` returned true. The reported symptom was the mild
+corner of a much larger defect, and fixing only what was described would have left it. Print the
+actual values for the reported case **and its neighbours** before touching anything.
+
+**Before binding a modifier key, find out who already owns it.** Alt+Arrow was the only free
+combination for cell navigation: plain arrows move the caret, Shift+Arrow selects text, Ctrl+Arrow
+already moves blocks — deliberately even while a cell has focus. And Alt+Left/Right belongs to the
+_browser_ (Back/Forward), so the handler must `preventDefault` even when it does nothing. —
+[`design-decisions.md`](design-decisions.md)
 
 **Check the live system before trusting a note about it.** On 2026-09-21 a memory note said pushing
 `main` does not deploy; it had become false, so a user's "still broken" was misread as "not live

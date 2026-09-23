@@ -979,6 +979,38 @@ export const UNIT_LOOKUP: ReadonlyMap<string, UnitDef> = (() => {
   return m;
 })();
 
+/**
+ * The catalog id closest to `name`, for a "did you mean" on a mistyped unit. Returns undefined
+ * when nothing is close enough to be worth guessing at.
+ */
+export function nearestUnitId(name: string): string | undefined {
+  const lower = name.toLowerCase();
+  let best: string | undefined;
+  let bestDist = Infinity;
+  for (const id of UNIT_LOOKUP.keys()) {
+    const d = editDistance(lower, id.toLowerCase());
+    if (d < bestDist) {
+      bestDist = d;
+      best = id;
+    }
+  }
+  // One or two edits on a short id is a typo; more than that is a different word.
+  return bestDist <= (name.length <= 3 ? 1 : 2) ? best : undefined;
+}
+
+/** Plain Levenshtein distance, two rows. Only ever run when a unit has already failed to resolve. */
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] : 1 + Math.min(prev[j - 1], prev[j], cur[j - 1]);
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
 /** Unit id → the category it belongs to. First category wins, as in UNIT_LOOKUP. */
 export const UNIT_CATEGORY_OF: ReadonlyMap<string, string> = (() => {
   const m = new Map<string, string>();
