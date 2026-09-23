@@ -170,6 +170,21 @@ map of which value lives where is in [`backend-migration.md`](backend-migration.
 for development. It is an exact-match allowlist with no wildcards — miss it and every API call fails
 CORS with no useful error in the app.
 
+## ⚠️ Changing a Deno Deploy env var ALSO needs a version bump
+
+`/config.js` is rendered per request from the environment (`main.ts`), so a changed
+`CLERK_PUBLISHABLE_KEY` reaches the **server** immediately — but `/config.js` is also in the
+service worker's `PRECACHE` list, and the worker is cache-first. Until the `CACHE` name changes,
+every existing browser keeps serving the config it cached under the old version, with the old key.
+
+Paid for 2026-09-23: a Clerk **production** instance was configured and the Deploy env updated, but
+`https://leptonpad.com/config.js` fetched with curl showed the new `pk_live_` key while the browser
+kept using the cached `pk_test_` one. Sign-in failed against a dev Clerk instance that has a
+different user directory — "I can reset my password in Clerk but cannot log into the site".
+
+**So: after changing any env var that lands in `config.js`, bump the version and deploy.** Diagnose
+this pair the same way — `curl` shows the server's truth, the browser shows the cache's.
+
 ## Release checklist
 
 1. Test in the browser via `deno task dev`.
