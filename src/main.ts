@@ -14,6 +14,7 @@ import {
   roleLabel,
   signup,
   verifyEmailCode,
+  verifySecondFactor,
 } from './auth.ts';
 import { accessSummary, showRedeemCodeDialog } from './license.ts';
 import {
@@ -215,6 +216,9 @@ function showLoginModal(): Promise<void> {
 
     // True once a code has been sent and we're waiting for the user to enter it.
     let awaitingCode = false;
+    // Which code the modal is waiting for: confirming a new address, or the MFA second factor.
+    // The same input serves both; only the verifier and the wording differ.
+    let codeKind: 'signup' | 'mfa' = 'signup';
 
     const errorEl = document.createElement('p');
     errorEl.style.cssText = 'color:#e55;font-size:0.8rem;min-height:1rem;margin:0.2rem 0;';
@@ -271,11 +275,13 @@ function showLoginModal(): Promise<void> {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Confirming…';
 
-        const { error } = await verifyEmailCode(code);
+        const { error } = codeKind === 'mfa'
+          ? await verifySecondFactor(code)
+          : await verifyEmailCode(code);
         if (error) {
           errorEl.textContent = error;
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Confirm Email';
+          submitBtn.textContent = codeKind === 'mfa' ? 'Verify' : 'Confirm Email';
           return;
         }
 
@@ -293,18 +299,40 @@ function showLoginModal(): Promise<void> {
       submitBtn.textContent = isSignup ? 'Creating…' : 'Signing in…';
 
       const fn = isSignup ? signup : login;
-      const { error, needsVerification } = await fn(email, password) as {
+      const { error, needsVerification, needsSecondFactor, secondFactorLabel } = await fn(
+        email,
+        password,
+      ) as {
         error: string | null;
         needsVerification?: boolean;
+        needsSecondFactor?: boolean;
+        secondFactorLabel?: string;
       };
 
       if (error) {
         errorEl.textContent = error;
         submitBtn.disabled = false;
         submitBtn.textContent = isSignup ? 'Create Account' : 'Sign In';
+      } else if (!isSignup && needsSecondFactor) {
+        // The password was accepted and MFA is required. Same code field as sign-up
+        // confirmation, different verifier — see codeKind.
+        awaitingCode = true;
+        codeKind = 'mfa';
+        successEl.textContent = `Enter the verification code from ${
+          secondFactorLabel ?? 'your device'
+        }.`;
+        successEl.style.display = '';
+        emailInp.style.display = 'none';
+        passInp.style.display = 'none';
+        codeInp.style.display = '';
+        codeInp.focus();
+        toggleBtn.style.display = 'none';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Verify';
       } else if (isSignup && needsVerification) {
         // Switch the modal into confirm-the-code mode.
         awaitingCode = true;
+        codeKind = 'signup';
         successEl.textContent = 'Account created — enter the code we emailed you.';
         successEl.style.display = '';
         emailInp.style.display = 'none';

@@ -44,6 +44,8 @@ export class NeonClerkBackend implements Backend {
   private clerk: any = null;
   private listeners: Array<() => void> = [];
   private loaded = false;
+  /** The MFA strategy chosen during signIn(), needed again to attempt the code. */
+  private secondFactorStrategy: string | null = null;
 
   async init(): Promise<void> {
     if (!publishableKey()) {
@@ -80,7 +82,11 @@ export class NeonClerkBackend implements Backend {
     this.listeners.push(cb);
   }
 
-  async signIn(email: string, password: string): Promise<{ error: string | null }> {
+  async signIn(email: string, password: string): Promise<{
+    error: string | null;
+    needsSecondFactor?: boolean;
+    secondFactorLabel?: string;
+  }> {
     if (!this.loaded) return { error: 'Cannot sign in while offline.' };
 
     try {
@@ -94,18 +100,43 @@ export class NeonClerkBackend implements Backend {
         return { error: null };
       }
 
-      // Some other step is outstanding — a second factor, an email code as the first factor, or
-      // a forced password reset. LeptonPad's login modal has no UI for any of them.
-      //
-      // Say WHICH. The message used to be a flat "Additional verification is required to sign
-      // in.", which threw away the one piece of information needed to act: whether to enable
-      // password sign-in in the Clerk dashboard, or to build the missing step. Diagnosing it
-      // cost a round trip on 2026-09-23.
       const status = attempt?.status ?? 'unknown';
       // deno-lint-ignore no-explicit-any
       const strat = (fs: any[]) => (fs ?? []).map((f: any) => f?.strategy).filter(Boolean);
       const first = strat(attempt?.supportedFirstFactors);
       const second = strat(attempt?.supportedSecondFactors);
+
+      // MFA: the password was accepted and Clerk wants a second factor.
+      if (status === 'needs_second_factor' && second.length) {
+        // Prefer a strategy the user does not have to switch devices for, then whatever is
+        // offered. `totp` and `backup_code` are entered from something the user already has and
+        // take NO prepare step; `email_code`/`phone_code` must be sent first.
+        const pick = ['totp', 'email_code', 'phone_code', 'backup_code']
+          .find((s) => second.includes(s)) ?? second[0];
+        this.secondFactorStrategy = pick;
+        try {
+          if (pick === 'email_code' || pick === 'phone_code') {
+            await this.clerk.client.signIn.prepareSecondFactor({ strategy: pick });
+          }
+        } catch (e) {
+          return { error: clerkError(e) };
+        }
+        return {
+          error: null,
+          needsSecondFactor: true,
+          secondFactorLabel: pick === 'email_code'
+            ? 'your email'
+            : pick === 'phone_code'
+            ? 'your phone'
+            : pick === 'backup_code'
+            ? 'your backup codes'
+            : 'your authenticator app',
+        };
+      }
+
+      // Anything else — an email code as the FIRST factor, or a forced password reset. The modal
+      // cannot perform those, so name the step instead of the flat "Additional verification is
+      // required" this used to return, which threw away the one fact needed to act on it.
       console.warn('[auth] sign-in incomplete', { status, first, second });
       const detail = [
         first.length ? `first factor: ${first.join(', ')}` : '',
@@ -140,6 +171,28 @@ export class NeonClerkBackend implements Backend {
       // Clerk requires email verification by default — send the code.
       await attempt.prepareEmailAddressVerification({ strategy: 'email_code' });
       return { error: null, needsVerification: true };
+    } catch (e) {
+      return { error: clerkError(e) };
+    }
+  }
+
+  /**
+   * Finish an MFA sign-in. `totp` and `backup_code` are verified directly; `email_code` and
+   * `phone_code` were already prepared (sent) by signIn(), so this only attempts them.
+   */
+  async verifySecondFactor(code: string): Promise<{ error: string | null }> {
+    if (!this.loaded) return { error: 'Cannot sign in while offline.' };
+    const strategy = this.secondFactorStrategy;
+    if (!strategy) return { error: 'No verification is in progress. Start signing in again.' };
+
+    try {
+      const attempt = await this.clerk.client.signIn.attemptSecondFactor({ strategy, code });
+      if (attempt.status === 'complete') {
+        await this.clerk.setActive({ session: attempt.createdSessionId });
+        this.secondFactorStrategy = null;
+        return { error: null };
+      }
+      return { error: 'That code was not accepted. Check it and try again.' };
     } catch (e) {
       return { error: clerkError(e) };
     }

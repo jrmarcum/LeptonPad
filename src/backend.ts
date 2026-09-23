@@ -51,7 +51,19 @@ export interface Backend {
   /** Register a callback fired on sign-in, sign-out, and session refresh. */
   onAuthChange(cb: () => void): void;
 
-  signIn(email: string, password: string): Promise<{ error: string | null }>;
+  /**
+   * `needsSecondFactor` is true when the password was accepted but the provider requires MFA.
+   * The caller then collects a code and calls `verifySecondFactor`. `secondFactorLabel` describes
+   * where the code came from ("email", "phone", "your authenticator app") so the prompt can say.
+   */
+  signIn(email: string, password: string): Promise<{
+    error: string | null;
+    needsSecondFactor?: boolean;
+    secondFactorLabel?: string;
+  }>;
+
+  /** Complete a sign-in that returned `needsSecondFactor`. Optional: not every provider has MFA. */
+  verifySecondFactor?(code: string): Promise<{ error: string | null }>;
 
   /**
    * Create an account. `needsVerification` is true when the provider sent a

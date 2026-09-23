@@ -58,6 +58,16 @@ The `.example` files are documentation and are committed — never put a real va
 
 All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, and Figure blocks have a **stretch-right** handle at the right edge; Plot and Figure also have a **stretch-down** handle at the bottom edge.
 
+## Signing in
+
+Email and password, with **two-factor authentication** when the Clerk instance requires it. If MFA
+is enabled, the login dialog asks for the verification code after the password is accepted —
+`totp` (authenticator app) is preferred when available, otherwise an emailed or texted code, with
+backup codes as a fallback. `totp` and backup codes are entered directly; email and phone codes are
+sent first.
+
+Sign-up confirmation and the MFA step share one code field in the dialog.
+
 ## User roles
 
 | Role    | Access                                                                |

@@ -115,9 +115,18 @@ export async function initAuth(): Promise<void> {
 export async function login(
   email: string,
   password: string,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; needsSecondFactor?: boolean; secondFactorLabel?: string }> {
   const b = backend ?? (backend = await getBackend());
   return await b.signIn(email, password);
+}
+
+/** Finish a sign-in that came back needing MFA, with the code the user was sent. */
+export async function verifySecondFactor(code: string): Promise<{ error: string | null }> {
+  const b = backend ?? (backend = await getBackend());
+  if (!b.verifySecondFactor) {
+    return { error: 'This account requires two-factor sign-in, which is not available here.' };
+  }
+  return await b.verifySecondFactor(code);
 }
 
 export async function signup(
