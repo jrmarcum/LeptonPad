@@ -35,6 +35,20 @@ Instead: create or change files with the Write/Edit tools; put any throwaway scr
 single-quoted PowerShell here-string. Paid for 2026-09-21 — three edit scripts in one session reported
 0 matches or threw on content that plainly existed, and one command hung for two minutes.
 
+**Never write a tracked file with PowerShell `Set-Content` or `Out-File`.** On Windows PowerShell
+5.1, `-Encoding utf8` means **UTF-8 with a BOM**. A BOM at the head of `deno.json` makes it
+unparseable — `Unexpected token on line 1 column 1` — and the same applies to any JSON, TS or CSS
+file the toolchain reads. Use the Write/Edit tools, which add none. Paid for 2026-09-23: a
+one-character version bump done with `Set-Content` broke the build, and because the command was
+chained with `;` the commit ran anyway and shipped an unparseable `deno.json` — so `sync-version`
+never ran and `public/sw.js` kept the previous cache name. Same family as the heredoc rule above:
+**on this setup the shell corrupts file content, so file content does not go through the shell.**
+
+**Read the build output before committing, and never chain a commit onto a build with `;`.** The
+failure above was printed in full and scrolled past. `;` runs the next command regardless of exit
+status; PowerShell 5.1 has no `&&`, so gate explicitly with `if ($?) { … }` or run the build as its
+own step and look at it.
+
 **LF line endings, never CRLF — in git and on disk.** `.gitattributes` (`* text=auto eol=lf`)
 enforces it per-repo, overriding the machine-wide `core.autocrlf=true` that Git for Windows sets in
 its system gitconfig (that setting is what printed "LF will be replaced by CRLF" on every commit).
