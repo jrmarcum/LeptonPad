@@ -212,6 +212,8 @@ bound variable added to scope — the only lazily-evaluated argument in the lang
   made the tolerance ~0 and it never converged). Variable carries the bounds' unit; result unit is
   unit(f)·unit(x). Non-finite samples and > 200 000 evaluations are errors, never guesses.
 - Display: `renderBigOp()` in `markdown.ts` → Σ/Π/∫ with stacked limits (`.bigop` CSS), `dx` after ∫.
+  The limits use `--math-sup-size` (the sidebar's Sub/superscript setting) — they had a fixed 0.62em
+  and ignored it until 2.3.16.
 - Tested (script, 2026-09-22): Σi² = 385, 5! = 120, ∫sin 0…π = 2, ∫e^(−x²) = √π to 11 digits,
   triangular load W = 20 kip / centroid 2L/3, nested sums, sums inside `for` loops.
 

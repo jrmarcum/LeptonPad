@@ -1045,7 +1045,9 @@ main {
   line-height: 1;
 }
 .bigop-lim {
-  font-size: 0.62em;
+  /* The limits on Σ / Π / ∫ are read like subscripts, so they follow the same setting rather than a
+     fixed size of their own (they were stuck at 0.62em until 2.3.16). */
+  font-size: var(--math-sup-size);
   line-height: 1.1;
   white-space: nowrap;
 }
