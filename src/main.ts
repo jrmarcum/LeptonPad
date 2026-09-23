@@ -16,7 +16,14 @@ import {
   verifyEmailCode,
 } from './auth.ts';
 import { accessSummary, showRedeemCodeDialog } from './license.ts';
-import { GRID_SIZE, PAGE_SIZES, type PageSizeKey, PX_PER_IN } from './types.ts';
+import {
+  GRID_SIZE,
+  PAGE_SIZES,
+  type PageSizeKey,
+  PROJECT_ACCEPT_ATTR,
+  PROJECT_PICKER_TYPES,
+  PX_PER_IN,
+} from './types.ts';
 import { clamp, pxToUnit, unitToPx } from './utils/units.ts';
 import { isDark } from './utils/theme.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
@@ -602,7 +609,7 @@ function renderSidebar() {
       try {
         // deno-lint-ignore no-explicit-any
         const [handle] = await (window as any).showOpenFilePicker({
-          types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
+          types: PROJECT_PICKER_TYPES,
         });
         setFileHandle(handle);
         const file = await handle.getFile();
@@ -617,7 +624,7 @@ function renderSidebar() {
     // Fallback: <input type="file"> (no reusable handle)
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = '.json';
+    inp.accept = PROJECT_ACCEPT_ATTR;
     inp.addEventListener('change', async () => {
       const file = inp.files?.[0];
       if (!file) return;
@@ -1526,6 +1533,8 @@ async function start() {
     // right-clicking the block elsewhere (its label, or any non-row block) sets the block default,
     // which every row without a setting of its own follows.
     const SPACINGS = [1, 1.5, 2];
+    // Display precision, in significant digits. 6 is the default and the historical behaviour.
+    const SIG_DIGITS = [3, 4, 6, 8, 10];
 
     /**
      * The row-spacing actions belonging to THIS block, or null when it has no rows of its own.
@@ -1538,7 +1547,17 @@ async function start() {
       // deno-lint-ignore no-explicit-any
       return (el.querySelector('.formula-rows') as any)?._formulaCtxActions ?? null;
     };
-    const mkSpacingGroup = (headerText: string, onPick: (v: number) => void) => {
+    /**
+     * A labelled row of mutually-exclusive choices in the context menu, with the current one
+     * marked. Shared by line spacing and display precision so the two cannot drift apart.
+     */
+    const mkChoiceGroup = (
+      headerText: string,
+      values: number[],
+      label: (v: number) => string,
+      tip: (v: number) => string,
+      onPick: (v: number) => void,
+    ) => {
       const group = document.createElement('div');
       group.className = 'ctx-formula-group';
       group.style.display = 'none';
@@ -1548,11 +1567,11 @@ async function start() {
       group.appendChild(header);
       const btnRow = document.createElement('div');
       btnRow.className = 'ctx-spacing-row';
-      const btns = SPACINGS.map((v) => {
+      const btns = values.map((v) => {
         const b = document.createElement('button');
         b.className = 'ctx-neutral-btn ctx-spacing-btn';
-        b.textContent = v.toFixed(1);
-        b.title = v === 1 ? 'Single spacing' : v === 1.5 ? '1.5 line spacing' : 'Double spacing';
+        b.textContent = label(v);
+        b.title = tip(v);
         b.addEventListener('click', () => {
           onPick(v);
           hideCtxMenu();
@@ -1564,9 +1583,27 @@ async function start() {
       ctxMenu.insertBefore(group, ctxSaveToolBtn);
       // `current` of 0 means the rows disagree — mark nothing rather than claim a shared value.
       const mark = (current: number) =>
-        btns.forEach((b, i) => b.classList.toggle('active', SPACINGS[i] === current));
+        btns.forEach((b, i) => b.classList.toggle('active', values[i] === current));
       return { group, mark };
     };
+
+    const mkSpacingGroup = (headerText: string, onPick: (v: number) => void) =>
+      mkChoiceGroup(
+        headerText,
+        SPACINGS,
+        (v) => v.toFixed(1),
+        (v) => v === 1 ? 'Single spacing' : v === 1.5 ? '1.5 line spacing' : 'Double spacing',
+        onPick,
+      );
+
+    const mkDigitsGroup = (headerText: string, onPick: (v: number) => void) =>
+      mkChoiceGroup(
+        headerText,
+        SIG_DIGITS,
+        (v) => String(v),
+        (v) => `Show results to ${v} significant digits`,
+        onPick,
+      );
 
     const rowSpacing = mkSpacingGroup('Line spacing (this row)', (v) => {
       ctxFormulaActions?.setRowSpacing(ctxFormulaRowEl, v);
@@ -1588,6 +1625,19 @@ async function start() {
         const acts = rowActionsOf(el, b);
         if (acts) acts.setAllRowSpacing(v);
         else applyBlockLineSpacing(el, b); // text and section blocks — the variable drives them
+      }
+    });
+
+    // Display precision — same arrangement as line spacing: the row owns it, the block control
+    // overwrites every row. Display only; the stored value is always the full double.
+    const rowDigits = mkDigitsGroup('Significant digits (this row)', (v) => {
+      ctxFormulaActions?.setRowSigDigits(ctxFormulaRowEl, v);
+    });
+    const blockDigits = mkDigitsGroup('Significant digits (whole block)', (v) => {
+      const els = selectedEls.size > 1 ? [...selectedEls] : ctxTarget ? [ctxTarget] : [];
+      for (const el of els) {
+        const b = state.blocks.find((bl) => bl.id === el.id);
+        rowActionsOf(el, b)?.setAllRowSigDigits(v);
       }
     });
 
@@ -1749,14 +1799,19 @@ async function start() {
       const onRow = !!(actions && rowEl);
       rowSpacing.group.style.display = onRow ? '' : 'none';
       blockSpacing.group.style.display = onRow ? 'none' : '';
+      const blkActs = rowActionsOf(target, state.blocks.find((bl) => bl.id === target.id));
+      // Precision only applies to blocks that HAVE rows — a text or section block has none.
+      rowDigits.group.style.display = onRow ? '' : 'none';
+      blockDigits.group.style.display = !onRow && blkActs ? '' : 'none';
       if (onRow) {
         rowSpacing.mark(actions.getRowSpacing(rowEl));
+        rowDigits.mark(actions.getRowSigDigits(rowEl));
       } else {
         // Rows hold the truth, so report what they actually say: mark a value only when every row
         // agrees, otherwise mark none rather than claiming a setting the block does not have.
         const b = state.blocks.find((bl) => bl.id === target.id);
-        const acts = rowActionsOf(target, b);
-        blockSpacing.mark(acts ? acts.getUniformSpacing() : (b?.lineSpacing ?? 1));
+        blockSpacing.mark(blkActs ? blkActs.getUniformSpacing() : (b?.lineSpacing ?? 1));
+        if (blkActs) blockDigits.mark(blkActs.getUniformSigDigits());
       }
 
       ctxMenu.style.left = `${e.clientX}px`;

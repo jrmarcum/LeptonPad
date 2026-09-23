@@ -75,6 +75,7 @@ export interface FormulaRow {
   ref?: string; // optional reference (right column)
   type?: 'if' | 'elseif' | 'else' | 'end' | 'for';
   sp?: number; // line spacing for this row (1 | 1.5 | 2); absent = follow the block
+  sd?: number; // significant digits this row's result is DISPLAYED to; absent = SIG_DEFAULT
 }
 
 // ---------------------------------------------------------------------------

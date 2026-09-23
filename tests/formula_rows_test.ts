@@ -8,7 +8,39 @@
 // through syncContent, so spacing survived until the user typed, then vanished from every row.
 
 import { assertEquals, assertMatch } from '@std/assert';
-import { parseFormulaRows } from '../src/blocks/formula.ts';
+import { fmtNum, parseFormulaRows, SIG_DEFAULT } from '../src/blocks/formula.ts';
+
+Deno.test('result formatting', async (t) => {
+  await t.step('groups thousands consistently, whole number or not', () => {
+    // Whole numbers went through toLocaleString and got separators; everything else went through
+    // toString and got none — so 29000 read as "29,000" while 1234567.891 read as "1234570":
+    // rounded at the INTEGER part and ungrouped. A moment in lb·ft lands exactly there.
+    assertEquals(fmtNum(29000), '29,000');
+    assertEquals(fmtNum(1234567.891), '1,234,570');
+    assertEquals(fmtNum(-1234.5678), '-1,234.57');
+    assertEquals(fmtNum(0), '0');
+    assertEquals(fmtNum(1.5), '1.5');
+  });
+
+  await t.step('significant digits are per call, defaulting to 6', () => {
+    assertEquals(fmtNum(0.1241379310344828), '0.124138');
+    assertEquals(fmtNum(0.1241379310344828, SIG_DEFAULT), '0.124138');
+    assertEquals(fmtNum(0.1241379310344828, 3), '0.124');
+    assertEquals(fmtNum(0.1241379310344828, 10), '0.124137931');
+    assertEquals(fmtNum(1234567.891, 10), '1,234,567.891');
+    assertEquals(fmtNum(1234567.891, 3), '1,230,000');
+  });
+
+  await t.step('very small and very large stay exponential', () => {
+    assertEquals(fmtNum(1e-7), '1e-7');
+    assertMatch(fmtNum(1e20), /e\+?20/);
+  });
+
+  await t.step('non-finite values pass through rather than formatting', () => {
+    assertEquals(fmtNum(NaN), 'NaN');
+    assertEquals(fmtNum(Infinity), 'Infinity');
+  });
+});
 
 Deno.test('formula row parsing', async (t) => {
   await t.step('legacy semicolon content still parses', () => {
@@ -34,6 +66,16 @@ Deno.test('formula row parsing', async (t) => {
     assertEquals(parseFormulaRows(JSON.stringify([{ e: 'a = 1', d: '', sp: 1.5 }]))[0].sp, 1.5);
   });
 
+  await t.step('display precision round-trips per row, and the default is not stored', () => {
+    const rows = parseFormulaRows(JSON.stringify([
+      { e: 'a = 1', d: '', sd: 3 },
+      { e: 'b = 2', d: '', sd: SIG_DEFAULT }, // the default is normalised away
+      { e: 'c = 3', d: '' },
+      { e: 'd = 4', d: '', sd: 99 }, // out of range — ignored rather than trusted
+    ]));
+    assertEquals(rows.map((r) => r.sd), [3, undefined, undefined, undefined]);
+  });
+
   await t.step('spacing is per row — one row carries it, its neighbours do not', () => {
     const rows = parseFormulaRows(JSON.stringify([
       { e: 'a = 1', d: '' },
@@ -54,7 +96,7 @@ Deno.test('syncContent writes back every field parseFormulaRows reads', async ()
   const body = src.slice(src.indexOf('function syncContent()'));
   // Comments are stripped, or a comment merely *mentioning* a field would satisfy the guard.
   const syncBody = body.slice(0, body.indexOf('\n  }\n')).replace(/\/\/.*$/gm, '');
-  for (const field of ['type', 'ref', 'sp']) {
+  for (const field of ['type', 'ref', 'sp', 'sd']) {
     assertMatch(
       syncBody,
       new RegExp(`obj\\.${field}\\s*=`),

@@ -36,11 +36,34 @@ const COMP_RE = /[<>]=?|[!=]=/;
 // Pure computation helpers
 // ---------------------------------------------------------------------------
 
-// WASM-READY: (f64) -> string
-export function fmtNum(n: number): string {
+/** Significant digits a result is displayed to when a row does not say otherwise. */
+export const SIG_DEFAULT = 6;
+
+/**
+ * Format a result for display. **Display only** — the stored value is always the full double, so
+ * nothing downstream ever sees the rounded number.
+ *
+ * Two behaviours were fixed here on 2026-09-23:
+ *  - Precision was hard-coded at 6 significant digits; it is now per row (`FormulaRow.sd`).
+ *  - Grouping was inconsistent. Whole numbers went through `toLocaleString` and got separators,
+ *    everything else went through `toString` and got none — so `29000` read as "29,000" while
+ *    `1234567.891` read as "1234570": rounded away at the integer part AND ungrouped. A moment in
+ *    lb·ft is exactly the kind of number that hits that path.
+ */
+// WASM-READY: (f64, f64) -> string
+export function fmtNum(n: number, sig: number = SIG_DEFAULT): string {
   if (!isFinite(n)) return String(n);
-  if (Number.isInteger(n) && Math.abs(n) < 1e9) return n.toLocaleString();
-  return parseFloat(n.toPrecision(6)).toString();
+  if (n === 0) return '0';
+  const rounded = parseFloat(n.toPrecision(Math.max(1, Math.min(15, Math.round(sig)))));
+  const abs = Math.abs(rounded);
+  // Outside this band no amount of grouping helps. Exponential is stated explicitly rather than
+  // left to toString(), which only switches over at 1e21 — so 1e20 came out as twenty-one digits.
+  if (abs >= 1e15 || abs < 1e-6) return rounded.toExponential();
+  const decimals = (rounded.toString().split('.')[1] ?? '').length;
+  return rounded.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +82,11 @@ export function parseFormulaRows(content: string): FormulaRow[] {
         // Single spacing is the default and is never stored — with no block-vs-row cascade,
         // an absent `sp` and `sp: 1` mean exactly the same thing.
         if (Number(r.sp) > 1) row.sp = Number(r.sp);
+        // Likewise the default precision is never stored.
+        const sd = Number(r.sd);
+        if (Number.isFinite(sd) && sd >= 1 && sd <= 15 && sd !== SIG_DEFAULT) {
+          row.sd = Math.round(sd);
+        }
         return row;
       });
     }
@@ -147,10 +175,10 @@ function serializeEditable(el: HTMLElement): string {
 // ---------------------------------------------------------------------------
 
 /** A matrix result as a bracketed grid; every element shows its own value and unit. */
-export function matrixResultHtml(m: Quantity[][]): string {
+export function matrixResultHtml(m: Quantity[][], sig: number = SIG_DEFAULT): string {
   const cells = m.flat().map((q) => {
     const u = formatUnit(q.u);
-    return `<span>${fmtNum(q.v)}${
+    return `<span>${fmtNum(q.v, sig)}${
       u ? ` <span class="result-unit">${transformUnit(u)}</span>` : ''
     }</span>`;
   }).join('');
@@ -170,6 +198,9 @@ export function applyEvalResults(formulaEl: HTMLElement, stmts: Statement[]) {
 
     const r = formulaEl.querySelector<HTMLElement>(`[data-result="${i}"]`);
     if (!r) return;
+
+    // Display precision for this row, set from the context menu and stored on the row.
+    const sig = Number(rowEl?.dataset.sd) || SIG_DEFAULT;
 
     if (stmt.rowType === 'if' || stmt.rowType === 'elseif') {
       const taken = (stmt.condValue ?? 0) !== 0 && !stmt.error;
@@ -224,7 +255,7 @@ export function applyEvalResults(formulaEl: HTMLElement, stmts: Statement[]) {
       r.title = stmt.error;
       r.className = 'formula-result formula-error';
     } else if (stmt.matrix) {
-      r.innerHTML = matrixResultHtml(stmt.matrix);
+      r.innerHTML = matrixResultHtml(stmt.matrix, sig);
       r.title = `${stmt.matrix.length}×${stmt.matrix[0].length} matrix`;
       r.className = 'formula-result';
     } else if (stmt.isTest) {
@@ -235,9 +266,10 @@ export function applyEvalResults(formulaEl: HTMLElement, stmts: Statement[]) {
       r.className = `formula-result ${pass ? 'formula-check-ok' : 'formula-check-ng'}`;
     } else {
       const unitStr = formatUnit(stmt.unit);
-      r.innerHTML = fmtNum(stmt.value) +
+      r.innerHTML = fmtNum(stmt.value, sig) +
         (unitStr ? ` <span class="result-unit">${transformUnit(unitStr)}</span>` : '');
-      r.title = '';
+      // The full stored value on hover — the display is rounded, the number never is.
+      r.title = String(stmt.value);
       r.className = 'formula-result';
     }
   });
@@ -408,6 +440,7 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         // anything not read back here is silently erased from the block. Leaving `sp` out wiped
         // every row's spacing the moment the user typed (reported 2026-09-23).
         if (r.dataset.sp) obj.sp = Number(r.dataset.sp);
+        if (r.dataset.sd) obj.sd = Number(r.dataset.sd);
         return obj;
       }),
     );
@@ -585,6 +618,9 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         row.dataset.sp = String(rowDatum.sp);
         row.style.setProperty('--row-space', String(rowDatum.sp));
       }
+      // Display precision, same arrangement: the row owns it, and dataset carries it so
+      // syncContent can round-trip it. applyEvalResults reads it back off the row element.
+      if (rowDatum.sd) row.dataset.sd = String(rowDatum.sd);
 
       if (isCtrl) {
         const badge = document.createElement('span');
@@ -1114,6 +1150,46 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       if (idx < 0 || !arr[idx]) return;
       if (sp > 1) arr[idx].sp = sp;
       else delete arr[idx].sp; // single is the default — storing a redundant 1 helps nobody
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /** This row's display precision, or SIG_DEFAULT when it has never been set. */
+    getRowSigDigits: (rowEl: HTMLElement | null): number => {
+      if (!rowEl) return SIG_DEFAULT;
+      const arr = parseFormulaRows(block.content);
+      return arr[getRowIdx(rowEl)]?.sd ?? SIG_DEFAULT;
+    },
+
+    /** Set this row's display precision. Display only — the stored value is never rounded. */
+    setRowSigDigits: (rowEl: HTMLElement | null, sd: number) => {
+      if (!rowEl) return;
+      const arr = parseFormulaRows(block.content);
+      const idx = getRowIdx(rowEl);
+      if (idx < 0 || !arr[idx]) return;
+      if (sd !== SIG_DEFAULT) arr[idx].sd = sd;
+      else delete arr[idx].sd; // the default is never stored
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
+    },
+
+    /** The precision every row shares, or 0 when they differ. */
+    getUniformSigDigits: (): number => {
+      const arr = parseFormulaRows(block.content);
+      if (arr.length === 0) return SIG_DEFAULT;
+      const first = arr[0].sd ?? SIG_DEFAULT;
+      return arr.every((r) => (r.sd ?? SIG_DEFAULT) === first) ? first : 0;
+    },
+
+    /** The block-level control: overwrite EVERY row's precision. */
+    setAllRowSigDigits: (sd: number) => {
+      const arr = parseFormulaRows(block.content);
+      for (const r of arr) {
+        if (sd !== SIG_DEFAULT) r.sd = sd;
+        else delete r.sd;
+      }
       block.content = JSON.stringify(arr);
       rebuildRows();
       reEvalAllFormulas();

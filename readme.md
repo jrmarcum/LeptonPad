@@ -163,6 +163,18 @@ V_u <= \phi V_n              OK
 Every other result is set in the same face and colour as the formula that produced it; only `err`
 (red) and OK / NG carry a colour of their own.
 
+### Significant digits
+
+Right-click a formula row → **Significant digits (this row)**, or the block's label → **(whole
+block)**, to choose 3 / 4 / 6 / 8 / 10. The default is 6. This is **display only** — the stored
+value is always the full double, and hovering a result shows it unrounded — so changing it never
+changes a calculation. It is saved with the project, so a reviewer sees the same digits you did.
+
+### Project files
+
+Projects save as **`.leptonpad`**. The contents are still JSON, and the Open dialog accepts both
+`.leptonpad` and `.json`, so projects saved before this change open normally.
+
 ### Math display options
 
 The sidebar's **Math Display** section sets the **font**, **text size** and **sub/superscript size**

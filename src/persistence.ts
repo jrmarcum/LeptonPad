@@ -2,7 +2,13 @@
 // Persistence — project serialization, load/save, and import/export dialogs
 // ---------------------------------------------------------------------------
 
-import { type Block, type TitleBlockData } from './types.ts';
+import {
+  type Block,
+  PROJECT_ACCEPT_ATTR,
+  PROJECT_EXT,
+  PROJECT_PICKER_TYPES,
+  type TitleBlockData,
+} from './types.ts';
 import { getPackKey, hasPack } from './auth.ts';
 import { decryptTemplate } from './crypto.ts';
 import {
@@ -150,7 +156,7 @@ export async function importToolsFromFile() {
       try {
         // deno-lint-ignore no-explicit-any
         pickerHandles = await (window as any).showOpenFilePicker({
-          types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
+          types: PROJECT_PICKER_TYPES,
         });
       } catch (e) {
         if ((e as Error).name !== 'AbortError') throw e;
@@ -171,7 +177,7 @@ export async function importToolsFromFile() {
     } else {
       const inp = document.createElement('input');
       inp.type = 'file';
-      inp.accept = '.json';
+      inp.accept = PROJECT_ACCEPT_ATTR;
       inp.addEventListener('change', async () => {
         const file = inp.files?.[0];
         if (!file) return;
@@ -347,7 +353,7 @@ export async function newFromTemplate() {
     try {
       // deno-lint-ignore no-explicit-any
       pickerHandles = await (window as any).showOpenFilePicker({
-        types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
+        types: PROJECT_PICKER_TYPES,
       });
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -367,7 +373,7 @@ export async function newFromTemplate() {
   } else {
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = '.json';
+    inp.accept = PROJECT_ACCEPT_ATTR;
     inp.addEventListener('change', async () => {
       const file = inp.files?.[0];
       if (!file) return;
@@ -583,8 +589,8 @@ export async function saveProject(saveAs = false) {
         setFileHandle(
           // deno-lint-ignore no-explicit-any
           await (globalThis as any).showSaveFilePicker({
-            suggestedName: state.projectName.replace(/[^\w-]/g, '_') + '.json',
-            types: [{ description: 'JSON Project', accept: { 'application/json': ['.json'] } }],
+            suggestedName: state.projectName.replace(/[^\w-]/g, '_') + PROJECT_EXT,
+            types: PROJECT_PICKER_TYPES,
           }),
         );
       }
@@ -611,7 +617,7 @@ export async function saveProject(saveAs = false) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = state.projectName.replace(/[^\w-]/g, '_') + '.json';
+  a.download = state.projectName.replace(/[^\w-]/g, '_') + PROJECT_EXT;
   a.click();
   URL.revokeObjectURL(url);
 }

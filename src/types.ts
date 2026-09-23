@@ -143,6 +143,28 @@ export function sectionPrefix(sectionName?: string): string {
   return (sectionName || 'section') + '__';
 }
 
+// ---------------------------------------------------------------------------
+// Project file
+// ---------------------------------------------------------------------------
+
+/** Extension new projects are SAVED with. The contents are still JSON. */
+export const PROJECT_EXT = '.leptonpad';
+
+/**
+ * Extensions accepted when OPENING. `.json` stays first-class forever — every project saved
+ * before 2026-09-23 has it, and silently refusing to list a user's own files would be the worst
+ * possible consequence of a cosmetic rename.
+ */
+export const PROJECT_OPEN_EXTS = [PROJECT_EXT, '.json'];
+
+/** `accept` filter for the File System Access pickers. One definition so open and save agree. */
+export const PROJECT_PICKER_TYPES = [
+  { description: 'LeptonPad Project', accept: { 'application/json': PROJECT_OPEN_EXTS } },
+];
+
+/** `accept` string for the <input type="file"> fallback used where the picker is unavailable. */
+export const PROJECT_ACCEPT_ATTR = PROJECT_OPEN_EXTS.join(',');
+
 // Canvas layout constants
 export const GRID_SIZE = 20;
 export const PX_PER_IN = 96;
