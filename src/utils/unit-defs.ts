@@ -718,6 +718,14 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
         baseUnits: { N: 1, m: 1 },
       },
       {
+        id: 'kN-mm',
+        label: 'Kilonewton·millimeters',
+        symbol: 'kN·mm',
+        factor: 1, // 1 kN·mm = 1000 N × 0.001 m = 1 N·m
+        system: 'metric',
+        baseUnits: { kN: 1, mm: 1 },
+      },
+      {
         id: 'kN-m',
         label: 'Kilonewton·meters',
         symbol: 'kN·m',

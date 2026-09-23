@@ -75,6 +75,23 @@ Deno.test('[[targetUnit]] conversion', async (t) => {
   await t.step('a propagated unit converts', () => {
     assertValue('l = 12 [ft]; x = l^2 [[in^2]]', 20736, 'in^2');
   });
+
+  await t.step('moment units convert across the metric/imperial line', () => {
+    // kN·mm was missing until 2.3.25 — and an unknown tag becomes a phantom unit rather than an
+    // error, so `[kN-mm]` had been quietly producing something that could never convert.
+    assertValue('x = 1000 [kN-mm] [[kN-m]]', 1, 'kN·m');
+    assertValue('x = 1 [kN-m] [[kN-mm]]', 1000, 'kN·mm');
+    assertValue('M = 50 [kN-m] [[kip-ft]]', 36.8781, 'ft·kip', 1e-4);
+    assertValue('x = 1 [kN-mm] + 1 [N-m]', 2, 'kN·mm'); // same kind, converts
+  });
+
+  await t.step('mass, energy and force units are all present', () => {
+    assertValue('m = 10 [lbm] [[kg]]', 4.5359237, 'kg', 1e-7);
+    assertValue('m = 1 [kg] [[lbm]]', 2.2046226218, 'lbm', 1e-8);
+    // J and kJ are compound ids, so they expand on display — 1 J reads as `m·N`, not `J`.
+    assertValue('E = 1 [J] [[N-m]]', 1, 'm·N');
+    assertValue('E = 1000 [J] [[kJ]]', 1, 'kN·m');
+  });
 });
 
 Deno.test('order of operations', async (t) => {
