@@ -471,20 +471,42 @@ export function loadProject(proj: Record<string, unknown>) {
     if (block.encrypted && block.packId && block.encIv && block.encContent) {
       if (hasPack(block.packId)) {
         // Decrypt asynchronously; block renders as locked placeholder until resolved
-        getPackKey(block.packId).then(async (key) => {
-          if (!key) return;
-          const plain = await decryptTemplate(block.encIv!, block.encContent!, key);
-          if (plain !== null) {
-            block.content = plain;
-            block.encrypted = false; // mark as decrypted in memory
-            // Re-render if the element is already in the DOM
-            const el = document.getElementById(block.id);
-            if (el) {
-              el.remove();
-              renderBlock(block);
-              reEvalAllFormulas();
-            }
+        // Every exit from this chain must leave something on screen. `if (!key) return` and a
+        // missing `else` on the decrypt used to end it silently, and because serializeProject
+        // deliberately omits the plaintext the block's content is '' — so the section rendered
+        // BLANK and normal-looking: no lock badge, no error. A blank section in a stamped calc
+        // package reads as "nothing required here". There was no .catch() either, so a throw
+        // became an unhandled rejection.
+        const rerender = () => {
+          const el = document.getElementById(block.id);
+          if (el) {
+            el.remove();
+            renderBlock(block);
+            reEvalAllFormulas();
           }
+        };
+        const unavailable = (why: string) => {
+          // encIv/encContent are untouched, so the serializer still writes the ciphertext and
+          // nothing is lost — this only changes what is shown until the next successful load.
+          block.content = `[Unavailable: "${block.packId}" — ${why}]`;
+          rerender();
+        };
+        getPackKey(block.packId).then(async (key) => {
+          if (!key) {
+            unavailable('the pack key could not be retrieved (offline, or access changed)');
+            return;
+          }
+          const plain = await decryptTemplate(block.encIv!, block.encContent!, key);
+          if (plain === null) {
+            unavailable('its contents could not be decrypted');
+            return;
+          }
+          block.content = plain;
+          block.encrypted = false; // mark as decrypted in memory
+          rerender();
+        }).catch((e) => {
+          console.error('Pack decrypt failed', block.packId, e);
+          unavailable('an error occurred while unlocking it');
         });
       } else {
         // User doesn't own the pack — render as a locked placeholder

@@ -6,6 +6,7 @@ import {
   evalExpr,
   expandDotNotation,
   type FnScope,
+  formatUnit,
   type Scope,
   stripGreekMarks,
   type UnitMap,
@@ -493,14 +494,20 @@ function resolveRangeQty(
   fallback: number,
   scope: Scope,
   fnScope: FnScope,
-): { v: number; u: UnitMap } {
+): { v: number; u: UnitMap; error?: string } {
   if (!expr) return { v: fallback, u: {} };
   const n = parseFloat(expr);
+  // Only a bound that is EXACTLY a number literal short-circuits. `String(n) === expr.trim()`
+  // is what stops `2L` being treated as 2 here.
   if (isFinite(n) && String(n) === expr.trim()) return { v: n, u: {} };
   try {
     return evalExpr(expr, scope, fnScope);
-  } catch {
-    return { v: isFinite(n) ? n : fallback, u: {} };
+  } catch (e) {
+    // Report it. This used to fall back to `parseFloat(expr)` or the stored number and draw the
+    // curve over a DIFFERENT span, with the axes relabelled to match — so a moment diagram whose
+    // `L_beam` had been renamed, or typed as `2L`, looked entirely normal and was read off the
+    // wrong length. A plot that cannot resolve its own range must say so, not guess.
+    return { v: NaN, u: {}, error: `Range "${expr}": ${(e as Error).message}` };
   }
 }
 
@@ -559,6 +566,15 @@ export function evalPlotData(
   };
   const xMinQty = resolveRangeQty(xMinExpr, cfg.xMin, baseScope, globalFnScope);
   const xMaxQty = resolveRangeQty(xMaxExpr, cfg.xMax, baseScope, globalFnScope);
+  // A range that could not be resolved is fatal to the plot — drawing over a substituted span is
+  // how a diagram ends up read off the wrong length. Report and draw nothing.
+  // Bounds in DIFFERENT units were never checked: `from L1 [ft] to L2 [in]` swept raw numbers
+  // from two scales under a single unit tag, so the curve covered the wrong span with no warning.
+  const uMin = formatUnit(xMinQty.u), uMax = formatUnit(xMaxQty.u);
+  const mixedUnits = uMin && uMax && uMin !== uMax
+    ? `Plot range mixes units: from ${uMin} to ${uMax}. Use the same unit for both bounds.`
+    : undefined;
+  const rangeError = xMinQty.error ?? xMaxQty.error ?? mixedUnits;
   const resolvedXMin = isFinite(xMinQty.v) ? xMinQty.v : 0;
   const resolvedXMax = (isFinite(xMaxQty.v) && xMaxQty.v > resolvedXMin)
     ? xMaxQty.v
@@ -572,9 +588,11 @@ export function evalPlotData(
 
   const points: [number, number][] = [];
   let yMin = Infinity, yMax = -Infinity;
-  let error: string | undefined;
+  let error: string | undefined = rangeError;
 
-  for (let i = 0; i <= cfg.nPts; i++) {
+  // No sampling when the span itself is unknown — a curve drawn over a guessed range is exactly
+  // the wrong-but-plausible output this refuses to produce.
+  for (let i = 0; !rangeError && i <= cfg.nPts; i++) {
     const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg.nPts);
     const scope: Scope = { ...globalScope, [xVar]: { v: xv, u: xUnit } };
     try {

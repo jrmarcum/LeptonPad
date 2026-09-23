@@ -183,11 +183,11 @@ export class Canvas {
     } else if (block.type === 'formula') {
       buildFormulaBlock(el, block);
     } else if (block.type === 'math' && block.subtype === 'sect-prop') {
-      buildSectPropBlock(el);
+      buildSectPropBlock(el, block);
     } else if (block.type === 'math' && block.subtype === 'beam-def') {
       // A prefill for this block's own E input, not a global: state.constants no longer carries
       // one. 200000 MPa is steel — the user overwrites it for any other material.
-      buildBeamDefBlock(el, 200000);
+      buildBeamDefBlock(el, 200000, block);
     } else if (block.type === 'summary') {
       buildFormulaBlock(el, block); // identical UI to formula block
       el.classList.add('summary-block');
@@ -196,14 +196,28 @@ export class Canvas {
     } else if (block.type === 'figure') {
       buildFigureBlock(el, block);
     } else {
+      // An UNRECOGNISED block type. TypeScript narrows `block.type` to `'table' | 'math'` here —
+      // `'table'` is declared with no implementation, and a `'math'` block with an unknown
+      // subtype lands here too, as does anything a hand-edited or newer-version file carries.
+      //
+      // This used to render a contenteditable
+      // div showing the raw content as text, which then **overwrote `block.content` with the
+      // flattened text on blur**: structured data destroyed by clicking into it and out again.
+      //
+      // Render it read-only and say so instead. The content is left untouched so the block still
+      // round-trips through save, and opening the file in a build that understands the type
+      // recovers it intact.
+      console.warn(`Unsupported block type "${block.type}" — rendered read-only.`, block.id);
       const div = document.createElement('div');
-      div.contentEditable = 'true';
-      div.className = 'block-text';
-      div.textContent = block.content || '';
-      div.dataset.placeholder = `New ${block.type} block`;
-      div.addEventListener('blur', () => {
-        block.content = div.textContent ?? '';
-      });
+      div.className = 'block-unsupported';
+      const label = document.createElement('div');
+      label.className = 'block-unsupported-label';
+      label.textContent = `Unsupported block: ${block.type}`;
+      const note = document.createElement('div');
+      note.className = 'block-unsupported-note';
+      note.textContent = 'Its contents are preserved and will be saved unchanged.';
+      div.appendChild(label);
+      div.appendChild(note);
       el.appendChild(div);
     }
 

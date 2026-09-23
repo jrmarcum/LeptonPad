@@ -96,7 +96,12 @@ export const globalFnScope: FnScope = {};
 // Only Summary Blocks (type='summary') inside a section drive these; Formula Blocks do not.
 // variable name → its spelling as typed (keeps `\phi_P_nr` so the summary line can render φ)
 export const sectionSummaryVarNames = new Map<string, Map<string, string>>();
-export const sectionSummaryComparisons = new Map<string, Array<{ expr: string; pass: boolean }>>();
+// `error` is set when the check could not be evaluated at all. It is carried rather than dropped
+// so the summary can show that a check is broken — an absent check reads as a passing one.
+export const sectionSummaryComparisons = new Map<
+  string,
+  Array<{ expr: string; pass: boolean; error?: string }>
+>();
 
 // Maps child block id → parent section block id; rebuilt from state on load.
 // Never persisted — derived from Block.parentSectionId at runtime.

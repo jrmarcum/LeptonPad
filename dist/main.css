@@ -284,6 +284,23 @@ main {
   vertical-align: middle;
 }
 
+/* A block type this build cannot render. Read-only on purpose: the previous fallback was an
+   editable div that overwrote the block's stored content with its own flattened text. */
+.block-unsupported {
+  padding: 0.5rem 0.25rem 0.5rem 0.6rem;
+  border-left: 3px solid #f59e0b;
+}
+.block-unsupported-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b45309;
+}
+.block-unsupported-note {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin-top: 0.15rem;
+}
+
 /* Math display — set from the sidebar (Math Display), stored per browser.
    --math-font is the face for every rendered expression and result; --math-text-scale scales
    formula text; --math-sup-size sizes every sup/sub.
@@ -1979,6 +1996,13 @@ h2.custom-tools-heading {
 .section-cmp-fail {
   color: #dc2626;
   font-weight: 600;
+}
+/* A check that could not be evaluated — neither pass nor fail. Amber, not red, because the
+   check is broken rather than failing; it used to be dropped, which read as a pass. */
+.section-cmp-error {
+  color: #b45309;
+  font-weight: 600;
+  cursor: help;
 }
 
 .section-content {

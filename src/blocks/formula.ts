@@ -322,7 +322,7 @@ export function reEvalAllFormulas() {
         : [];
 
       const summaryVars = new Map<string, string>(); // name → spelling as typed
-      const summaryComps: Array<{ expr: string; pass: boolean }> = [];
+      const summaryComps: Array<{ expr: string; pass: boolean; error?: string }> = [];
 
       for (const cel of childFormulaEls) {
         const cBlock = state.blocks.find((b) => b.id === cel.id);
@@ -346,7 +346,17 @@ export function reEvalAllFormulas() {
               try {
                 const result = evalExpr(stmt.raw, sectionScope, sectionFnScope);
                 summaryComps.push({ expr: stmt.raw, pass: result.v !== 0 });
-              } catch { /* malformed — skip */ }
+              } catch (e) {
+                // Report it, do NOT skip. A check that fails to evaluate used to vanish from the
+                // summary entirely, so the line showed only the checks that worked — all ticks —
+                // and a reader had no way to know one was missing. A silently absent check reads
+                // as a passing one.
+                summaryComps.push({
+                  expr: stmt.raw,
+                  pass: false,
+                  error: (e as Error).message,
+                });
+              }
             }
           }
         }

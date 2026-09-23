@@ -144,8 +144,15 @@ export function updateSectionSummary(sectionEl: HTMLElement, block: Block) {
       summary.appendChild(document.createTextNode('\u00a0\u00a0|\u00a0\u00a0'));
     }
     const badge = document.createElement('span');
-    badge.className = cmp.pass ? 'section-cmp-pass' : 'section-cmp-fail';
-    badge.innerHTML = (cmp.pass ? '✓ ' : '✗ ') + prettifyExpr(cmp.expr);
+    // A check that could not be evaluated is its own state — neither a pass nor a fail. Showing
+    // it as ✗ would be a lie, and dropping it (the old behaviour) reads as a pass.
+    badge.className = cmp.error
+      ? 'section-cmp-error'
+      : cmp.pass
+      ? 'section-cmp-pass'
+      : 'section-cmp-fail';
+    badge.innerHTML = (cmp.error ? '⚠ ' : cmp.pass ? '✓ ' : '✗ ') + prettifyExpr(cmp.expr);
+    if (cmp.error) badge.title = cmp.error;
     summary.appendChild(badge);
   }
 }
