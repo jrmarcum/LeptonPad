@@ -530,6 +530,7 @@ export function serializeProject(): string {
     if (b.sectionColor) out.sectionColor = b.sectionColor;
     if (b.parentSectionId) out.parentSectionId = b.parentSectionId;
     if (b.h) out.h = b.h;
+    if (b.lineSpacing && b.lineSpacing !== 1) out.lineSpacing = b.lineSpacing;
 
     if (b.packId && b.encIv && b.encContent) {
       // Purchased template block — always save the ciphertext, NEVER the plaintext

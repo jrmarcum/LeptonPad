@@ -250,10 +250,10 @@ minimum allocation ≈ 86 MB of pure slack. Every small file on this drive costs
 
 **What was done** (2026-09-23, repo verified `git fsck --connectivity-only` clean afterwards):
 
-| Step                                                     | Effect                                             |
-| -------------------------------------------------------- | -------------------------------------------------- |
-| `git config maintenance.auto false` + `gc.auto 0` (local) | Commits stop triggering the failing repack         |
-| `git prune-packed`                                        | Dropped 338 loose objects already inside a pack    |
+| Step                                                      | Effect                                                                                                                             |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `git config maintenance.auto false` + `gc.auto 0` (local) | Commits stop triggering the failing repack                                                                                         |
+| `git prune-packed`                                        | Dropped 338 loose objects already inside a pack                                                                                    |
 | Kept `pack-737a5ed…`, retired the other four              | It held **exactly** the 1084 reachable objects — it _was_ the consolidated pack `git repack -ad` kept failing to rename into place |
 
 Result: 5 packs → 1, `.git` **109 MB → 18 MB**, no error on commit. The retired packs held only

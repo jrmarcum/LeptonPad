@@ -25,6 +25,19 @@ import { buildBeamDefBlock } from './blocks/beam-def.ts';
 import { buildTextBlock } from './blocks/text.ts';
 import { buildFigureBlock } from './blocks/figure.ts';
 
+/**
+ * Push a block's line-spacing setting onto its element as `--block-line-space`.
+ * Formula rows read it as their default; a row with its own `sp` overrides it. Exported so the
+ * context menu can re-apply it without rebuilding the block.
+ */
+export function applyBlockLineSpacing(el: HTMLElement, block: Block) {
+  if (block.lineSpacing && block.lineSpacing !== 1) {
+    el.style.setProperty('--block-line-space', String(block.lineSpacing));
+  } else {
+    el.style.removeProperty('--block-line-space');
+  }
+}
+
 export class Canvas {
   private element: HTMLElement;
   private guide: HTMLElement;
@@ -134,6 +147,7 @@ export class Canvas {
     const el = document.createElement('div');
     el.id = block.id;
     el.className = 'block';
+    applyBlockLineSpacing(el, block);
 
     // Child blocks are positioned relative to section content — skip margin offset
     if (!block.parentSectionId) {

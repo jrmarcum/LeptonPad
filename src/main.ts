@@ -27,7 +27,7 @@ import {
   sectionAtPoint,
   updateSectionSummary,
 } from './blocks/pro/section.ts';
-import { Canvas } from './canvas.ts';
+import { applyBlockLineSpacing, Canvas } from './canvas.ts';
 import {
   addToSelection,
   clearSelection,
@@ -1491,6 +1491,55 @@ async function start() {
       ctxFormulaActions = null;
     };
 
+    // ── Line spacing (Word-style 1 / 1.5 / 2) ───────────────────────────────
+    // Two groups, only one shown at a time: right-clicking a formula row sets that row;
+    // right-clicking the block elsewhere (its label, or any non-row block) sets the block default,
+    // which every row without a setting of its own follows.
+    const SPACINGS = [1, 1.5, 2];
+    const mkSpacingGroup = (headerText: string, onPick: (v: number) => void) => {
+      const group = document.createElement('div');
+      group.className = 'ctx-formula-group';
+      group.style.display = 'none';
+      const header = document.createElement('div');
+      header.className = 'ctx-section-header';
+      header.textContent = headerText;
+      group.appendChild(header);
+      const btnRow = document.createElement('div');
+      btnRow.className = 'ctx-spacing-row';
+      const btns = SPACINGS.map((v) => {
+        const b = document.createElement('button');
+        b.className = 'ctx-neutral-btn ctx-spacing-btn';
+        b.textContent = v.toFixed(1);
+        b.title = v === 1 ? 'Single spacing' : v === 1.5 ? '1.5 line spacing' : 'Double spacing';
+        b.addEventListener('click', () => {
+          onPick(v);
+          hideCtxMenu();
+        });
+        btnRow.appendChild(b);
+        return b;
+      });
+      group.appendChild(btnRow);
+      ctxMenu.insertBefore(group, ctxSaveToolBtn);
+      // `current` of 0 means "no setting of its own" — show it as following the block, i.e. 1.0.
+      const mark = (current: number) =>
+        btns.forEach((b, i) => b.classList.toggle('active', SPACINGS[i] === (current || 1)));
+      return { group, mark };
+    };
+
+    const rowSpacing = mkSpacingGroup('Line spacing (this row)', (v) => {
+      ctxFormulaActions?.setRowSpacing(ctxFormulaRowEl, v);
+    });
+    const blockSpacing = mkSpacingGroup('Line spacing (block)', (v) => {
+      // Apply to every selected block when there is a multi-selection, else just the target.
+      const els = selectedEls.size > 1 ? [...selectedEls] : ctxTarget ? [ctxTarget] : [];
+      for (const el of els) {
+        const b = state.blocks.find((bl) => bl.id === el.id);
+        if (!b) continue;
+        b.lineSpacing = v;
+        applyBlockLineSpacing(el, b);
+      }
+    });
+
     ctxSaveToolBtn.addEventListener('click', () => {
       if (!ctxTarget) return;
       const name = prompt('Name for this tool:')?.trim();
@@ -1643,6 +1692,17 @@ async function start() {
         ctxFormulaActions = null;
         ctxFormulaGroup.style.display = 'none';
         ctxFormulaSep.style.display = 'none';
+      }
+
+      // Line spacing: the row's own setting when a row was clicked, otherwise the block default.
+      const onRow = !!(actions && rowEl);
+      rowSpacing.group.style.display = onRow ? '' : 'none';
+      blockSpacing.group.style.display = onRow ? 'none' : '';
+      if (onRow) {
+        rowSpacing.mark(actions.getRowSpacing(rowEl));
+      } else {
+        const b = state.blocks.find((bl) => bl.id === target.id);
+        blockSpacing.mark(b?.lineSpacing ?? 1);
       }
 
       ctxMenu.style.left = `${e.clientX}px`;

@@ -30,6 +30,7 @@ export interface Block {
   sectionColor?: string; // accent color for left border
   parentSectionId?: string; // set on child blocks; undefined for top-level blocks
   h?: number; // explicit height set by pull-down resize handle
+  lineSpacing?: number; // 1 | 1.5 | 2 — default row spacing for this block (undefined = 1)
   // Purchased template pack fields (section blocks only)
   packId?: string; // pack slug if this block came from a purchased template
   encrypted?: boolean; // true = content is encrypted; encIv + encContent hold the data

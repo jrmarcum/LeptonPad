@@ -55,6 +55,7 @@ export function parseFormulaRows(content: string): FormulaRow[] {
         const row: FormulaRow = { e: String(r.e ?? ''), d: String(r.d ?? '') };
         if (r.type) row.type = r.type as FormulaRow['type'];
         if (r.ref) row.ref = String(r.ref);
+        if (Number(r.sp) > 1) row.sp = Number(r.sp); // 1 is the default — never stored
         return row;
       });
     }
@@ -554,6 +555,13 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       const d = depths[i] ?? 0;
       row.style.setProperty('--depth', String(d));
 
+      // Line spacing: the row's own setting wins, otherwise the row inherits the block's
+      // --block-line-space (set in canvas.addBlock). Only the extra space is applied, as a
+      // bottom margin — a flex `gap` is uniform and so cannot vary row by row.
+      if (rowDatum.sp && rowDatum.sp !== 1) {
+        row.style.setProperty('--row-space', String(rowDatum.sp));
+      }
+
       if (isCtrl) {
         const badge = document.createElement('span');
         badge.className = `formula-keyword formula-keyword--${rowType}`;
@@ -986,6 +994,26 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       }
       const canDelBranch = rowType === 'elseif' || rowType === 'else' || rowType === 'for';
       return { rowType, hasIf, hasElse, canDelBranch };
+    },
+
+    /** This row's own line spacing, or 0 when it simply follows the block. */
+    getRowSpacing: (rowEl: HTMLElement | null): number => {
+      if (!rowEl) return 0;
+      const arr = parseFormulaRows(block.content);
+      return arr[getRowIdx(rowEl)]?.sp ?? 0;
+    },
+
+    /** Set (or with 1, clear) this row's line spacing. Rebuilds so the row picks up the change. */
+    setRowSpacing: (rowEl: HTMLElement | null, sp: number) => {
+      if (!rowEl) return;
+      const arr = parseFormulaRows(block.content);
+      const idx = getRowIdx(rowEl);
+      if (idx < 0 || !arr[idx]) return;
+      if (sp > 1) arr[idx].sp = sp;
+      else delete arr[idx].sp; // back to following the block — never store a redundant 1
+      block.content = JSON.stringify(arr);
+      rebuildRows();
+      reEvalAllFormulas();
     },
 
     insertRowAfter: (rowEl: HTMLElement | null) => {
