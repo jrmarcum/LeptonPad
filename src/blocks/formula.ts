@@ -971,6 +971,85 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     updateHasAnyRef();
   }
 
+  // ── Alt+Arrow navigation between cells ──────────────────────────────────
+  // Tab walks the cells but only forwards and backwards. Alt is the one free modifier: plain
+  // arrows move the caret inside a cell and Shift+Arrow selects text (both needed for editing),
+  // and Ctrl+Arrow already moves the whole block — deliberately, even while a cell has focus.
+  // Alt+Left/Right is the browser's Back/Forward, so these must preventDefault; they only fire
+  // when a formula cell has focus, leaving browser navigation alone everywhere else.
+  const CELL_SEL = '.formula-desc-cell, .formula-cell, .formula-ref-cell';
+
+  /** A cell the user can actually reach — `else`/`end` rows hide their expression cell. */
+  const isVisibleCell = (c: HTMLElement) => c.style.display !== 'none';
+
+  const inDocOrder = (cells: HTMLElement[]): HTMLElement[] =>
+    cells.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+
+  /**
+   * The reachable cells belonging to one row, left to right. An if/for header row keeps its
+   * description and reference on the surrounding group wrapper rather than on the row itself,
+   * so those are collected too — otherwise Alt+Up/Down would skip them.
+   */
+  const cellsOfRow = (row: HTMLElement): HTMLElement[] => {
+    const out = Array.from(row.querySelectorAll<HTMLElement>(CELL_SEL));
+    const group = row.closest<HTMLElement>('.formula-block-group');
+    if (group && group.querySelector('.formula-row') === row) {
+      for (const child of Array.from(group.children)) {
+        if (
+          child.classList.contains('formula-desc-wrap') ||
+          child.classList.contains('formula-ref-wrap')
+        ) {
+          out.push(...Array.from(child.querySelectorAll<HTMLElement>(CELL_SEL)));
+        }
+      }
+    }
+    return inDocOrder(out.filter(isVisibleCell));
+  };
+
+  /** Which column a cell sits in, so Alt+Up/Down can land in the same one. */
+  const columnOf = (c: HTMLElement): string =>
+    c.classList.contains('formula-desc-cell')
+      ? 'formula-desc-cell'
+      : c.classList.contains('formula-ref-cell')
+      ? 'formula-ref-cell'
+      : 'formula-cell';
+
+  rowsEl.addEventListener('keydown', (ev: KeyboardEvent) => {
+    if (!ev.altKey || ev.ctrlKey || ev.shiftKey || ev.metaKey) return;
+    const k = ev.key;
+    if (k !== 'ArrowUp' && k !== 'ArrowDown' && k !== 'ArrowLeft' && k !== 'ArrowRight') return;
+    const cur = (ev.target as HTMLElement).closest<HTMLElement>(CELL_SEL);
+    if (!cur) return;
+
+    let target: HTMLElement | undefined;
+
+    if (k === 'ArrowLeft' || k === 'ArrowRight') {
+      // Across columns, continuing into the neighbouring row at either end — like Tab.
+      const all = inDocOrder(
+        Array.from(rowsEl.querySelectorAll<HTMLElement>(CELL_SEL)).filter(isVisibleCell),
+      );
+      target = all[all.indexOf(cur) + (k === 'ArrowRight' ? 1 : -1)];
+    } else {
+      const rows = Array.from(rowsEl.querySelectorAll<HTMLElement>('.formula-row'));
+      const row = cur.closest<HTMLElement>('.formula-row') ??
+        cur.closest<HTMLElement>('.formula-block-group')?.querySelector<HTMLElement>(
+          '.formula-row',
+        );
+      const nextRow = rows[rows.indexOf(row!) + (k === 'ArrowDown' ? 1 : -1)];
+      if (nextRow) {
+        const cells = cellsOfRow(nextRow);
+        // Same column when that row has one, otherwise its expression cell.
+        target = cells.find((c) => columnOf(c) === columnOf(cur)) ??
+          cells.find((c) => columnOf(c) === 'formula-cell') ?? cells[0];
+      }
+    }
+
+    // Swallow the key either way: a no-op at the edge must not trigger browser Back/Forward.
+    ev.preventDefault();
+    ev.stopPropagation();
+    target?.focus();
+  });
+
   // ── Context menu action callbacks stored on rowsEl ──────────────────────
   const getRowIdx = (rowEl: HTMLElement): number =>
     Array.from(rowsEl.querySelectorAll<HTMLElement>('.formula-row')).indexOf(rowEl);

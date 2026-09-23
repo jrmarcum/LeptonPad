@@ -94,6 +94,23 @@ All blocks support drag-to-reposition on a snap grid. Formula, Summary, Plot, an
 | `api/main.ts`                | Entitlement API — verifies Clerk JWTs, calls Neon              |
 | `db/schema.sql`              | Complete Neon schema — tables, functions, admin helpers        |
 
+## Keyboard — formula blocks
+
+| Keys                        | Action                                                         |
+| --------------------------- | -------------------------------------------------------------- |
+| `Alt` + `←` / `→`           | Move to the previous / next cell, continuing into the next row |
+| `Alt` + `↑` / `↓`           | Move to the same column one row up / down                      |
+| `Tab` / `Shift` + `Tab`     | Description → formula → reference, and back                    |
+| `Ctrl` + `Enter`            | Insert a blank row below                                       |
+| `Ctrl` + `I` / `Ctrl` + `L` | Insert an `if`/`end` or `for`/`end` block                      |
+| `Ctrl` + `E`                | Add an `elseif` branch (`Ctrl` + `Shift` + `E` for `else`)     |
+| `Ctrl` + `-`                | Delete the current row or branch                               |
+| `Alt` + `Enter`             | Line break inside a cell                                       |
+
+Arrow keys on their own move the caret inside a cell and `Shift` + arrow selects text, so cell
+navigation uses `Alt`. `Ctrl` + arrow moves the whole block on the page, even while a cell has
+focus. Line spacing (1 / 1.5 / 2) is on the right-click menu — per row, or per block.
+
 ## Formula block unit syntax
 
 | Syntax                    | Effect                                                                  |
