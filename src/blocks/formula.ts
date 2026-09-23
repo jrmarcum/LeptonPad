@@ -55,8 +55,9 @@ export function parseFormulaRows(content: string): FormulaRow[] {
         const row: FormulaRow = { e: String(r.e ?? ''), d: String(r.d ?? '') };
         if (r.type) row.type = r.type as FormulaRow['type'];
         if (r.ref) row.ref = String(r.ref);
-        // >= 1, not > 1: an explicit `sp: 1` is how a row says "single, regardless of the block".
-        if (Number(r.sp) >= 1) row.sp = Number(r.sp);
+        // Single spacing is the default and is never stored — with no block-vs-row cascade,
+        // an absent `sp` and `sp: 1` mean exactly the same thing.
+        if (Number(r.sp) > 1) row.sp = Number(r.sp);
         return row;
       });
     }
@@ -390,6 +391,10 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         const obj: FormulaRow = { e: r.dataset.raw ?? '', d: r.dataset.desc ?? '' };
         if (r.dataset.rowType) obj.type = r.dataset.rowType as FormulaRow['type'];
         if (r.dataset.ref) obj.ref = r.dataset.ref;
+        // Line spacing lives on the element too, because this runs on every keystroke and blur:
+        // anything not read back here is silently erased from the block. Leaving `sp` out wiped
+        // every row's spacing the moment the user typed (reported 2026-09-23).
+        if (r.dataset.sp) obj.sp = Number(r.dataset.sp);
         return obj;
       }),
     );
@@ -556,9 +561,12 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       const d = depths[i] ?? 0;
       row.style.setProperty('--depth', String(d));
 
-      // Line spacing is the row's own property. The block-level control stamps its value into
-      // every row rather than cascading, so this is the only thing the CSS reads.
-      if (rowDatum.sp && rowDatum.sp !== 1) {
+      // Line spacing is the row's own property — the block-level control stamps its value into
+      // every row rather than cascading, so --row-space is the only thing the CSS reads.
+      // It is mirrored into dataset so syncContent() can round-trip it; 1 (single) is the default
+      // and is never stored, so absent and 1 mean the same thing.
+      if (rowDatum.sp && rowDatum.sp > 1) {
+        row.dataset.sp = String(rowDatum.sp);
         row.style.setProperty('--row-space', String(rowDatum.sp));
       }
 
@@ -1003,14 +1011,14 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       return arr[getRowIdx(rowEl)]?.sp ?? 1;
     },
 
-    /** Set this row's line spacing. 1 is stored explicitly so a row can be single inside a
-     *  block that was set to 1.5 or 2 — deleting it instead made 1 unreachable per row. */
+    /** Set this row's line spacing, independently of every other row. */
     setRowSpacing: (rowEl: HTMLElement | null, sp: number) => {
       if (!rowEl) return;
       const arr = parseFormulaRows(block.content);
       const idx = getRowIdx(rowEl);
       if (idx < 0 || !arr[idx]) return;
-      arr[idx].sp = sp;
+      if (sp > 1) arr[idx].sp = sp;
+      else delete arr[idx].sp; // single is the default — storing a redundant 1 helps nobody
       block.content = JSON.stringify(arr);
       rebuildRows();
       reEvalAllFormulas();
@@ -1027,7 +1035,10 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     /** The block-level control: overwrite EVERY row's spacing with this value. */
     setAllRowSpacing: (sp: number) => {
       const arr = parseFormulaRows(block.content);
-      for (const r of arr) r.sp = sp;
+      for (const r of arr) {
+        if (sp > 1) r.sp = sp;
+        else delete r.sp;
+      }
       block.content = JSON.stringify(arr);
       rebuildRows();
       reEvalAllFormulas();
