@@ -99,6 +99,14 @@ Deno.test('comparisons', async (t) => {
     assertEquals(r.value, 1);
   });
 
+  await t.step('a comparison is flagged isTest, so it can render as OK / NG not 1 / 0', () => {
+    // The renderer keys off this flag; without it a check shows a bare 1 or 0 (2.3.22).
+    assertEquals(last('P = 180 [kip]; c = P >= 100 [kip]').isTest, true);
+    assertEquals(last('c = 2 == 2').isTest, true);
+    assertEquals(last('P = 180 [kip]; x = P * 2').isTest, undefined); // ordinary maths is not
+    assertEquals(last('x = 1').isTest, undefined);
+  });
+
   await t.step('a trailing unit never labels a pass/fail (the 2.3.10 fix)', () => {
     assertValue('P = 180 [kip]; c = P != 0 [kip]', 1, '');
     assertValue('P = 180 [kip]; c = P >= 100 [kip]', 1, '');

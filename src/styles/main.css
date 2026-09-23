@@ -500,7 +500,9 @@ main {
 
 .math-divider {
   border: none;
-  border-top: 1px solid #e4e4e7;
+  /* The rules that structure a calculation sheet — heading from work, annotations from work —
+     are drawn in ink, not in the pale grey used for incidental UI chrome. */
+  border-top: 1px solid #18181b;
   margin: 0.5rem 0;
 }
 
@@ -851,7 +853,7 @@ main {
   width: 180px;
   padding-right: 6px;
   margin-right: 6px;
-  border-right: 1px solid #e4e4e7;
+  border-right: 1px solid #18181b; /* ink — see .math-divider */
   align-self: stretch;
   flex-direction: column;
 }
@@ -929,7 +931,7 @@ main {
   width: 150px;
   padding-left: 6px;
   margin-left: 6px;
-  border-left: 1px solid #e4e4e7;
+  border-left: 1px solid #18181b; /* ink — see .math-divider */
   align-self: stretch;
 }
 .formula-row.has-ref > .formula-ref-wrap {
@@ -1093,9 +1095,11 @@ main {
 }
 
 .formula-result {
-  font-family: 'Courier New', monospace;
-  font-size: calc(0.74rem * var(--math-text-scale));
-  color: #059669;
+  /* A result is part of the calculation, so it is set in the same serif face, size and colour as
+     the expression that produced it. Only a status — err, OK, NG — earns a colour of its own. */
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: calc(0.8rem * var(--math-text-scale));
+  color: inherit;
   white-space: nowrap;
   min-width: 56px;
   text-align: right;
@@ -1120,9 +1124,18 @@ main {
   font-size: 0.7rem;
 }
 .formula-error {
-  color: #ef4444;
+  color: #dc2626;
   cursor: help;
-  font-size: 0.7rem;
+  font-weight: 600;
+}
+/* A comparison is a check — it reads OK or NG, the way it would on a hand calculation. */
+.formula-check-ok {
+  color: #047857;
+  font-weight: 700;
+}
+.formula-check-ng {
+  color: #dc2626;
+  font-weight: 700;
 }
 .formula-inactive {
   color: #d1d5db;

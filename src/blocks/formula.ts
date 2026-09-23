@@ -220,6 +220,12 @@ export function applyEvalResults(
       r.innerHTML = matrixResultHtml(stmt.matrix);
       r.title = `${stmt.matrix.length}×${stmt.matrix[0].length} matrix`;
       r.className = 'formula-result';
+    } else if (stmt.isTest) {
+      // A comparison is a check, so it reads as a check: OK or NG, not 1 or 0.
+      const pass = stmt.value !== 0;
+      r.textContent = pass ? 'OK' : 'NG';
+      r.title = pass ? 'Check passes' : 'Check does not pass';
+      r.className = `formula-result ${pass ? 'formula-check-ok' : 'formula-check-ng'}`;
     } else {
       const unitStr = formatUnit(stmt.unit);
       r.innerHTML = fmtNum(stmt.value) +

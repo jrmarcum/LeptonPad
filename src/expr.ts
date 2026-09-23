@@ -55,6 +55,7 @@ export interface Statement {
   error?: string;
   isFn?: boolean; // true when this statement defines a user function
   fnParam?: string; // parameter name when isFn is true
+  isTest?: boolean; // true when the statement is a comparison — renders as OK / NG, not 1 / 0
   // Control-flow fields
   rowType?: 'if' | 'elseif' | 'else' | 'end' | 'for';
   active?: boolean; // whether this row's branch/body was executed
@@ -1712,7 +1713,15 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
           let q = evalExpr(expr, scope, fnScope);
           q = applyStatementUnits(q, tagUnit, targetUnit);
           scope[name] = q;
-          results.push({ raw: s, name, expr, value: q.v, unit: q.u, matrix: q.m });
+          results.push({
+            raw: s,
+            name,
+            expr,
+            value: q.v,
+            unit: q.u,
+            matrix: q.m,
+            isTest: q.isTest,
+          });
         } catch (e) {
           results.push({ raw: s, name, expr, value: NaN, unit: {}, error: (e as Error).message });
         }
@@ -1724,7 +1733,15 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
     try {
       let q = evalExpr(stmt, scope, fnScope);
       q = applyStatementUnits(q, tagUnit, targetUnit);
-      results.push({ raw: s, name: '', expr: stmt, value: q.v, unit: q.u, matrix: q.m });
+      results.push({
+        raw: s,
+        name: '',
+        expr: stmt,
+        value: q.v,
+        unit: q.u,
+        matrix: q.m,
+        isTest: q.isTest,
+      });
     } catch (e) {
       results.push({
         raw: s,

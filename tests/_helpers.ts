@@ -21,11 +21,18 @@ export function last(src: string, scope: Scope = {}): {
   unit: string;
   matrix?: Quantity[][];
   error?: string;
+  isTest?: boolean;
 } {
   // Formula blocks expand `beam1.L` before evaluating; do the same so tests exercise that path.
   const stmts = evalStatements(expandDotNotation(src), scope, {});
   const s = stmts[stmts.length - 1];
-  return { value: s.value, unit: formatUnit(s.unit), matrix: s.matrix, error: s.error };
+  return {
+    value: s.value,
+    unit: formatUnit(s.unit),
+    matrix: s.matrix,
+    error: s.error,
+    isTest: s.isTest,
+  };
 }
 
 /** Evaluate rows the way a formula block does (dot notation expanded, control flow honoured). */
