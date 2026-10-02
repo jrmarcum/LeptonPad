@@ -172,6 +172,28 @@ Letter: work 136…1032, lines 136, 156 … 1016.
 derived from one another, not computed separately and then reconciled. Three successive fixes failed
 because each reconciled the two more carefully instead of collapsing them.
 
+### Every placement path snaps, through the same function (v2.6.7)
+
+Moving the grid origin to the work-area top exposed a dormant split: **`addBlock` snapped and
+`updateMarginGuide` did not.** The disagreement was `(gridOrigin − margins.top) mod GRID_SIZE` —
+exactly zero while the origin was `margins.top`, and arbitrary the moment it became the work-area
+top with a _measured_ title block in it. Blocks landed half a square off the intersections.
+
+The same offset produced a second symptom that looked unrelated: **the split sized the kept part
+against the block's position at computation time, and then the reposition moved the block down
+underneath it**, so the part that had been made to fit no longer did. One offset, two bug reports.
+
+`addBlock`, `updateMarginGuide` and `placeBlock` now all go through `snapToPageGrid` vertically and
+the same rounding horizontally. `placeBlock` snaps rather than merely flooring because a drag
+arrives as a raw pointer delta and the **stored** y is what every later reposition replays — an
+unsnapped drop is an off-grid position forever.
+
+`clearTitleBlock` is no longer a parallel rule: since the grid origin became the work-area top,
+"below the title block" and "on the first line" are the same position, so `snapToPageGrid` calls it
+for its floor instead of repeating the comparison. The test asserts the agreement and idempotence —
+replaying a stored position must not drift it further on each reflow — rather than either path
+alone, because agreement was the thing that broke.
+
 ⚠️ **The margins are not the usable bounds — but the last grid LINE is not the bottom bound either**
 (second report, same day:
 _"still not respecting the boundary ... past the lined part of the page inside the bottom margin"_

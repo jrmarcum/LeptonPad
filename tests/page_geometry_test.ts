@@ -198,6 +198,40 @@ Deno.test('page geometry and the title block', async (t) => {
     setTitleBlockMeasuredH(TITLE_BLOCK_H);
   });
 
+  await t.step('every placement path lands on an intersection, not a half-square', () => {
+    // Reported 2026-10-02: "we are snapping to the midpoint of a gridline now instead of a grid
+    // intersection." addBlock snapped and updateMarginGuide did not, so the two disagreed by
+    // (gridOrigin − margins.top) mod GRID_SIZE — zero while the origin was margins.top, and
+    // arbitrary once it became the work-area top with a MEASURED title block in it.
+    //
+    // The same offset caused the second half of that report: the split sized the kept part against
+    // the block's position at computation time, then the reposition moved it down underneath,
+    // so the part made to fit no longer did. One offset, two symptoms — which is why this asserts
+    // the agreement rather than either path on its own.
+    setTitleBlockEnabled(true);
+    setTitleBlockMeasuredH(TITLE_BLOCK_H + 10); // a height that is NOT a whole number of squares
+    try {
+      for (const page of [0, 1, 2]) {
+        const origin = firstGridLine(page);
+        // What updateMarginGuide replays: an absolute top rebuilt from the stored y.
+        for (const offset of [0, 13, 27, 200, 405]) {
+          const replayed = snapToPageGrid(origin + offset);
+          assertEquals(
+            (replayed - origin) % GRID_SIZE,
+            0,
+            `page ${page}, offset ${offset}: landed off the intersections`,
+          );
+          assertEquals(replayed >= origin, true, `page ${page}: above the first line`);
+        }
+        // Idempotent — replaying a stored position must not drift it further each reflow.
+        const once = snapToPageGrid(origin + 33);
+        assertEquals(snapToPageGrid(once), once, `page ${page}: snapping is not idempotent`);
+      }
+    } finally {
+      setTitleBlockMeasuredH(TITLE_BLOCK_H);
+    }
+  });
+
   await t.step('pageIndexOf never returns a negative page', () => {
     // A drag above the canvas gives a negative y; a negative page index would index the geometry
     // backwards and compute a floor above the canvas.

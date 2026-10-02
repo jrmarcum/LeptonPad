@@ -8,7 +8,6 @@ import {
   CANVAS_H,
   CANVAS_W,
   childToSection,
-  clearTitleBlock,
   clipboardBlocks,
   customModules,
   deletionStack,
@@ -28,6 +27,7 @@ import {
   setNumPages,
   setSelectedEl,
   setTitleBlockMeasuredH,
+  snapToPageGrid,
   state,
   titleBlockEnabled,
   titleBlockH,
@@ -473,7 +473,11 @@ export function placeBlock(el: HTMLElement, newLeft: number, newTop: number) {
   // be dropped straight onto a title block and disappear behind it (z-index 2). Clamped here so
   // every placement path shares the rule, and the STORED y is the clamped one: a position that is
   // only corrected for display diverges from the data and reappears wrong on the next open.
-  newTop = clearTitleBlock(newTop);
+  // Snapped, not merely floored. A drag arrives with a raw pointer delta, and the stored y is what
+  // every later reposition replays — so an unsnapped drop is an off-grid position forever. Using
+  // the same function as addBlock and updateMarginGuide is the point: three paths, one rule.
+  newTop = snapToPageGrid(newTop);
+  newLeft = margins.left + Math.round((newLeft - margins.left) / GRID_SIZE) * GRID_SIZE;
   if (b?.type === 'section') {
     el.style.left = `${margins.left}px`;
     el.style.top = `${newTop}px`;

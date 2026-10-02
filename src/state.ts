@@ -171,7 +171,11 @@ export function snapToPageGrid(top: number): number {
   const pi = pageIndexOf(top);
   const go = gridOriginOf(pi);
   const snapped = go + Math.round((top - go) / GRID_SIZE) * GRID_SIZE;
-  if (snapped < firstGridLine(pi)) return firstGridLine(pi);
+  // The floor IS clearTitleBlock — since the grid origin became the work-area top, "below the
+  // title block" and "on the first line" are the same position. Calling it rather than repeating
+  // the comparison keeps that an identity instead of two expressions that have to stay in step.
+  const floored = clearTitleBlock(snapped);
+  if (floored !== snapped) return floored;
   // Capped as well as floored. Without this a top could land past the last line — in the unlined
   // strip below it, or in the page break itself — and a block there is unfixable: the space left
   // on its page is zero or negative, so the split computes nothing to move and the overlap becomes

@@ -7,7 +7,6 @@ import {
   CANVAS_H,
   CANVAS_W,
   childToSection,
-  clearTitleBlock,
   margins,
   onAddToSelection,
   onSelectBlock,
@@ -125,7 +124,7 @@ export class Canvas {
         el.style.left = `${margins.left}px`;
         el.style.top = `${
           clamp(
-            clearTitleBlock(margins.top + titleBlockH() + block.y),
+            snapToPageGrid(margins.top + titleBlockH() + block.y),
             margins.top,
             CANVAS_H - el.offsetHeight,
           )
@@ -134,16 +133,26 @@ export class Canvas {
         el.style.maxWidth = '';
         return;
       }
+      // Snapped here too, and for the same reason: addBlock snaps the horizontal and this did not.
+      // The grid's vertical lines start at margins.left, so a block.x that is not a whole number of
+      // squares puts the left edge between them.
       const absLeft = clamp(
-        margins.left + block.x,
+        margins.left + this.snap(block.x),
         margins.left,
         CANVAS_W - margins.right - el.offsetWidth,
       );
-      // block.y is stored as (newTop - margins.top), so restore without adding tbH again.
-      // The floor used to be `margins.top + tbH` — page 1 only, so a block near the top of page 2
-      // or 3 stayed behind that page's title block. clearTitleBlock applies it per page.
+      // block.y is stored as (newTop - margins.top), so restore without adding tbH again — then
+      // snap, with the SAME function addBlock uses.
+      //
+      // This path did not snap and addBlock did, so the two disagreed whenever the grid origin was
+      // not a whole number of squares below `margins.top` — which is now the normal case, since the
+      // origin is the work-area top and the measured title block is rarely a multiple of 20. Blocks
+      // landed half a square off the intersections (reported 2026-10-02), and the split inherited
+      // it: it sized the kept part against the position at computation time, and then this
+      // reposition moved the block down underneath it, so the part that was made to fit no longer
+      // did. One offset, two symptoms.
       const absTop = clamp(
-        clearTitleBlock(margins.top + block.y),
+        snapToPageGrid(margins.top + block.y),
         margins.top,
         CANVAS_H - el.offsetHeight,
       );
