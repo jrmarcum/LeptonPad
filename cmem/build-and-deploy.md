@@ -38,6 +38,41 @@ Then `build.ts`:
   `LP_API_URL` (process env first, then `.env`, then placeholders), with the version read straight
   from `deno.json`.
 
+### ⚠️ `dist/` is gitignored and its contents are FORCE-ADDED, one file at a time
+
+This is the trap that broke the 2.6.10 deploy. `.gitignore` carries `dist/`, so **a new file
+`build.ts` writes there is invisible to git until someone runs `git add -f` on it specifically** —
+`git add -A` will not pick it up, and nothing warns.
+
+`dist/THIRD_PARTY_NOTICES.md` was added to `build.ts` in v2.5.3 and never committed. It worked
+anyway, because Deno Deploy was running the build and regenerating it on every deploy. That hid the
+gap until the build itself stopped working.
+
+**When you add a file to `build.ts`'s copy list, `git add -f dist/<file>` in the same commit.**
+Check with `git ls-files dist/` against `ls dist/`; the legitimate absentees are `config.js` (served
+from the environment per request by `main.ts`, deliberately not a build artefact) and
+`solver.wat` / `solver.wit` (wasm byproducts, never served).
+
+### Deno Deploy: build command failed with exit code 143 (2026-10-02)
+
+**143 is 128 + 15 — SIGTERM.** The build was killed, not failed: a timeout or resource limit, with
+no error of its own to read. Nothing in the commit touched the server; `main.ts` and `api/main.ts`
+type-checked clean and were unchanged since v2.5.3.
+
+The real finding is that **the build on Deno Deploy was redundant.** `dist/` is committed in full
+and `main.ts` only serves it — there is nothing to build at deploy time. The build was doing
+`deno bundle` and a WASM compile on every push for output the repo already carried, and it had
+been slowly creeping toward the limit until it crossed it.
+
+Once `dist/THIRD_PARTY_NOTICES.md` was committed (v2.6.11), `dist/` became self-sufficient and the
+build command could be removed from the Deno Deploy project settings entirely. Verified before
+making the call: every committed `dist/` file was byte-identical to a fresh local build.
+
+⚠️ **The consequence of no build step: `deno task build` must be run and `dist/` committed before
+every push, or the deploy serves stale bytes.** That was already the workflow and already the
+reason for the "check the deploy" trigger — confirm `deno.json` → `public/sw.js` → `dist/sw.js`
+all read the same version before claiming a release shipped.
+
 ⚠️ **`public/config.js` is never copied to `dist/`.** It is a shape reference only — both `build.ts`
 and `dev.ts` write `dist/config.js` from scratch via the one shared generator. `sync-version.ts` used
 to patch `public/config.js` too; that was dead work and was removed on 2026-08-13.
