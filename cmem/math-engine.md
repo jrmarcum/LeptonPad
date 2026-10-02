@@ -35,6 +35,44 @@ Private helpers, all pure, all operating on `UnitMap`:
 | `alignUnits`    | Converts the right operand into the left's unit, or throws. Used by `+`, `−` and compare. |
 | `formatUnit`    | `UnitMap` → display string.                                                               |
 
+## `=` assigns, `==` compares — and until v2.6.0 it depended on a parsing accident
+
+**Settled 2026-10-02 (Jon): `=` is assignment only, `==` is the only equality.** Before that the
+tokenizer emitted the **same token** for a lone `=` as for `==`, so inside an expression the two
+were indistinguishable; the statement splitter then treated `=` as an assignment only when the text
+on its left happened to match `/^[a-zA-Z_]\w*$/`. The operator therefore meant assignment or
+comparison by coincidence, and it failed in **both** directions:
+
+| Written          | Intended   | What used to happen                                        |
+| ---------------- | ---------- | ---------------------------------------------------------- |
+| `el(K,1,2) = 99` | assignment | became an equality check and rendered **NG**               |
+| `V_u = V_n`      | a check    | **silently overwrote `V_u`** — no error, no OK/NG, nothing |
+
+The second is the one that mattered: a sheet replaced a demand with a capacity and said nothing.
+Both were reproduced against the engine before the change, not reasoned about.
+
+What changed: the tokenizer now **throws** on a lone `=` (`` `=` assigns a value — use `==` to
+compare ``). A statement's own assignment `=` is split off before the tokenizer sees the right-hand
+side, so reaching that throw means the `=` sits somewhere only a comparison can go — a bare
+expression row, an `if`/`elseif` condition, a sub-expression. `evalStatements` additionally reports
+a lone `=` whose left side is not a plain name by **naming that left side**, since that is what
+makes it fixable, with a dedicated hint for `el(...)` on the left (element assignment does not
+exist; build the matrix as a literal).
+
+⚠️ **The one case this cannot fix:** `V_u = V_n` is a legal reassignment and still is — intent is
+unreadable there. What the change buys is that **OK/NG became a trustworthy signal**: a check always
+renders OK or NG, so a plain number where you expected one means you wrote an assignment. That only
+holds because `=` can no longer sometimes be a check. Documented for users in `readme.md`
+§ Comparison results.
+
+**Behaviour change on load:** a pre-v2.6.0 sheet with `if x = 5` now shows an error instead of
+quietly comparing. Accepted — it is the ambiguity being removed, and an error is visible where the
+old silence was not. Same posture as the mandatory-backslash change
+([`design-decisions.md`](design-decisions.md)).
+
+Not covered by `CMP_OP_RE` (`/[<>]=?|[!=]=|<>/`), which matches comparison operators for the
+trailing-tag rule and never matched a lone `=` anyway.
+
 ## Same-kind conversion (2026-09-23, v2.3.24) — read before touching `+`, `−` or a comparison
 
 Until 2.3.23 **comparisons ignored units entirely**: `compare()` read the raw `.v` off both sides.

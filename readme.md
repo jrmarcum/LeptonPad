@@ -176,6 +176,18 @@ V_u <= \phi V_n              OK
 Every other result is set in the same face and colour as the formula that produced it; only `err`
 (red) and OK / NG carry a colour of their own.
 
+**`=` assigns, `==` compares.** They are not interchangeable:
+
+```
+V_u = 40 [kip]        assigns 40 kip to V_u
+V_u == V_n            compares them, shows OK or NG
+```
+
+Writing `=` where only a comparison makes sense is an error that says so, rather than quietly
+becoming one. Note the one case the program cannot read your mind on: if `V_u` already has a value,
+`V_u = V_n` is a perfectly legal **reassignment** and will overwrite it. **A check always shows OK
+or NG** — if you wrote one and see a plain number instead, you wrote an assignment.
+
 ### Significant digits
 
 Right-click a formula row → **Significant digits (this row)**, or the block's label → **(whole

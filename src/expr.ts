@@ -1097,11 +1097,21 @@ function lex(src: string): Tok[] {
       if (src[i + 1] === '=') {
         out.push({ t: 'EQ', v: '==' });
         i += 2;
-      } else {
-        out.push({ t: 'EQ', v: '=' });
-        i++;
+        continue;
       }
-      continue;
+      // A lone `=` used to emit the SAME token as `==`, so inside an expression the two were
+      // indistinguishable and `=` quietly meant equality. Combined with the statement-level rule
+      // that `=` assigns only when its left side happens to look like a bare name, the operator
+      // meant assignment or comparison depending on a parsing accident — in both directions:
+      //
+      //   el(K,1,2) = 99   intended as an assignment, became a check and rendered NG
+      //   V_u = V_n        intended as a check, SILENTLY OVERWROTE V_u with the capacity
+      //
+      // The second is the dangerous one: no error, no OK/NG, and a sheet that quietly replaced a
+      // demand with a capacity. Settled 2026-10-02 (Jon): `=` assigns, `==` compares, always.
+      // A statement's own assignment `=` is split off before the tokenizer ever sees it, so
+      // reaching here means the `=` was used somewhere only a comparison can go.
+      throw new Error('`=` assigns a value — use `==` to compare');
     }
     if (ch === '!' && src[i + 1] === '=') {
       out.push({ t: 'NEQ', v: '!=' });
@@ -2029,6 +2039,23 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
         }
         continue;
       }
+
+      // A lone `=` whose left side is not a plain variable name. Reported here rather than left to
+      // the tokenizer's generic message, because naming the offending left side is what makes it
+      // fixable. The likeliest cause by far is trying to assign to something that is not a
+      // variable, and the likeliest version of THAT is element assignment, so it gets its own hint.
+      results.push({
+        raw: s,
+        name: '',
+        expr: stmt,
+        value: NaN,
+        unit: {},
+        error: `"${name}" is not a variable name, so this cannot be an assignment` +
+          (/^el\s*\(/.test(name)
+            ? ' — el() reads an element, it cannot assign to one; build the matrix as a literal {{…}}'
+            : ' — use `==` if you meant to compare'),
+      });
+      continue;
     }
 
     // Bare expression

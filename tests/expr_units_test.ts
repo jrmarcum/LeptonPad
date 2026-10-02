@@ -444,6 +444,48 @@ Deno.test('user functions and control flow', async (t) => {
   });
 });
 
+Deno.test('`=` assigns and `==` compares — never both (2026-10-02)', async (t) => {
+  // Until now a lone `=` emitted the SAME token as `==`, and the statement splitter treated it as
+  // an assignment only when its left side happened to look like a bare name. So the operator meant
+  // assignment or comparison by parsing accident, in both directions. See expr.ts tokenizer.
+  await t.step('assignment still works, including a test-valued right side', () => {
+    assertValue('x = 5', 5);
+    // `d = x == 1` assigns AND stays flagged as a comparison, so it renders OK/NG and stores 1.
+    const r = rows(['x = 1', 'd = x == 1']);
+    assertEquals(r[1].value, 1);
+    assertEquals(!!r[1].isTest, true);
+    assertEquals(r[1].name, 'd');
+  });
+
+  await t.step('`==` is the only equality, and is flagged as a test', () => {
+    const r = rows(['x = 1', 'x == 1', 'x == 2']);
+    assertEquals([r[1].value, r[2].value], [1, 0]);
+    assertEquals([!!r[1].isTest, !!r[2].isTest], [true, true]);
+  });
+
+  await t.step('a lone `=` where only a comparison can go is an error, not a silent check', () => {
+    // THE DANGEROUS CASE this closes: written as a check, `V_u = V_n` used to overwrite V_u with
+    // the capacity — no error, no OK/NG, a demand silently replaced on a stamped sheet. It is a
+    // legal assignment and still is, so what changed is everywhere a lone `=` CANNOT assign.
+    assertError('2 + 2 = 4', /not a variable name|use `==`/);
+    assertError('if x = 5', /assigns a value|not a variable name/);
+  });
+
+  await t.step('assigning into a matrix element says what to do instead', () => {
+    // el() is a read-only accessor; there is no element assignment. The error names the remedy
+    // rather than leaving the user to retry with different numbers.
+    const r = rows(['K = {{10, -6}, {-6, 4}}', 'el(K, 1, 2) = 99']);
+    assertMatch(r[1].error ?? '', /el\(\) reads an element/);
+    assertMatch(r[1].error ?? '', /literal/);
+  });
+
+  await t.step('a function definition is still a definition, not a comparison', () => {
+    const r = rows(['f(x) = x * 2', 'y = f(3)']);
+    assertEquals(!!r[0].isFn, true);
+    assertEquals(r[1].value, 6);
+  });
+});
+
 /** Run formula rows in a fresh scope and read one variable out of it. */
 function rowsValue(lines: string[], name: string): number {
   const scope: Scope = {};
