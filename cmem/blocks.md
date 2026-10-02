@@ -221,15 +221,32 @@ either direction.
 
 Two things that report exposed, both fixed in v2.6.3:
 
-1. **The row loop subtracted the first row's `offsetTop` as a "base"**, discarding the label, the
-   divider and the block's top padding. The kept part was allowed to be `chrome + avail` tall and so
-   still ran past the bottom margin by exactly the height of its own header. `offsetTop` on a
-   descendant is already relative to the block, so the subtraction itself was the bug. The text path
-   had the same hole — it ignored `.md-view`'s own `offsetTop`.
+1. **The measurement used `offsetTop`, which was never relative to the block.** ⚠️ My v2.6.3 note
+   here claimed the fix was removing a `- base` subtraction so the header would be counted. That was
+   wrong, and wrong in a way that read as right for four releases: **`.formula-rows` is
+   `position: relative`**, so _it_ is the offsetParent of every row, and `offsetTop` never included
+   the label, the divider or the block's `1rem` top padding in the first place. Removing the
+   subtraction changed nothing about the header; it just moved the error.
+
+   Fixed in v2.6.8 by measuring **rects relative to the block** —
+   `row.getBoundingClientRect().bottom − block.getBoundingClientRect().top` — which does not depend
+   on which ancestors happen to be positioned. **The lesson: `offsetTop` is relative to the nearest
+   POSITIONED ancestor, and in this codebase that is frequently not the element you mean. Use
+   `getBoundingClientRect` deltas for anything measured against a block.**
+
+   The second half of the same bug: `.block` has `padding: 1rem` and a 1px border **below** the last
+   row, so a block sized to end exactly at its last row still overruns by 17 px. `chromeBelow` is
+   now subtracted from the budget for every candidate. The text path had both holes too.
 2. **One cut only.** A block three pages long produced a continuation that itself overflowed the
-   NEXT page, so the overflow merely moved down the document. `splitAtPageBreak` now loops over
-   `splitOnce` while each new piece still overflows and can be cut, bounded at 40 passes as a
-   backstop against a measurement that never converges.
+   NEXT page, so the overflow merely moved down the document.
+
+   `splitAtPageBreak` now drives a **worklist**, not a walk down the chain, because of Jon's
+   acceptance criterion (2026-10-02): _"the top left corner of the block and the bottom right corner
+   of the block must be within the working grid area of the sheet after the split."_ That is a
+   statement about **every** resulting block, so the ORIGINAL is re-examined after each cut —
+   splitting shortens it, but the reposition that follows can move it, and a forward walk onto the
+   continuation never looks back. Both halves go back on the list; the 60-pass bound is a backstop
+   against a measurement that never converges, not an expected limit.
 
 The decision of _where_ to cut is pure and tested (`tests/block_split_test.ts`, 10 steps); only the
 measurement needs a DOM:

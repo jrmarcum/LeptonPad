@@ -683,11 +683,25 @@ function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
   // which discarded the label, the divider and the block's top padding. The kept part was then
   // allowed to be (chrome + avail) tall and still ran past the bottom margin by exactly the height
   // of its own header. The text path had the same hole — it ignored `view.offsetTop`.
+  // Everything is measured as a rect RELATIVE TO THE BLOCK, never via offsetTop.
+  //
+  // `.formula-rows` is `position: relative`, so it — not `.block` — is the offsetParent of every
+  // row. `offsetTop` therefore never included the label, the divider or the block's 1rem top
+  // padding, in either direction: v2.6.3 removed a `- base` subtraction believing it was adding the
+  // header back, when the header had never been in the number at all. getBoundingClientRect has no
+  // such dependency on which ancestors happen to be positioned.
+  //
+  // `chromeBelow` is the second half of it: `.block` has 1rem of padding and a 1px border BELOW the
+  // last row, so a block sized to end exactly at the last row still overruns by 17px.
+  const blockTop = el.getBoundingClientRect().top;
+  const relBottom = (n: Element) => n.getBoundingClientRect().bottom - blockTop;
+
   if (block.type === 'text') {
     const view = el.querySelector<HTMLElement>('.md-view');
     const lines = (block.content || '').split('\n');
     if (!view || lines.length < 2) return 0;
-    const forContent = avail - view.offsetTop;
+    const chromeBelow = el.offsetHeight - relBottom(view);
+    const forContent = avail - (view.getBoundingClientRect().top - blockTop) - chromeBelow;
     if (forContent <= 0) return 0;
     // Proportional: the rendered view has no per-line elements to measure. Over-estimating is
     // safe because safeTextSplitLine only ever walks the candidate BACK, never forward.
@@ -696,9 +710,12 @@ function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
   }
   const rowEls = Array.from(el.querySelectorAll<HTMLElement>('.formula-rows > .formula-row'));
   if (rowEls.length < 2) return 0;
+  // Whatever sits below the last row — padding, border, the resize handle — travels with the block
+  // whichever rows it keeps, so it comes out of the budget for every candidate.
+  const chromeBelow = el.offsetHeight - relBottom(rowEls[rowEls.length - 1]);
   let want = rowEls.length - 1;
   for (let i = 0; i < rowEls.length; i++) {
-    if (rowEls[i].offsetTop + rowEls[i].offsetHeight > avail) {
+    if (relBottom(rowEls[i]) + chromeBelow > avail) {
       want = i;
       break;
     }
@@ -787,14 +804,19 @@ function splitOnce(el: HTMLElement): string | null {
  */
 export function splitAtPageBreak(el: HTMLElement): string | null {
   let lastId: string | null = null;
-  let current: HTMLElement | null = el;
-  for (let pass = 0; pass < 40 && current; pass++) {
+  // A worklist, not a walk down the chain. Jon's acceptance criterion, 2026-10-02: "the top left
+  // corner of the block and the bottom right corner of the block must be within the working grid
+  // area of the sheet after the split." That is a statement about EVERY resulting block, so the
+  // ORIGINAL has to be re-examined too — splitting it shortens it, but the reposition that follows
+  // can move it, and a single walk forward onto the continuation never looks back at it.
+  const work: string[] = [el.id];
+  for (let pass = 0; pass < 60 && work.length; pass++) {
+    const current = document.getElementById(work.shift()!);
+    if (!current || !canSplitAtPageBreak(current)) continue;
     const id = splitOnce(current);
-    if (!id) break;
+    if (!id) continue; // overflows but has no legal cut — leave it marked and move on
     lastId = id;
-    const next = document.getElementById(id);
-    // Carry on only while the piece just created still overflows AND can be cut again.
-    current = next && canSplitAtPageBreak(next) ? next : null;
+    work.push(current.id, id); // both halves are candidates; either may still overrun
   }
   if (lastId) {
     const finalEl = document.getElementById(lastId);
