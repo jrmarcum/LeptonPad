@@ -172,7 +172,42 @@ Letter: work 136…1032, lines 136, 156 … 1016.
 derived from one another, not computed separately and then reconciled. Three successive fixes failed
 because each reconciled the two more carefully instead of collapsing them.
 
-### Every placement path snaps, through the same function (v2.6.7)
+### 🔑 A click is not a drag (v2.6.13)
+
+`pointerdown` always arms `multiDragState`, so **clicking a block to edit it ran the whole
+pointerup re-placement** — snapping and rewriting the position of a block that never moved. With
+the two lattices below differing by about half a square, that round trip landed on a `.5`, which JS
+rounds up, and a click walked the block down a full square.
+
+Jon, 2026-10-02: _"if we are just clicking into the block to edit, we shouldn't be firing any move
+commands."_ That is the fix, and it is better than the one I reached for. Making the snap idempotent
+(also done, and right on its own terms) only masks it: any future rounding asymmetry moves a block
+the user merely looked at, and **a position rewritten on click marks the project dirty for reading
+it.** `pointerup` now returns early unless the pointer actually travelled more than 3 px.
+
+### Every placement path snaps, through the same function (v2.6.7, completed v2.6.13)
+
+⚠️ There were **four** copies, not two, and the last two were found one release at a time by Jon
+from screenshots:
+
+| Copy                                    | Fixed   | Symptom                                                           |
+| --------------------------------------- | ------- | ----------------------------------------------------------------- |
+| `Canvas.addBlock` / `updateMarginGuide` | v2.6.7  | blocks half a square off                                          |
+| `placeBlock`                            | v2.6.7  | an unsnapped drop is off-grid forever                             |
+| `moveGridCursor`'s local `gridOrigin`   | v2.6.13 | the ghost sat on a different lattice than the block would land on |
+| `main.ts`'s `mSnapY`                    | v2.6.13 | a click walked a block down a square                              |
+
+The last two survived the v2.6.7 "consolidation" because that pass replaced their **bounds**
+(`firstGridY`/`lastGridY`) and left their **origin** behind — a half-consolidation reads as a whole
+one. All four now call `snapToPageGrid`.
+
+They were invisible to every test because **the two lattices coincide whenever the title block is
+off**, which is what a test sets up by default. `tests/snap_single_source_test.ts` is the guard: no
+module outside `state.ts` may reconstruct `pi * PAGE_H + margins.top`, unless the line carries a
+`page-origin-ok:` marker with a reason. The one legitimate exemption is the **title block's own
+position**, which sits above the work area and genuinely does anchor to `margins.top`. The guard
+found both of those on its first run, which is the behaviour wanted — it makes the decision
+conscious instead of inherited.
 
 Moving the grid origin to the work-area top exposed a dormant split: **`addBlock` snapped and
 `updateMarginGuide` did not.** The disagreement was `(gridOrigin − margins.top) mod GRID_SIZE` —

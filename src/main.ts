@@ -111,6 +111,7 @@ import {
   setSkipNextCanvasClick,
   setTitleBlockEnabled,
   skipNextCanvasClick,
+  snapToPageGrid,
   state,
   titleBlockEnabled,
   titleBlockH,
@@ -1157,14 +1158,40 @@ async function start() {
 
     // Margin-relative snap helpers — keep blocks on the same grid the crosshair uses
     const mSnapX = (absX: number) => margins.left + canvas.snap(absX - margins.left);
+    // The page-aware vertical snap — the SAME function blocks, the split and the grid cursor use.
+    //
+    // It was a fourth private copy, based at `pi * PAGE_H + margins.top`, i.e. the lattice the grid
+    // had before it moved under the title block. `pointerdown` always sets `multiDragState`, so a
+    // plain CLICK runs this pointerup path and re-places the block: the old-lattice snap nudged it
+    // off the real lines, `placeBlock`'s `snapToPageGrid` rounded it back, and when the two
+    // lattices differ by about half a square that round trip lands on a `.5` — which JS rounds up.
+    // Clicking a block therefore walked it down a whole square (reported 2026-10-02).
     const mSnapY = (absY: number) => {
-      const pi = Math.max(0, Math.floor(absY / PAGE_H));
-      const orig = pi * PAGE_H + margins.top;
-      return orig + canvas.snap(absY - orig);
+      return snapToPageGrid(absY);
     };
 
     document.addEventListener('pointerup', (e) => {
       if (multiDragState) {
+        // A CLICK IS NOT A DRAG. `pointerdown` always arms multiDragState, so clicking a block to
+        // edit it used to run the whole re-placement below — snapping and rewriting the position
+        // of a block that never moved. Jon, 2026-10-02: "if we are just clicking into the block to
+        // edit, we shouldn't be firing any move commands."
+        //
+        // That is the real fix for the click-walks-a-block-down-a-square report. Making the snap
+        // idempotent (also done, and correct on its own terms) only ever masked it: any future
+        // rounding asymmetry would move a block the user merely clicked on, and a position
+        // rewritten on click is a project marked dirty by reading it.
+        //
+        // 3 px of slop, because a mouse rarely comes up on the exact pixel it went down on and a
+        // touch pointer never does.
+        const DRAG_SLOP = 3;
+        const moved = Math.abs(e.clientX - multiDragState.startX) > DRAG_SLOP ||
+          Math.abs(e.clientY - multiDragState.startY) > DRAG_SLOP;
+        if (!moved) {
+          document.body.style.cursor = '';
+          setMultiDragState(null);
+          return;
+        }
         for (const [el] of multiDragState.origPositions) {
           const block = state.blocks.find((b) => b.id === el.id);
           if (!block || block.type === 'section') {

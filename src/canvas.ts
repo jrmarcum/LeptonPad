@@ -163,7 +163,7 @@ export class Canvas {
     // Reposition title block overlays for each page
     this.element.querySelectorAll<HTMLElement>('.title-block-overlay').forEach((el, i) => {
       el.style.left = `${margins.left}px`;
-      el.style.top = `${i * PAGE_H + margins.top}px`;
+      el.style.top = `${i * PAGE_H + margins.top}px`; // page-origin-ok: title block overlay, above the work area
       el.style.width = `${CANVAS_W - margins.left - margins.right}px`;
     });
   }

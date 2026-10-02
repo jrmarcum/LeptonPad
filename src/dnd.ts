@@ -176,6 +176,8 @@ export function syncTitleBlocks() {
     const el = document.createElement('div');
     el.className = 'block title-block title-block-overlay';
     el.style.left = `${margins.left}px`;
+    // page-origin-ok: the title block sits at the top of the page's content area, ABOVE the work
+    // area — margins.top genuinely is its anchor, and the work area is defined as starting below it.
     el.style.top = `${i * PAGE_H + margins.top}px`;
     el.style.width = `${w}px`;
     el.style.maxWidth = '';
@@ -591,9 +593,12 @@ export function moveGridCursor(canvasX: number, canvasY: number) {
   const snappedX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
   gridCursor.x = clamp(snappedX, margins.left, CANVAS_W - margins.right);
 
-  // These were the ONLY correct copy of the page-band rule; they are now the shared definition in
-  // state.ts, so the split and load-time placement measure against the same lines the cursor does.
-  const gridOrigin = (pi: number) => pi * PAGE_H + margins.top;
+  // ⚠️ `gridOrigin` used to be defined here as `pi * PAGE_H + margins.top` and was left behind
+  // when the bounds were consolidated into state.ts. So the CURSOR snapped to a lattice based at
+  // the top margin while every BLOCK snapped to one based at the work-area top — two lattices
+  // offset by `titleBlockH() mod GRID_SIZE`, identical whenever the title block was off, which is
+  // why it hid. The in-page case now calls `snapToPageGrid`, the same function blocks use, so
+  // there is no local origin left to drift.
   const pageEffTop = (pi: number) => pageWorkArea(pi).top;
   const pageEffBot = (pi: number) => pageWorkArea(pi).bottom;
   const firstGridY = firstGridLine;
@@ -608,9 +613,8 @@ export function moveGridCursor(canvasX: number, canvasY: number) {
     const next = rawPageIdx + 1;
     finalY = next * PAGE_H < CANVAS_H ? firstGridY(next) : lastGridY(rawPageIdx);
   } else {
-    const go = gridOrigin(rawPageIdx);
-    finalY = go + Math.round((canvasY - go) / GRID_SIZE) * GRID_SIZE;
-    finalY = clamp(finalY, firstGridY(rawPageIdx), lastGridY(rawPageIdx));
+    // The same snap a block gets, so the ghost sits exactly where the block will land.
+    finalY = snapToPageGrid(canvasY);
   }
   gridCursor.y = finalY;
   canvas.moveGhost(gridCursor.x, gridCursor.y);
