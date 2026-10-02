@@ -12,6 +12,7 @@ import {
   onAddToSelection,
   onSelectBlock,
   PAGE_H,
+  pageWorkArea,
   selectedEls,
   setMultiDragState,
   snapToPageGrid,
@@ -80,15 +81,21 @@ export class Canvas {
   }
 
   public updateMarginGuide() {
-    const guideH = PAGE_H - margins.top - margins.bottom;
+    // The guide IS the work area — it starts below the title block, not at the top margin
+    // (Jon, 2026-10-02). Drawn from margins.top it was painted *behind* the title block, so the
+    // first visible line bore no relation to where content could begin: with TITLE_BLOCK_H = 112
+    // against a 20 px grid the usable top (136) never coincided with a line (…124, 144…). That
+    // mismatch is the root of every "off by 8 px" and of the second page looking wrong, since its
+    // guide began at 1080 while its own title block ran to 1192.
+    const area0 = pageWorkArea(0);
     // Page 1 guide (#margin-guide)
-    this.guide.style.top = `${margins.top}px`;
+    this.guide.style.top = `${area0.top}px`;
     this.guide.style.left = `${margins.left}px`;
     this.guide.style.right = `${margins.right}px`;
-    this.guide.style.height = `${guideH}px`;
+    this.guide.style.height = `${area0.height}px`;
     this.guide.style.bottom = 'auto';
     // background-origin: border-box (set in CSS) means position 0 0 starts at the outer
-    // edge of the guide (= margins.left / margins.top), so grid lines land on snap positions.
+    // edge of the guide, so grid lines land exactly on snap positions.
     this.guide.style.backgroundPosition = '0 0';
     // Page number position tracks both margins (bottom margin sets vertical, right margin sets horizontal)
     this.element.querySelectorAll<HTMLElement>('.page-num').forEach((pn, i) => {
@@ -98,10 +105,11 @@ export class Canvas {
     // Per-page guides for pages 2+ (created by syncPageSeparators)
     this.element.querySelectorAll<HTMLElement>('.page-guide').forEach((g, i) => {
       const pageIdx = i + 1;
-      g.style.top = `${pageIdx * PAGE_H + margins.top}px`;
+      const area = pageWorkArea(pageIdx);
+      g.style.top = `${area.top}px`;
       g.style.left = `${margins.left}px`;
       g.style.right = `${margins.right}px`;
-      g.style.height = `${guideH}px`;
+      g.style.height = `${area.height}px`;
       g.style.bottom = 'auto';
       g.style.backgroundPosition = '0 0';
     });

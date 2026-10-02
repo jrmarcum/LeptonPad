@@ -99,24 +99,31 @@ Deno.test('page geometry and the title block', async (t) => {
       const area = pageWorkArea(page);
       const first = firstGridLine(page);
       const last = lastGridLine(page);
-      const origin = page * PAGE_H + margins.top;
 
-      assertEquals((first - origin) % GRID_SIZE, 0, `page ${page} first line off-grid`);
-      assertEquals((last - origin) % GRID_SIZE, 0, `page ${page} last line off-grid`);
-      assertEquals(first >= area.top, true, `page ${page}: first line above the title block`);
+      // The origin IS the first line, so every line is an exact multiple of GRID_SIZE from it.
+      assertEquals(first, area.top, `page ${page}: grid must start at the work-area top`);
+      assertEquals((last - first) % GRID_SIZE, 0, `page ${page}: last line off-grid`);
       assertEquals(last <= area.bottom, true, `page ${page}: last line past the bottom margin`);
-      // And no SLACK: one more line in either direction would leave the band.
-      assertEquals(first - GRID_SIZE < area.top, true, `page ${page}: first line too low`);
+      // No slack: one more line would leave the band.
       assertEquals(last + GRID_SIZE > area.bottom, true, `page ${page}: last line too high`);
     }
   });
 
-  await t.step('TITLE_BLOCK_H is not a grid multiple — which is why this is needed', () => {
-    // 112 against a 20 px grid. Placing a continuation at `margin + titleBlockH` put it 8 px off
-    // the lines every time; firstGridLine is what makes it land on one.
+  await t.step('the grid starts AT the work-area top, below the title block', () => {
+    // Jon, 2026-10-02: "the grid guides should always be below the title block area." Anchoring the
+    // origin there makes the first line and the first usable position the same number by
+    // construction. Drawn from margins.top instead, the lines were painted behind the title block
+    // and — since TITLE_BLOCK_H (112) is not a grid multiple — the usable top (136) never landed on
+    // one (…124, 144…). That mismatch was the root of every "off by 8 px".
     assertEquals(TITLE_BLOCK_H % GRID_SIZE !== 0, true);
+    for (const tb of [false, true]) {
+      setTitleBlockEnabled(tb);
+      for (const page of [0, 1, 3]) {
+        assertEquals(firstGridLine(page), pageWorkArea(page).top, `page ${page}, tb=${tb}`);
+      }
+    }
     setTitleBlockEnabled(true);
-    assertEquals(firstGridLine(0), margins.top + Math.ceil(TITLE_BLOCK_H / GRID_SIZE) * GRID_SIZE);
+    assertEquals(firstGridLine(0), margins.top + TITLE_BLOCK_H);
   });
 
   await t.step('snapping is per page, because PAGE_H is not a grid multiple either', () => {
@@ -132,6 +139,31 @@ Deno.test('page geometry and the title block', async (t) => {
     // Never above the page's first usable line, even when asked for something higher.
     setTitleBlockEnabled(true);
     assertEquals(snapToPageGrid(PAGE_H + margins.top) >= firstGridLine(1), true);
+  });
+
+  await t.step(
+    'a top past the last line moves to the next page, it does not stay in the gap',
+    () => {
+      // The lined box ends 8 px below the final line (lines 24…1024, box to 1032), and the page break
+      // follows. A top left in that strip is UNFIXABLE: zero or negative space remains on its page, so
+      // the split finds nothing to move and the overlap is permanent with no option offered.
+      setTitleBlockEnabled(false);
+      const last = lastGridLine(0);
+      assertEquals(snapToPageGrid(last), last); // on the last line: stays
+      assertEquals(snapToPageGrid(last + GRID_SIZE), firstGridLine(1)); // past it: next page
+      assertEquals(snapToPageGrid(PAGE_H - 2), firstGridLine(1)); // inside the page break itself
+    },
+  );
+
+  await t.step('the lined BOX is the bottom bound, and it is below the last line', () => {
+    // Two different kinds of bound, conflated in v2.6.4: a grid LINE is where a block's TOP may
+    // sit; the lined box extends past the final line and content may fill to it.
+    setTitleBlockEnabled(false);
+    const area = pageWorkArea(0);
+    assertEquals(area.bottom > lastGridLine(0), true);
+    assertEquals(area.bottom, PAGE_H - margins.bottom);
+    // And that box bottom is exactly the guide canvas.ts draws: margins.top + guideH.
+    assertEquals(area.bottom, margins.top + (PAGE_H - margins.top - margins.bottom));
   });
 
   await t.step('pageIndexOf never returns a negative page', () => {

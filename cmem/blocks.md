@@ -150,17 +150,44 @@ because "where may content go on this page" was open-coded at each site and ever
 different subset of the three (reported 2026-10-02: _"still not taking into account the margins and
 the title block space as part of the active work area"_).
 
-⚠️ **But the margins are not the usable bounds — the GRID LINES are** (second report, same day:
+### 🔑 The grid starts below the title block — the root cause of the whole series
+
+Jon, 2026-10-02, after three failed attempts: _"the grid guides should always be below the title
+block area."_ That one sentence explains every symptom.
+
+The margin guide was drawn from `margins.top` with a `GRID_SIZE` background. With a title block on
+the page, the lines were painted **behind** it, so the first visible line bore no relationship to
+where content could begin — and because **`TITLE_BLOCK_H` (112) is not a multiple of `GRID_SIZE`
+(20)**, the usable top (136) never coincided with a line (…124, 144…). Every attempt to make a block
+land "on the grid" was therefore off by 8 px, and page 2 looked wrong because its guide began at
+1080 while its own title block ran to 1192.
+
+The fix is to make the guide **be** the work area: `updateMarginGuide` draws it at
+`pageWorkArea(p).top` with `pageWorkArea(p).height`, and `gridOriginOf()` is that same value. So
+`firstGridLine(p) === pageWorkArea(p).top` **by construction** — the first line and the first usable
+position are one number instead of two that have to be reconciled. Numbers with a title block on
+Letter: work 136…1032, lines 136, 156 … 1016.
+
+**The lesson, and it is the fourth instance this session:** two quantities that must agree should be
+derived from one another, not computed separately and then reconciled. Three successive fixes failed
+because each reconciled the two more carefully instead of collapsing them.
+
+⚠️ **The margins are not the usable bounds — but the last grid LINE is not the bottom bound either**
+(second report, same day:
 _"still not respecting the boundary ... past the lined part of the page inside the bottom margin"_
 and _"does not understand where to place the top boundary ... in relation to the top lined part of
 the next page"_). The margin guide draws a `GRID_SIZE` background starting at `margins.top` on
 **every** page, so:
 
-- `lastGridLine(pageIdx)` — the last line at or above the bottom margin. Measuring to the margin
-  itself let a block end in the unlined gap past the final line.
-- `firstGridLine(pageIdx)` — the first line at or below the work-area top. `pageContentTop` is
-  `margin + titleBlockH`, and **`TITLE_BLOCK_H` (112) is not a multiple of `GRID_SIZE` (20)**, so a
-  continuation placed there sat 8 px off the lines every time.
+- `firstGridLine(pageIdx)` — **is** `pageWorkArea(pageIdx).top`, where a block's top may first sit.
+- `lastGridLine(pageIdx)` — the last line at or above the bottom margin: the lowest a block's **top**
+  may sit. **Not the bottom bound.** v2.6.4 used it as one, and that was a category error — the
+  lined box extends past the final line (lines 136…1016, box to 1032), and content may fill to the
+  box. A block's _bottom_ is bounded by `pageWorkArea().bottom`; a block's _top_ by the lines.
+- `snapToPageGrid` is floored at `firstGridLine` **and capped at `lastGridLine`**, overflowing to the
+  next page's first line beyond that. Uncapped, a top could land in the unlined strip or in the page
+  break, where the space remaining on the page is zero or negative — so the split finds nothing to
+  move and the overlap becomes permanent with no option offered.
 - `snapToPageGrid(top)` — snaps **per page**, because **`PAGE_H` is not a grid multiple either**
   (US Letter is 1056 px). `Canvas.snap()` against the canvas as a whole lands between the lines of
   any page but the first, drifting further down the document. `addBlock` now uses this.

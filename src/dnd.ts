@@ -607,10 +607,12 @@ export function renderBlock(block: Block) {
  * state.ts bounds it by the top margin, the title block and the bottom margin together.
  */
 function pageBottomFor(top: number): number {
-  // The LAST GRID LINE, not the raw bottom margin. The margin is where the lined area stops being
-  // drawn; the last line is where content can actually sit. Measuring to the margin let a block
-  // end in the gap past the final line, which is what the 2026-10-02 report describes.
-  return lastGridLine(pageIndexOf(top));
+  // The bottom of the LINED AREA, which is the guide's bottom edge and equals the bottom margin.
+  //
+  // v2.6.4 used lastGridLine here and that was wrong. The two bounds are not the same kind of
+  // thing: a grid LINE is where a block's TOP may sit, while the lined BOX extends 8 px past the
+  // final line (lines run 24, 44 … 1024; the guide ends at 1032). Content may fill to the box.
+  return pageWorkArea(pageIndexOf(top)).bottom;
 }
 
 /** Only formula-ish and text blocks have a seam. A plot or figure has nowhere to cut. */

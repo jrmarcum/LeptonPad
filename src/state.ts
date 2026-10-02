@@ -106,13 +106,24 @@ export function pageWorkArea(pageIdx: number): { top: number; bottom: number; he
  * margin leaves a block ending past the last line, which is what
  * "not respecting the boundary ... past the lined part of the page" describes.
  */
+/**
+ * The grid starts at the top of the **work area**, i.e. below the title block — Jon, 2026-10-02.
+ *
+ * It used to start at `margins.top`, so on a page with a title block the lines were drawn *behind*
+ * it and the first visible line had no relationship to where content could actually begin. With
+ * `TITLE_BLOCK_H = 112` against a 20 px grid, the usable top (136) was never on a line (…124, 144…)
+ * — which is why every attempt to make a block land on the lines was off by 8 px, and why the
+ * second page looked wrong: its guide began at 1080 while its title block ran to 1192.
+ *
+ * Anchoring the origin to the work area makes the first line and the first usable position the
+ * same number by construction, instead of two values that have to be reconciled.
+ */
 function gridOriginOf(pageIdx: number): number {
-  return pageIdx * PAGE_H + margins.top;
+  return pageWorkArea(pageIdx).top;
 }
 
 export function firstGridLine(pageIdx: number): number {
-  const go = gridOriginOf(pageIdx);
-  return go + Math.ceil((pageWorkArea(pageIdx).top - go) / GRID_SIZE) * GRID_SIZE;
+  return gridOriginOf(pageIdx);
 }
 
 export function lastGridLine(pageIdx: number): number {
@@ -128,7 +139,14 @@ export function snapToPageGrid(top: number): number {
   const pi = pageIndexOf(top);
   const go = gridOriginOf(pi);
   const snapped = go + Math.round((top - go) / GRID_SIZE) * GRID_SIZE;
-  return Math.max(snapped, firstGridLine(pi));
+  if (snapped < firstGridLine(pi)) return firstGridLine(pi);
+  // Capped as well as floored. Without this a top could land past the last line — in the unlined
+  // strip below it, or in the page break itself — and a block there is unfixable: the space left
+  // on its page is zero or negative, so the split computes nothing to move and the overlap becomes
+  // permanent with no option offered. Overflowing to the next page's first line is what the
+  // keyboard cursor has always done in the same situation.
+  const last = lastGridLine(pi);
+  return snapped > last ? firstGridLine(pi + 1) : snapped;
 }
 
 // Setters for `let` exports that external modules need to reassign
