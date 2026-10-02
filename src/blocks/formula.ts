@@ -112,6 +112,43 @@ export function parseFormulaRows(content: string): FormulaRow[] {
   return content.split(';').map((s) => ({ e: s.trim(), d: '' }));
 }
 
+/**
+ * Nesting depth of each row, so `if`/`for` bodies can be told from top-level rows.
+ * A branch keyword (`elseif`/`else`/`end`) closes the level it belongs to before being counted.
+ */
+export function rowDepths(rows: FormulaRow[]): number[] {
+  const depths: number[] = [];
+  let depth = 0;
+  for (const row of rows) {
+    const rt = row.type;
+    if (rt === 'elseif' || rt === 'else' || rt === 'end') depth = Math.max(0, depth - 1);
+    depths.push(depth);
+    if (rt === 'if' || rt === 'for' || rt === 'elseif' || rt === 'else') depth++;
+  }
+  return depths;
+}
+
+/**
+ * Where to split a formula block so the first part fits on the page.
+ *
+ * `wantIdx` is the first row that no longer fits. The split may not land **inside** an `if` or
+ * `for`: each half would be syntactically broken on its own, and the second half would reference
+ * variables the first half defines. So it walks back to the nearest row at depth 0 that is not a
+ * continuation of a structure above it.
+ *
+ * Returns 0 when there is no safe point at or before `wantIdx`. **Callers must read 0 as "cannot
+ * split"**, not as "move everything" — moving every row out would leave an empty block behind and
+ * a second block identical to the first, which is worse than leaving the overlap alone.
+ */
+export function safeSplitIndex(rows: FormulaRow[], wantIdx: number): number {
+  const depths = rowDepths(rows);
+  const isContinuation = (t?: FormulaRow['type']) => t === 'elseif' || t === 'else' || t === 'end';
+  for (let i = Math.min(wantIdx, rows.length - 1); i > 0; i--) {
+    if (depths[i] === 0 && !isContinuation(rows[i].type)) return i;
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
 // DOM helpers (formula block internals)
 // ---------------------------------------------------------------------------
@@ -597,17 +634,10 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
     return -1;
   }
 
-  function computeDepths(rowData: FormulaRow[]): number[] {
-    const depths: number[] = [];
-    let depth = 0;
-    for (const row of rowData) {
-      const rt = row.type;
-      if (rt === 'elseif' || rt === 'else' || rt === 'end') depth = Math.max(0, depth - 1);
-      depths.push(depth);
-      if (rt === 'if' || rt === 'for' || rt === 'elseif' || rt === 'else') depth++;
-    }
-    return depths;
-  }
+  // Delegates to the exported rowDepths — this was a byte-identical second copy, and the split
+  // logic needed the same calculation. Two copies of a nesting rule drift exactly the same way
+  // the page-geometry ones did.
+  const computeDepths = rowDepths;
 
   /**
    * Fold the user's saved entries into the rows they belong to.

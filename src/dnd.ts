@@ -16,6 +16,8 @@ import {
   margins,
   numPages,
   PAGE_H,
+  pageContentTop,
+  pageIndexOf,
   pageNumberingEnabled,
   selectedEl,
   selectedEls,
@@ -28,7 +30,8 @@ import {
   titleBlockH,
 } from './state.ts';
 import { clamp } from './utils/units.ts';
-import { reEvalAllFormulas } from './blocks/formula.ts';
+import { parseFormulaRows, reEvalAllFormulas, safeSplitIndex } from './blocks/formula.ts';
+import { safeTextSplitLine } from './blocks/text.ts';
 import {
   nextSectionName,
   refreshSectionHeight,
@@ -249,6 +252,11 @@ export function updatePageCount() {
     const bot = parseInt(el.style.top) + el.offsetHeight;
     if (bot > maxBottom) maxBottom = bot;
   }
+  // Before the early return below, which is the common case — a block that laps over a page
+  // break usually does so without changing the page COUNT at all, so marking it after that
+  // return would mean the marker only ever appeared when a page was added or removed.
+  markPageOverflow();
+
   // Trigger a new page when block bottom + bottom margin would overflow the current last page
   const needed = Math.max(1, Math.ceil((maxBottom + margins.bottom) / PAGE_H));
   if (needed === numPages) return;
@@ -592,6 +600,144 @@ export function moveGridCursor(canvasX: number, canvasY: number) {
 
 export function renderBlock(block: Block) {
   canvas.addBlock(block);
+}
+
+// ---------------------------------------------------------------------------
+// Splitting a block that laps onto the next page
+// ---------------------------------------------------------------------------
+
+/** The y of the bottom margin on the page a block's top sits on. */
+function pageBottomFor(top: number): number {
+  return pageIndexOf(top) * PAGE_H + PAGE_H - margins.bottom;
+}
+
+/** Only formula-ish and text blocks have a seam. A plot or figure has nowhere to cut. */
+const SPLITTABLE = new Set<Block['type']>(['formula', 'summary', 'text']);
+
+/**
+ * Whether this block runs past its page's bottom margin AND can actually be cut there.
+ *
+ * Deliberately returns false rather than offering a split that would do nothing — an enabled menu
+ * item that silently no-ops is worse than one that is absent.
+ */
+export function canSplitAtPageBreak(el: HTMLElement): boolean {
+  const block = state.blocks.find((b) => b.id === el.id);
+  if (!block || !SPLITTABLE.has(block.type) || block.parentSectionId) return false;
+  const top = parseInt(el.style.top);
+  if (!Number.isFinite(top)) return false;
+  const avail = pageBottomFor(top) - top;
+  if (el.offsetHeight <= avail) return false;
+  return splitPointOf(el, block, avail) > 0;
+}
+
+/**
+ * The split index (rows for a formula, lines for text) that both fits the page and is legal.
+ *
+ * Measurement is per row from the DOM rather than an estimate: rows differ in height with line
+ * spacing, matrices, wrapped descriptions and stacked fractions, so a computed average would cut
+ * in the wrong place on exactly the sheets that need this most.
+ */
+function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
+  if (block.type === 'text') {
+    const view = el.querySelector<HTMLElement>('.md-view');
+    const lines = (block.content || '').split('\n');
+    if (!view || lines.length < 2) return 0;
+    // Proportional: the rendered view has no per-line elements to measure. Over-estimating is
+    // safe because safeTextSplitLine only ever walks the candidate BACK, never forward.
+    const want = Math.floor(lines.length * (avail / Math.max(1, view.offsetHeight)));
+    return safeTextSplitLine(block.content || '', Math.min(want, lines.length - 1));
+  }
+  const rowEls = Array.from(el.querySelectorAll<HTMLElement>('.formula-rows > .formula-row'));
+  if (rowEls.length < 2) return 0;
+  const base = rowEls[0].offsetTop;
+  let want = rowEls.length - 1;
+  for (let i = 0; i < rowEls.length; i++) {
+    if (rowEls[i].offsetTop - base + rowEls[i].offsetHeight > avail) {
+      want = i;
+      break;
+    }
+  }
+  return safeSplitIndex(parseFormulaRows(block.content), want);
+}
+
+/**
+ * Move everything past the page break into a new block at the top of the next page.
+ *
+ * Returns the new block's id, or null when nothing could be moved. The original keeps its
+ * identity — so any section membership, pack fields and input values stay with it — and the new
+ * block carries only what a continuation needs.
+ */
+export function splitAtPageBreak(el: HTMLElement): string | null {
+  const block = state.blocks.find((b) => b.id === el.id);
+  if (!block || !SPLITTABLE.has(block.type)) return null;
+  const top = parseInt(el.style.top);
+  const avail = pageBottomFor(top) - top;
+  const at = splitPointOf(el, block, avail);
+  if (at <= 0) return null;
+
+  let movedContent: string;
+  if (block.type === 'text') {
+    const lines = (block.content || '').split('\n');
+    movedContent = lines.slice(at).join('\n');
+    block.content = lines.slice(0, at).join('\n');
+  } else {
+    const rows = parseFormulaRows(block.content);
+    movedContent = JSON.stringify(rows.slice(at));
+    block.content = JSON.stringify(rows.slice(0, at));
+  }
+
+  const nextPage = pageIndexOf(top) + 1;
+  const newTop = pageContentTop(nextPage);
+  const copy: Block = {
+    id: newBlockId(),
+    type: block.type,
+    subtype: block.subtype,
+    x: block.x,
+    y: newTop - margins.top,
+    w: block.w,
+    content: movedContent,
+    // "(cont.)" because a continuation carrying the same title reads, on a printed sheet, as two
+    // independent calculations that happen to share a name.
+    label: block.label ? `${block.label} (cont.)` : undefined,
+    lineSpacing: block.lineSpacing,
+  };
+
+  state.blocks.push(copy);
+  // The new block may itself sit past the last page; grow the canvas before placing it.
+  setNumPages(Math.max(numPages, nextPage + 1));
+  setCANVAS_H(numPages * PAGE_H);
+  canvas.domElement.style.height = `${CANVAS_H}px`;
+  syncPageSeparators();
+  renderBlock(copy);
+
+  // Re-render the shortened original so its rows match its content again.
+  const stale = document.getElementById(block.id);
+  if (stale) {
+    stale.remove();
+    renderBlock(block);
+  }
+  reEvalAllFormulas();
+  updatePageCount();
+  syncTitleBlocks();
+  canvas.updateMarginGuide();
+  const newEl = document.getElementById(copy.id);
+  if (newEl) selectBlock(newEl);
+  return copy.id;
+}
+
+/**
+ * Mark every block that runs past its page's bottom margin, so the overlap is visible and the
+ * right-click menu's split option is discoverable. A marker rather than a dialog: a block can
+ * start overlapping because rows were added, margins changed or the title block was switched on,
+ * and interrupting any of those with a modal would be worse than the overlap.
+ */
+export function markPageOverflow() {
+  for (const el of canvas.domElement.querySelectorAll<HTMLElement>('.block')) {
+    if (el.classList.contains('title-block') || childToSection.has(el.id)) continue;
+    const top = parseInt(el.style.top);
+    const over = Number.isFinite(top) && el.offsetHeight > pageBottomFor(top) - top;
+    el.classList.toggle('block--overflows-page', over);
+  }
 }
 
 // ---------------------------------------------------------------------------

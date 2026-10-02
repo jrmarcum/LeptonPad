@@ -769,6 +769,22 @@ main {
   background: none;
 }
 
+/* A block running past its page's bottom margin. A quiet marker, not a dialog: a block can start
+   overlapping because rows were added, margins changed or the title block was switched on, and
+   interrupting any of those with a modal would be worse than the overlap. The right-click menu
+   carries "Split at page break" when the block can actually be cut. */
+.block--overflows-page {
+  outline: 1px dashed #f59e0b;
+  outline-offset: 2px;
+}
+/* Never on a printed sheet: by print time the overlap is either resolved or deliberate, and a
+   dashed rule around a calculation would read as part of the drawing. */
+@media print {
+  .block--overflows-page {
+    outline: none;
+  }
+}
+
 /* A block whose geometry belongs to a purchased template: no resize handles, and no grab
    cursor, because neither does anything. The drag handler and the label refuse independently —
    this rule removes the affordance, it is not what enforces the lock. */

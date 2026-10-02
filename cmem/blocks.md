@@ -109,6 +109,84 @@ not enforced by a flag but by the plaintext never reaching disk. It also closed 
 ⚠️ **Untested end to end**: nothing in the tree sets `packId` yet, so no one has opened a real pack
 block — [`known-issues.md`](known-issues.md) § 22.
 
+## Page geometry, overflow and splitting (v2.6.1, 2026-10-02)
+
+**A title block is drawn at the top of EVERY page with `z-index: 2`**, so any block sharing that
+space is hidden behind it. Four places decided where a block may sit and they disagreed — only
+`moveGridCursor` was right. There is now one definition in `state.ts`: `pageIndexOf()`,
+`pageContentTop(pageIdx)` and `clearTitleBlock(top)`, used by the grid cursor, `placeBlock`,
+`Canvas.addBlock` and `Canvas.updateMarginGuide` alike.
+
+Two defects it fixed, reported as "blocks getting hidden behind the title block on open":
+
+1. **A section's `y` is stored BELOW the title block** (`placeBlock` subtracts `titleBlockH()`), and
+   `addBlock` restored it without adding that height back — so a section saved directly under the
+   title block reopened 112 px too high, inside it.
+2. **The floor was page 1 only.** `margins.top + tbH` as a single global value left a block near the
+   top of page 2 or 3 behind that page's own title block.
+
+⚠️ **`placeBlock` now stores the clamped position, not just the clamped display.** A position
+corrected for display but not in the data diverges and comes back wrong on the next open — the same
+shape as the `lineSpacing` bug ([`known-issues.md`](known-issues.md) § 21).
+
+### Splitting an over-long block
+
+A block running past its page's bottom margin gets `.block--overflows-page` (dashed amber outline,
+suppressed in print) from `markPageOverflow()`, called inside `updatePageCount()` **before** its
+early return — overlapping usually does not change the page _count_, so marking after that return
+would have shown the marker only when a page was added.
+
+**A marker, not a dialog** (Jon, 2026-10-02): a block can start overlapping because rows were added,
+margins changed or the title block was switched on, and interrupting any of those with a modal is
+worse than the overlap. The right-click menu carries **"Split at page break"**, shown only when
+`canSplitAtPageBreak()` says the block both overflows **and** can legally be cut — an enabled item
+that silently no-ops is worse than an absent one.
+
+Splittable types: **formula, summary, text**. A plot or figure has no seam.
+
+The decision of _where_ to cut is pure and tested (`tests/block_split_test.ts`, 10 steps); only the
+measurement needs a DOM:
+
+- `safeSplitIndex(rows, wantIdx)` in `formula.ts` walks back to the nearest depth-0 row that is not
+  an `elseif`/`else`/`end`. Splitting between `if` and `end` leaves each half syntactically broken
+  **and** the second half depending on variables the first defines.
+- `safeTextSplitLine(content, wantLine)` in `text.ts` refuses a cut inside a fenced code block
+  (each half would carry an unterminated fence) and will not orphan a heading at the foot of a page.
+- **Both return 0 for "cannot split", and callers must not read that as "move everything"** — that
+  would empty the original and duplicate it into the new block.
+
+Formula rows are measured individually from the DOM rather than estimated: row heights vary with
+line spacing, matrices, wrapped descriptions and stacked fractions, so an average would cut in the
+wrong place on exactly the sheets that need this. Text uses a proportional estimate, which is safe
+because `safeTextSplitLine` only ever walks the candidate **back**.
+
+`rowDepths()` is exported and the closure inside `buildFormulaBlock` now delegates to it — it was a
+byte-identical second copy, and the split needed the same calculation.
+
+## Copy and paste (v2.6.1, 2026-10-02)
+
+Right-click **Copy** / **Paste**, and `Ctrl+C` / `Ctrl+V`. They reach the block handler only after
+the existing guard returns for an `INPUT` or a contenteditable, so copying **text** inside a formula
+cell is untouched.
+
+`state.clipboardBlocks` is an **in-app buffer, not the system clipboard**: a block is a structured
+record (rows, units, input values, pack ciphertext) whose only faithful text form is the project
+JSON, and round-tripping that through the OS clipboard invites pasting a half-understood blob into a
+stamped calculation. Always snapshots — a copy still pointing at the original would paste whatever
+the original looks like _now_.
+
+Three things that are easy to get wrong and are handled:
+
+1. **A copied section brings its children**, selected or not. Otherwise copying a section places an
+   empty one and loses the calculation inside — noticed only after printing.
+2. **`parentSectionId` is remapped through an id map.** Without it the pasted section adopts the
+   _original's_ children and leaves the original empty.
+3. **`inputs` is deep-copied.** A shallow spread has both blocks sharing one object, so typing a
+   value into either changes both.
+
+A child whose parent did not come along becomes a canvas block rather than silently staying attached
+to the original section.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

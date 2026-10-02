@@ -6,6 +6,41 @@ import { type Block, GRID_SIZE } from '../types.ts';
 import { CANVAS_W, margins } from '../state.ts';
 import { renderMarkdown } from '../utils/markdown.ts';
 
+/**
+ * Which line a text block may be split at so the first part fits on the page.
+ *
+ * `wantLine` is the first line that no longer fits. Two things make a naive split wrong, and both
+ * are the markdown equivalent of splitting an `if` from its `end`:
+ *
+ *  - **Inside a fenced code block.** Each half gets an unterminated fence, so the first renders
+ *    its remainder as code and the second renders its code as prose.
+ *  - **Immediately after a heading or on a blank line run**, which strands a heading at the foot
+ *    of one page with its text on the next. Walking back to before the heading keeps them together.
+ *
+ * Returns 0 when there is no safe line at or before `wantLine`. **Callers must read 0 as "cannot
+ * split"**, since moving every line out would leave an empty block behind.
+ */
+export function safeTextSplitLine(content: string, wantLine: number): number {
+  const lines = content.split('\n');
+  const limit = Math.min(wantLine, lines.length - 1);
+
+  // Depth of fencing at the START of each line, so a candidate inside a fence is visible.
+  const inFence: boolean[] = [];
+  let open = false;
+  for (const line of lines) {
+    inFence.push(open);
+    if (/^\s*(```|~~~)/.test(line)) open = !open;
+  }
+
+  for (let i = limit; i > 0; i--) {
+    if (inFence[i]) continue; // mid-fence — each half would be unterminated
+    if (!lines[i].trim()) continue; // a blank line is a separator, not content to lead with
+    if (/^\s*#{1,6}\s/.test(lines[i - 1])) continue; // would orphan a heading on the page above
+    return i;
+  }
+  return 0;
+}
+
 export function buildTextBlock(el: HTMLElement, block: Block) {
   el.classList.add('text-block');
 

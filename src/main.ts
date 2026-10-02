@@ -39,6 +39,7 @@ import {
 import { applyBlockLineSpacing, Canvas } from './canvas.ts';
 import {
   addToSelection,
+  canSplitAtPageBreak,
   clearSelection,
   copyBlocks,
   deleteBlock,
@@ -51,6 +52,7 @@ import {
   resolveOverlapsRight,
   selectBlock,
   shiftBlocksVertical,
+  splitAtPageBreak,
   syncPageNumberingToggle,
   syncPageSeparators,
   syncTitleBlocks,
@@ -1625,6 +1627,14 @@ async function start() {
     ctxPasteBtn.title = 'Paste the copied block(s), offset one grid square (Ctrl+V)';
     ctxMenu.appendChild(ctxPasteBtn);
 
+    // Offered only on a block that actually laps onto the next page and can legally be cut —
+    // see canSplitAtPageBreak. An enabled item that silently does nothing is worse than none.
+    const ctxSplitBtn = document.createElement('button');
+    ctxSplitBtn.className = 'ctx-neutral-btn';
+    ctxSplitBtn.textContent = 'Split at page break';
+    ctxSplitBtn.title = 'Move the part past the bottom margin into a new block on the next page';
+    ctxMenu.appendChild(ctxSplitBtn);
+
     const ctxDeleteBtn = document.createElement('button');
     ctxDeleteBtn.textContent = 'Delete Block';
     ctxMenu.appendChild(ctxDeleteBtn);
@@ -1803,6 +1813,10 @@ async function start() {
     const ctxBlockTargets = (): HTMLElement[] =>
       selectedEls.size > 1 ? [...selectedEls] : ctxTarget ? [ctxTarget] : [];
 
+    ctxSplitBtn.addEventListener('click', () => {
+      if (ctxTarget) splitAtPageBreak(ctxTarget);
+      hideCtxMenu();
+    });
     ctxCopyBtn.addEventListener('click', () => {
       copyBlocks(ctxBlockTargets());
       hideCtxMenu();
@@ -2019,6 +2033,8 @@ async function start() {
         blockSpacing.mark(blkActs ? blkActs.getUniformSpacing() : (b?.lineSpacing ?? 1));
         if (blkActs) blockDigits.mark(blkActs.getUniformSigDigits());
       }
+
+      ctxSplitBtn.style.display = ctxTarget && canSplitAtPageBreak(ctxTarget) ? '' : 'none';
 
       // Paste is offered whenever something has been copied, whether or not a block was clicked.
       ctxPasteBtn.disabled = clipboardBlocks.length === 0;

@@ -134,6 +134,24 @@ blocks are selected, otherwise to the block you clicked. Inside a formula cell, 
 `Ctrl` + `V` still copy and paste **text** as usual — the block shortcuts only apply when no cell
 has focus.
 
+### A block that runs past the page
+
+A block taller than the space left on its page is outlined with a dashed amber rule. Right-click it
+and choose **Split at page break** to move the overflowing part into a new block at the top of the
+next page, labelled `… (cont.)`.
+
+It splits formula, summary and text blocks — a plot or a figure has no seam to cut, so it is not
+offered for those; move or resize them instead. The cut is never made in a place that would break
+what it divides:
+
+- A formula block will not split between `if` and its `end`, or inside a `for` body. It moves the
+  cut back to the nearest top-level row, because each half would otherwise be incomplete on its own
+  and the second half would depend on variables defined in the first.
+- A text block will not split inside a fenced code block, and will not leave a heading stranded at
+  the foot of a page with its text overleaf.
+
+If there is no legal place to cut, the option is not offered. Nothing happens silently.
+
 Arrow keys on their own move the caret inside a cell and `Shift` + arrow selects text, so cell
 navigation uses `Alt`. `Ctrl` + arrow moves the whole block on the page, even while a cell has
 focus. Line spacing (1 / 1.5 / 2) is on the right-click menu — per row, or per block.

@@ -2,8 +2,20 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**103 steps across 6 files** at v2.5.0 (2026-09-23), all against the real engine (pure functions in,
+**123 steps across 9 files** at v2.6.2 (2026-10-02), all against the real engine (pure functions in,
 `Quantity` out, no DOM).
+
+Three files were added after the original six, and all three test **decisions rather than
+arithmetic** — the class of thing that is wrong silently:
+
+| File                                  | Covers                                                                                                                                                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/persistence_roundtrip_test.ts` | Every `Block` field appears in **both** the `loadProject` literal and `serializeProject`, with the list read off the interface. Added after `packAuthorId` shipped in neither (§ 21 twice over).                |
+| `tests/page_geometry_test.ts`         | `clearTitleBlock` floors per page, leaves an already-clear position exactly alone, and `pageIndexOf` cannot go negative. A title block exists on every page, so a page-1-only floor was half a fix.             |
+| `tests/block_split_test.ts`           | Where a page-break split may legally fall: never between `if` and `end`, never inside a `for` body or a fenced code block, never orphaning a heading — and **0 means "cannot split", never "move everything"**. |
+
+The pattern worth copying: for each of these, measuring needed a DOM but **deciding** did not, so
+the decision was extracted into a pure function and the DOM half left as thin as possible.
 
 | File                         | Covers                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
