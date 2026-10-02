@@ -225,6 +225,29 @@ needed: the inputs are not the licensed content, the formulas are, so the two cl
 A conflict you can only resolve by paying for it is worth re-reading first. —
 [`design-decisions.md`](design-decisions.md)
 
+**Two quantities that must agree should be DERIVED from one another, never computed separately and
+then reconciled.** The grid guide was drawn from `margins.top` while content started below the title
+block, and `TITLE_BLOCK_H` (112) is not a multiple of `GRID_SIZE` (20) — so the first line and the
+first usable position could never coincide. Three successive releases each tried to reconcile the two
+more carefully (clamp the top, use the last line, snap per page) and each failed, because the
+mismatch was structural. The fix was one line of intent: make the guide **be** the work area, so
+`firstGridLine(p) === pageWorkArea(p).top` holds by construction and there is nothing left to
+reconcile. **If a fix is "handle the offset between A and B", ask first why A and B are two
+numbers.** — [`blocks.md`](blocks.md) § The grid starts below the title block
+
+**For anything geometric or arithmetic, print the actual numbers before reasoning about the code.**
+The same bug survived three rounds of inference from source. The round that solved it began by
+dumping `PAGE_H`, `GRID_SIZE`, `TITLE_BLOCK_H`, the margins and the resulting work areas and grid
+lines per page — at which point the discrepancy was simply visible. The arithmetic had been
+checkable the whole time, and reading it took one short script against the real modules. **Reasoning
+about arithmetic is slower and less reliable than evaluating it.**
+
+**When a report is about something only the user can see, ask what they are looking at rather than
+inferring it a fourth time.** The answer here — _"the grid guides should always be below the title
+block area"_ — identified the cause in one sentence after three failed attempts, and it was never
+recoverable from the code, because the code was self-consistent and simply encoded the wrong model.
+A question costs one exchange; a wrong fix costs a release, and this cost three.
+
 **Re-measure before quoting any number.** Line counts, version strings, category counts, and pass
 counts in these files go stale silently, and a stale number is worse than none because it reads as
 current.
