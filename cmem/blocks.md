@@ -299,6 +299,11 @@ A block pushed down may itself end up overflowing. It is **marked, not auto-spli
 covers the blocks the split created, not bystanders it moved, which keeps "marker, not modal"
 intact. `placeBlock`'s snap floors anything shifted into a title block back out of it.
 
+✅ **Ratified by Jon, 2026-10-02: _"That is a valid compromise."_** Recorded because it is the kind
+of gap a later reader mistakes for an oversight and "fixes" — cascading the auto-split into
+bystanders would mean one menu click silently rearranging a whole sheet, which is the modal
+behaviour this feature was deliberately designed not to have.
+
 `rowDepths()` is exported and the closure inside `buildFormulaBlock` now delegates to it — it was a
 byte-identical second copy, and the split needed the same calculation.
 
