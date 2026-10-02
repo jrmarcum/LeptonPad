@@ -2283,14 +2283,18 @@ h2.custom-tools-heading {
   border-collapse: collapse;
   table-layout: fixed;
   font-family: system-ui, sans-serif;
-  /* Fixed total height: 4 rows × 28px = 112px; rows never grow beyond this */
+  /* A MINIMUM, not a cap — a table's `height` grows to fit its content, which is correct here:
+     a wrapped SUBJECT line must be readable on a stamped sheet rather than clipped. 112px is the
+     empty case (4 rows × 28px) and matches TITLE_BLOCK_H, the starting value for the geometry.
+     The rendered height is measured by refreshTitleBlockHeight() and drives titleBlockH(), so the
+     working grid area moves down to clear whatever this actually becomes. */
   height: 112px;
 }
 
 .title-block-table tr {
+  /* Also a minimum. `max-height` was set here too and did nothing — table layout ignores it on a
+     row — which is part of why the block was believed to be a fixed 112px when it was not. */
   height: 28px;
-  max-height: 28px;
-  overflow: hidden;
 }
 
 /* Outer border matches the block border — cells use inner borders only */

@@ -41,8 +41,40 @@ export let pageNumberingEnabled = true;
 export { TITLE_BLOCK_H };
 
 /** Returns the title block height when enabled, otherwise 0. */
+/**
+ * The title block's RENDERED height, measured once per rebuild — not the nominal constant.
+ *
+ * `TITLE_BLOCK_H` (112 = 4 rows × 28) is the height of an empty one and remains the default, but
+ * the overlay sizes to its content and a wrapped SUBJECT line makes it taller. The CSS cannot stop
+ * that: a `<table>`'s `height` is a MINIMUM and grows to fit, and `max-height` on a `<tr>` is
+ * ignored by table layout. So the element really was taller while every piece of the geometry
+ * assumed 112 — which is why blocks were drawn under it (reported with screenshots 2026-10-02).
+ *
+ * Measured on rebuild and cached rather than read during layout: the "never measure" rule in
+ * design-decisions.md was written against reading height at the moment it is needed, which
+ * returned pre-layout values and pushed every block on the page. This reads it once, when the
+ * overlay is built or resized, and stores it.
+ */
+let titleBlockMeasuredH = TITLE_BLOCK_H;
+
+/** Record a freshly measured height. Returns true when it actually changed, so callers reflow. */
+export function setTitleBlockMeasuredH(px: number): boolean {
+  const next = Math.max(1, Math.round(px));
+  if (next === titleBlockMeasuredH) return false;
+  titleBlockMeasuredH = next;
+  return true;
+}
+
+/**
+ * The vertical space the title block takes out of the page, or 0 when it is off.
+ *
+ * This is the whole of the title block's effect on layout. The working grid area is bounded by the
+ * margins on all four sides and, when the title block is active, by its bottom edge at the top —
+ * and it grows back up to the top margin when the title block is switched off (Jon, 2026-10-02).
+ * `pageWorkArea()` encodes exactly that, so everything downstream follows from this one number.
+ */
 export function titleBlockH(): number {
-  return titleBlockEnabled ? TITLE_BLOCK_H : 0;
+  return titleBlockEnabled ? titleBlockMeasuredH : 0;
 }
 
 /**

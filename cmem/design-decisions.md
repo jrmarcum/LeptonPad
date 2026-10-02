@@ -58,7 +58,40 @@ the alternative would be ceremony without benefit. The costs are known and manag
 - Cross-module behavior goes through **callback slots** (`onSelectBlock`, `onUpdatePageCount`, …)
   rather than imports, so no cycle ever closes. `CanvasLike` is a structural type for the same reason.
 
-## `TITLE_BLOCK_H = 112` is a constant, never measured
+## The title block is measured after all — but once per rebuild, not during layout (2026-10-02, v2.6.6)
+
+The entry below said to change the constant rather than measure. That held while the title block
+really was a fixed 4 × 28, and stopped holding the moment a SUBJECT line wrapped.
+
+**The CSS could not keep it at 112 and never could**: a `<table>`'s `height` is a _minimum_ and
+grows to fit, and `max-height` on a `<tr>` is ignored by table layout. `syncTitleBlocks` never set
+a height on the overlay either, so it sized to its content. The element was genuinely taller while
+every page bound assumed 112 — so blocks were placed under the uncounted part and the title block,
+at `z-index: 2`, drew over them. Jon's screenshots showed a block's label half-hidden behind it.
+
+Three geometry releases (v2.6.3–v2.6.5) failed to fix the overlap because **the arithmetic was
+right and the constant it rested on was wrong.**
+
+The reconciliation with the rule below: the danger was reading height _at the moment it is needed_
+during layout, which returns pre-layout values. `refreshTitleBlockHeight()` reads it **once when
+the overlay is built or resized**, stores it via `setTitleBlockMeasuredH()`, and reflows only when
+the value actually changed. `titleBlockH()` returns it, and since everything derives from that one
+function the rest of the geometry followed with no further change. Only the first overlay is
+measured — every page's is built from the same data at the same width, so one measurement keeps
+every page's work area identical, which is what lets a continuation on page 3 line up with one on
+page 1.
+
+**`TITLE_BLOCK_H = 112` remains** as the empty-case default and the starting value before anything
+is rendered. A `ResizeObserver` on the first overlay makes a rewrap reflow while the user types.
+
+Why grow rather than clip (Jon's call): on an engineering sheet the subject line is **content**.
+Truncating "W24×192 in Concrete Footing / Grade Beam" to fit a layout constant is the wrong trade.
+
+Jon's statement of the model, which is what `pageWorkArea()` encodes: _the margins bound the working
+grid area, the title block bounds it from below the top margin when active, and the grid grows back
+to the top margin when it is not._
+
+## `TITLE_BLOCK_H = 112` is a constant, never measured — SUPERSEDED, see above
 
 The comment in `types.ts` says it outright: "Never measured from DOM to avoid layout-timing bugs."
 Reading the height back from the DOM returns a pre-layout value at the moment the code needs it, and

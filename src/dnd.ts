@@ -27,6 +27,7 @@ import {
   setClipboardBlocks,
   setNumPages,
   setSelectedEl,
+  setTitleBlockMeasuredH,
   state,
   titleBlockEnabled,
   titleBlockH,
@@ -177,7 +178,35 @@ export function syncTitleBlocks() {
     el.style.zIndex = '2';
     buildTitleBlockOverlay(el, i);
     canvas.domElement.appendChild(el);
+    // Editing the SUBJECT can rewrap it to another line, which changes every page's work area.
+    // Observing is what makes that reflow while the user types, rather than at the next rebuild.
+    // The observer dies with the element, and syncTitleBlocks recreates both together.
+    if (i === 0) new ResizeObserver(() => refreshTitleBlockHeight()).observe(el);
   }
+  refreshTitleBlockHeight();
+}
+
+/**
+ * Measure the rendered title block and reflow the page if its height changed.
+ *
+ * The overlay grows with its content — a wrapped SUBJECT line is the common case — and every page
+ * bound is derived from `titleBlockH()`, so the measurement has to reach it or blocks get placed
+ * under the part of the title block nobody counted.
+ *
+ * Only the FIRST overlay is measured: every page's title block is built from the same data and the
+ * same fixed width, so they render identically, and one measurement keeps every page's work area
+ * the same height — which is what makes a continuation on page 3 line up with one on page 1.
+ *
+ * No recursion risk: this changes the position of OTHER elements, never the title block's own size,
+ * so a ResizeObserver watching it cannot be re-triggered by the reflow.
+ */
+export function refreshTitleBlockHeight() {
+  if (!titleBlockEnabled) return;
+  const first = canvas.domElement.querySelector<HTMLElement>('.title-block-overlay');
+  if (!first) return;
+  if (!setTitleBlockMeasuredH(first.offsetHeight)) return;
+  canvas.updateMarginGuide();
+  updatePageCount();
 }
 
 /**

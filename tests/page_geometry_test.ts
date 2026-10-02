@@ -21,6 +21,7 @@ import {
   pageIndexOf,
   pageWorkArea,
   setTitleBlockEnabled,
+  setTitleBlockMeasuredH,
   snapToPageGrid,
   titleBlockH,
 } from '../src/state.ts';
@@ -164,6 +165,37 @@ Deno.test('page geometry and the title block', async (t) => {
     assertEquals(area.bottom, PAGE_H - margins.bottom);
     // And that box bottom is exactly the guide canvas.ts draws: margins.top + guideH.
     assertEquals(area.bottom, margins.top + (PAGE_H - margins.top - margins.bottom));
+  });
+
+  await t.step('a title block that GROWS moves the work area down with it', () => {
+    // TITLE_BLOCK_H is the empty case. The overlay sizes to its content and a wrapped SUBJECT line
+    // makes it taller — the CSS cannot prevent that, because a table's `height` is a minimum and
+    // `max-height` on a `<tr>` is ignored. Every page bound derives from titleBlockH(), so the
+    // measurement has to reach it or blocks are placed under the part nobody counted
+    // (reported with screenshots 2026-10-02).
+    setTitleBlockEnabled(true);
+    const nominal = pageWorkArea(0);
+    assertEquals(nominal.top, margins.top + TITLE_BLOCK_H);
+
+    const grown = TITLE_BLOCK_H + 40; // one wrapped line and a spare row
+    assertEquals(setTitleBlockMeasuredH(grown), true, 'a new height must report as changed');
+    assertEquals(setTitleBlockMeasuredH(grown), false, 'the same height must not reflow');
+
+    const after = pageWorkArea(0);
+    assertEquals(after.top, margins.top + grown);
+    assertEquals(after.height, nominal.height - 40); // taller block, shorter work area
+    assertEquals(after.bottom, nominal.bottom); // the bottom margin is unaffected
+    assertEquals(firstGridLine(0), after.top); // and the grid still starts at the work-area top
+    // Every page moves by the same amount, so a continuation on page 3 lines up with one on page 1.
+    assertEquals(pageWorkArea(2).top, 2 * PAGE_H + margins.top + grown);
+
+    // Switched OFF, the grid area grows back to the top margin whatever the measurement was.
+    setTitleBlockEnabled(false);
+    assertEquals(pageWorkArea(0).top, margins.top);
+    assertEquals(titleBlockH(), 0);
+
+    setTitleBlockEnabled(true);
+    setTitleBlockMeasuredH(TITLE_BLOCK_H);
   });
 
   await t.step('pageIndexOf never returns a negative page', () => {
