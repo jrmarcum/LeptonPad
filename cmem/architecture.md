@@ -118,6 +118,30 @@ that would otherwise clear a selection right after a band drag ends.
   clears the stale handle before falling back to a download — it used to degrade silently, so the
   user believed the file on disk had been updated.
 
+### Unsaved-change tracking (v2.6.3, 2026-10-02)
+
+`hasUnsavedChanges()` compares a **fingerprint derived from `serializeProject()`** against the last
+point the project was saved, loaded or reset (`markProjectSaved()`).
+
+⚠️ **Deliberately not a `markDirty()` flag set at each mutation site.** There are dozens of those —
+every row keystroke, drag, resize, lock, line-spacing change, input value, title-block edit — and a
+call missing from one produces the worst outcome available: the program believing work is saved when
+it is not. Asking the same function that writes the file cannot miss a mutation. The cost is
+serializing on demand, which only happens on New, Load and tab close.
+
+`project_metadata.date` is dropped from the fingerprint — it is stamped with today's date on every
+call, so leaving it in would make a project look modified the moment the clock passed midnight.
+
+`confirmDiscardChanges()` is the single gate. It replaced two copies of `if (state.blocks.length >
+0)`, which was wrong in **both** directions: it nagged about a freshly opened project nobody had
+touched, and it stayed silent when the user had deleted every block — the one case where the unsaved
+change _is_ the destruction. If the user picks Save and then cancels the file picker, the action is
+aborted rather than proceeding, because nothing was saved.
+
+**Load Project had no prompt at all** before this, unlike New and New from Template. Opening a file
+was the one way to lose a sheet silently. A `beforeunload` guard covers closing the tab, where the
+browser shows its own wording and the app's dialog cannot be used.
+
 ### The project file (2026-09-23)
 
 - **Extension: `.leptonpad`** for new saves; the Open dialog accepts `.leptonpad` **and** `.json`,

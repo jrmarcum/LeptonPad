@@ -19,6 +19,7 @@ import {
   pageContentTop,
   pageIndexOf,
   pageNumberingEnabled,
+  pageWorkArea,
   selectedEl,
   selectedEls,
   setCANVAS_H,
@@ -606,9 +607,12 @@ export function renderBlock(block: Block) {
 // Splitting a block that laps onto the next page
 // ---------------------------------------------------------------------------
 
-/** The y of the bottom margin on the page a block's top sits on. */
+/**
+ * The bottom of the active work area on whichever page a block's top sits on — one definition in
+ * state.ts bounds it by the top margin, the title block and the bottom margin together.
+ */
 function pageBottomFor(top: number): number {
-  return pageIndexOf(top) * PAGE_H + PAGE_H - margins.bottom;
+  return pageWorkArea(pageIndexOf(top)).bottom;
 }
 
 /** Only formula-ish and text blocks have a seam. A plot or figure has nowhere to cut. */
@@ -638,21 +642,30 @@ export function canSplitAtPageBreak(el: HTMLElement): boolean {
  * in the wrong place on exactly the sheets that need this most.
  */
 function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
+  // `avail` is measured from the BLOCK's top, and `offsetTop` on a descendant is relative to the
+  // block (it is the positioned offsetParent) — so the two are already in the same frame and the
+  // block's own chrome is counted automatically.
+  //
+  // This is where it was wrong: the row loop subtracted the first row's offsetTop as a "base",
+  // which discarded the label, the divider and the block's top padding. The kept part was then
+  // allowed to be (chrome + avail) tall and still ran past the bottom margin by exactly the height
+  // of its own header. The text path had the same hole — it ignored `view.offsetTop`.
   if (block.type === 'text') {
     const view = el.querySelector<HTMLElement>('.md-view');
     const lines = (block.content || '').split('\n');
     if (!view || lines.length < 2) return 0;
+    const forContent = avail - view.offsetTop;
+    if (forContent <= 0) return 0;
     // Proportional: the rendered view has no per-line elements to measure. Over-estimating is
     // safe because safeTextSplitLine only ever walks the candidate BACK, never forward.
-    const want = Math.floor(lines.length * (avail / Math.max(1, view.offsetHeight)));
+    const want = Math.floor(lines.length * (forContent / Math.max(1, view.offsetHeight)));
     return safeTextSplitLine(block.content || '', Math.min(want, lines.length - 1));
   }
   const rowEls = Array.from(el.querySelectorAll<HTMLElement>('.formula-rows > .formula-row'));
   if (rowEls.length < 2) return 0;
-  const base = rowEls[0].offsetTop;
   let want = rowEls.length - 1;
   for (let i = 0; i < rowEls.length; i++) {
-    if (rowEls[i].offsetTop - base + rowEls[i].offsetHeight > avail) {
+    if (rowEls[i].offsetTop + rowEls[i].offsetHeight > avail) {
       want = i;
       break;
     }
@@ -667,7 +680,7 @@ function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
  * identity — so any section membership, pack fields and input values stay with it — and the new
  * block carries only what a continuation needs.
  */
-export function splitAtPageBreak(el: HTMLElement): string | null {
+function splitOnce(el: HTMLElement): string | null {
   const block = state.blocks.find((b) => b.id === el.id);
   if (!block || !SPLITTABLE.has(block.type)) return null;
   const top = parseInt(el.style.top);
@@ -720,9 +733,37 @@ export function splitAtPageBreak(el: HTMLElement): string | null {
   updatePageCount();
   syncTitleBlocks();
   canvas.updateMarginGuide();
-  const newEl = document.getElementById(copy.id);
-  if (newEl) selectBlock(newEl);
   return copy.id;
+}
+
+/**
+ * Split repeatedly until no part laps over a page break.
+ *
+ * One cut only suffices for a block that overflows by less than a page. A block three pages long
+ * produced a continuation that itself ran past the NEXT page's bottom margin, so the overflow just
+ * moved down the document — which is what "it is still not taking the page boundaries into account"
+ * looks like from the outside.
+ *
+ * Progress is required, not assumed: splitOnce returns null when there is no legal cut, and the
+ * pass bound is a backstop against a measurement that never converges rather than an expected
+ * limit. Only the final piece is selected, so the user ends up looking at the last page written.
+ */
+export function splitAtPageBreak(el: HTMLElement): string | null {
+  let lastId: string | null = null;
+  let current: HTMLElement | null = el;
+  for (let pass = 0; pass < 40 && current; pass++) {
+    const id = splitOnce(current);
+    if (!id) break;
+    lastId = id;
+    const next = document.getElementById(id);
+    // Carry on only while the piece just created still overflows AND can be cut again.
+    current = next && canSplitAtPageBreak(next) ? next : null;
+  }
+  if (lastId) {
+    const finalEl = document.getElementById(lastId);
+    if (finalEl) selectBlock(finalEl);
+  }
+  return lastId;
 }
 
 /**

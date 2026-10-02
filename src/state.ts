@@ -77,6 +77,20 @@ export function clearTitleBlock(top: number): number {
   return Math.max(top, pageContentTop(pageIndexOf(top)));
 }
 
+/**
+ * The usable vertical band on a page — the **active work area**. Bounded above by the top margin
+ * plus the title block, below by the bottom margin.
+ *
+ * Named once because "where may content go on this page" was being open-coded wherever it was
+ * needed, and each site remembered a different subset of the three things that bound it. Anything
+ * deciding whether content fits, or where a continuation starts, reads it from here.
+ */
+export function pageWorkArea(pageIdx: number): { top: number; bottom: number; height: number } {
+  const top = pageContentTop(pageIdx);
+  const bottom = pageIdx * PAGE_H + PAGE_H - margins.bottom;
+  return { top, bottom, height: Math.max(0, bottom - top) };
+}
+
 // Setters for `let` exports that external modules need to reassign
 export function setCANVAS_W(v: number) {
   CANVAS_W = v;

@@ -144,6 +144,24 @@ that silently no-ops is worse than an absent one.
 
 Splittable types: **formula, summary, text**. A plot or figure has no seam.
 
+**The work area is one definition**: `pageWorkArea(pageIdx)` in `state.ts` returns `{top, bottom,
+height}` bounded by the top margin, the title block **and** the bottom margin together. It exists
+because "where may content go on this page" was open-coded at each site and every site remembered a
+different subset of the three (reported 2026-10-02: _"still not taking into account the margins and
+the title block space as part of the active work area"_).
+
+Two things that report exposed, both fixed in v2.6.3:
+
+1. **The row loop subtracted the first row's `offsetTop` as a "base"**, discarding the label, the
+   divider and the block's top padding. The kept part was allowed to be `chrome + avail` tall and so
+   still ran past the bottom margin by exactly the height of its own header. `offsetTop` on a
+   descendant is already relative to the block, so the subtraction itself was the bug. The text path
+   had the same hole — it ignored `.md-view`'s own `offsetTop`.
+2. **One cut only.** A block three pages long produced a continuation that itself overflowed the
+   NEXT page, so the overflow merely moved down the document. `splitAtPageBreak` now loops over
+   `splitOnce` while each new piece still overflows and can be cut, bounded at 40 passes as a
+   backstop against a measurement that never converges.
+
 The decision of _where_ to cut is pure and tested (`tests/block_split_test.ts`, 10 steps); only the
 measurement needs a DOM:
 
@@ -162,6 +180,22 @@ because `safeTextSplitLine` only ever walks the candidate **back**.
 
 `rowDepths()` is exported and the closure inside `buildFormulaBlock` now delegates to it — it was a
 byte-identical second copy, and the split needed the same calculation.
+
+### The context menu stays inside the window (v2.6.3, 2026-10-02)
+
+It was placed at the raw `clientX`/`clientY`, so a right-click near the right or bottom edge put
+half of it past the viewport — and because `#ctx-menu` is `position: fixed` there is nothing to
+scroll to reach the rest. `positionCtxMenu()` in `main.ts`:
+
+- **Shows the menu before measuring it.** `offsetWidth`/`offsetHeight` are 0 while `display: none`,
+  so a position computed first would clamp against nothing. It is made visible with
+  `visibility: hidden` and revealed once placed, so the move is never seen.
+- **Flips to the other side of the cursor** near an edge rather than sliding. Sliding it back under
+  the pointer puts the first item beneath the mouse, where a stray click fires it.
+- **Clamps after flipping**, since a flip can overshoot the opposite edge when the menu is larger
+  than the space on either side.
+- **Caps and scrolls** a menu taller than the window. The content varies a lot — spacing, precision
+  and formula-row groups appear conditionally — so that is a real case, not a hypothetical.
 
 ## Copy and paste (v2.6.1, 2026-10-02)
 

@@ -17,6 +17,7 @@ import {
   PAGE_H,
   pageContentTop,
   pageIndexOf,
+  pageWorkArea,
   setTitleBlockEnabled,
   titleBlockH,
 } from '../src/state.ts';
@@ -55,6 +56,33 @@ Deno.test('page geometry and the title block', async (t) => {
       assertEquals(clearTitleBlock(pageTop + 10), pageTop + TITLE_BLOCK_H);
       // Mid-page on the same page is untouched.
       assertEquals(clearTitleBlock(pageTop + 400), pageTop + 400);
+    }
+  });
+
+  await t.step('the work area is bounded by BOTH margins and the title block', () => {
+    // "the margins and the title block space as part of the active work area" — the thing each
+    // open-coded copy of this remembered a different subset of (reported 2026-10-02).
+    setTitleBlockEnabled(false);
+    const plain = pageWorkArea(0);
+    assertEquals(plain.top, margins.top);
+    assertEquals(plain.bottom, PAGE_H - margins.bottom);
+    assertEquals(plain.height, PAGE_H - margins.bottom - margins.top);
+
+    setTitleBlockEnabled(true);
+    const withTb = pageWorkArea(0);
+    assertEquals(withTb.top, margins.top + TITLE_BLOCK_H);
+    assertEquals(withTb.bottom, plain.bottom); // the title block costs height at the TOP only
+    assertEquals(withTb.height, plain.height - TITLE_BLOCK_H);
+  });
+
+  await t.step('every page has the same work area, offset by its own page', () => {
+    setTitleBlockEnabled(true);
+    const first = pageWorkArea(0);
+    for (const page of [1, 3]) {
+      const w = pageWorkArea(page);
+      assertEquals(w.top, first.top + page * PAGE_H);
+      assertEquals(w.bottom, first.bottom + page * PAGE_H);
+      assertEquals(w.height, first.height);
     }
   });
 

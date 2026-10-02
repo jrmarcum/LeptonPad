@@ -150,7 +150,16 @@ what it divides:
 - A text block will not split inside a fenced code block, and will not leave a heading stranded at
   the foot of a page with its text overleaf.
 
-If there is no legal place to cut, the option is not offered. Nothing happens silently.
+If there is no legal place to cut, the option is not offered. Nothing happens silently. A block long
+enough to span several pages is split as many times as it needs, not just once.
+
+### Unsaved work
+
+LeptonPad asks before anything that would discard changes — **New Project**, **New from Template**,
+**Load Project**, and closing the tab. It asks only when something has actually changed since the
+last save, so an untouched project opens and closes without a prompt. If you choose Save and then
+cancel the file dialog, the original action is cancelled too: nothing was saved, so nothing is
+thrown away.
 
 Arrow keys on their own move the caret inside a cell and `Shift` + arrow selects text, so cell
 navigation uses `Alt`. `Ctrl` + arrow moves the whole block on the page, even while a cell has

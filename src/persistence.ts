@@ -329,23 +329,18 @@ export function clearProjectState() {
   saveCustomModules();
   const list = document.getElementById('custom-modules-list');
   if (list) list.innerHTML = '';
+  // An empty sheet is not an unsaved sheet. Without this the very next New or Load would prompt
+  // about a project the user has just discarded on purpose.
+  markProjectSaved();
 }
 
 export async function newProject() {
-  if (state.blocks.length > 0) {
-    const choice = await showSavePromptDialog();
-    if (choice === 'cancel') return;
-    if (choice === 'save') await saveProject(false);
-  }
+  if (!await confirmDiscardChanges()) return;
   clearProjectState();
 }
 
 export async function newFromTemplate() {
-  if (state.blocks.length > 0) {
-    const choice = await showSavePromptDialog();
-    if (choice === 'cancel') return;
-    if (choice === 'save') await saveProject(false);
-  }
+  if (!await confirmDiscardChanges()) return;
 
   // deno-lint-ignore no-explicit-any
   const hasPicker = typeof (window as any).showOpenFilePicker === 'function';
@@ -554,6 +549,72 @@ export function loadProject(proj: Record<string, unknown>) {
     saveCustomModules();
     onRefreshCustomModulesList?.();
   }
+
+  // A just-opened project matches its file. Last, so it captures everything the load did —
+  // including the normalisations loadProject performs (replacing constants, stripping a bare `E`,
+  // folding input values in), which would otherwise read as unsaved edits the user never made.
+  markProjectSaved();
+}
+
+// ---------------------------------------------------------------------------
+// Unsaved-change tracking
+// ---------------------------------------------------------------------------
+
+/**
+ * A fingerprint of everything that gets saved, used to tell "changed" from "unchanged".
+ *
+ * Derived from `serializeProject()` rather than from flags set at each mutation site. There are
+ * dozens of those sites — every row keystroke, drag, resize, lock, line-spacing change, input
+ * value, title-block edit — and a `markDirty()` call missing from one of them produces the worst
+ * possible outcome: the program believing work is saved when it is not. Comparing the serialized
+ * form cannot miss a mutation, because it asks the same function that writes the file.
+ *
+ * `project_metadata.date` is dropped: it is stamped with today's date on every call, so leaving it
+ * in would make a project look modified the moment the clock passed midnight.
+ */
+function projectFingerprint(): string {
+  try {
+    const parsed = JSON.parse(serializeProject()) as Record<string, unknown>;
+    const meta = parsed.project_metadata as Record<string, unknown> | undefined;
+    if (meta) delete meta.date;
+    return JSON.stringify(parsed);
+  } catch {
+    // Never let a fingerprint failure block a save prompt — fall back to "assume changed".
+    return `unreadable-${Date.now()}`;
+  }
+}
+
+let savedFingerprint = projectFingerprint();
+
+/** Record the current state as saved. Call after a successful save, a load, and a reset. */
+export function markProjectSaved() {
+  savedFingerprint = projectFingerprint();
+}
+
+/** Whether the project differs from the last point it was saved, loaded or reset. */
+export function hasUnsavedChanges(): boolean {
+  return projectFingerprint() !== savedFingerprint;
+}
+
+/**
+ * Ask about unsaved work before an action that discards it. Returns false to abort that action.
+ *
+ * Gated on an actual change rather than on `state.blocks.length > 0`, which is what the two callers
+ * used to test. That was wrong in both directions: it nagged when a freshly opened project had not
+ * been touched, and it stayed silent when a user had deleted every block — the one case where the
+ * unsaved change is the destruction itself.
+ */
+export async function confirmDiscardChanges(): Promise<boolean> {
+  if (!hasUnsavedChanges()) return true;
+  const choice = await showSavePromptDialog();
+  if (choice === 'cancel') return false;
+  if (choice === 'save') {
+    await saveProject(false);
+    // If the save was cancelled at the file picker the work is still unsaved, so do not proceed to
+    // throw it away — the user asked to keep it and nothing kept it yet.
+    if (hasUnsavedChanges()) return false;
+  }
+  return true;
 }
 
 export function serializeProject(): string {
@@ -621,6 +682,7 @@ export async function saveProject(saveAs = false) {
       const writable = await fileHandle.createWritable();
       await writable.write(serializeProject());
       await writable.close();
+      markProjectSaved();
       return;
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
@@ -644,4 +706,8 @@ export async function saveProject(saveAs = false) {
   a.download = state.projectName.replace(/[^\w-]/g, '_') + PROJECT_EXT;
   a.click();
   URL.revokeObjectURL(url);
+  // The download path has no completion signal — a.click() returns before the browser has written
+  // anything, and a user can still cancel a download prompt. Counted as saved anyway, because the
+  // alternative is prompting forever about a project the user has told us twice to save.
+  markProjectSaved();
 }

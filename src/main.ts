@@ -59,6 +59,8 @@ import {
   updatePageCount,
 } from './dnd.ts';
 import {
+  confirmDiscardChanges,
+  hasUnsavedChanges,
   importToolsFromFile,
   loadProject,
   newFromTemplate,
@@ -650,6 +652,10 @@ function renderSidebar() {
   loadBtn.className = 'view-toggle';
   loadBtn.textContent = '⬆ Load Project';
   loadBtn.addEventListener('click', async () => {
+    // Loading replaces everything on the canvas, and this path used to do it with no warning at
+    // all — unlike New and New from Template, which have always asked. Opening a file was the one
+    // way to lose a sheet silently.
+    if (!await confirmDiscardChanges()) return;
     // deno-lint-ignore no-explicit-any
     const hasPicker = typeof (window as any).showOpenFilePicker === 'function';
     if (hasPicker) {
@@ -1646,6 +1652,51 @@ async function start() {
     // deno-lint-ignore no-explicit-any
     let ctxFormulaActions: Record<string, (...args: any[]) => any> | null = null;
 
+    /**
+     * Show the context menu at the click point, but **inside the window**.
+     *
+     * It used to be placed at the raw `clientX`/`clientY`, so a right-click near the right or
+     * bottom edge put half the menu past the viewport — and because the menu is `position: fixed`
+     * there is nothing to scroll to reach it. Reported 2026-10-02.
+     *
+     * The menu is shown BEFORE being measured: `offsetWidth`/`offsetHeight` are 0 while
+     * `display: none`, so a position computed first would clamp against nothing.
+     *
+     * Near an edge it flips to the other side of the cursor rather than merely sliding, which keeps
+     * the pointer outside the menu — sliding it back under the cursor means the first item sits
+     * beneath the mouse and a stray click fires it. The content varies a lot (spacing, precision
+     * and formula-row groups appear conditionally), so a menu taller than a short window is
+     * genuinely possible and gets capped and scrolled rather than overflowing.
+     */
+    const positionCtxMenu = (clickX: number, clickY: number) => {
+      const GUTTER = 6;
+      ctxMenu.style.maxHeight = '';
+      ctxMenu.style.overflowY = '';
+      ctxMenu.style.visibility = 'hidden';
+      ctxMenu.style.display = 'block';
+
+      const vw = globalThis.innerWidth;
+      const vh = globalThis.innerHeight;
+      let { offsetWidth: w, offsetHeight: h } = ctxMenu;
+
+      if (h > vh - GUTTER * 2) {
+        ctxMenu.style.maxHeight = `${vh - GUTTER * 2}px`;
+        ctxMenu.style.overflowY = 'auto';
+        h = ctxMenu.offsetHeight;
+      }
+
+      let x = clickX;
+      if (x + w > vw - GUTTER) x = clickX - w; // flip left of the cursor
+      let y = clickY;
+      if (y + h > vh - GUTTER) y = clickY - h; // flip above the cursor
+
+      // A flip can land off the opposite edge when the menu is wider or taller than the space on
+      // either side; clamping second means it stays on screen whatever the flip decided.
+      ctxMenu.style.left = `${clamp(x, GUTTER, Math.max(GUTTER, vw - w - GUTTER))}px`;
+      ctxMenu.style.top = `${clamp(y, GUTTER, Math.max(GUTTER, vh - h - GUTTER))}px`;
+      ctxMenu.style.visibility = '';
+    };
+
     const hideCtxMenu = () => {
       ctxMenu.style.display = 'none';
       ctxTarget = null;
@@ -2043,9 +2094,17 @@ async function start() {
         : `Paste ${clipboardBlocks.filter((b) => !b.parentSectionId).length} block(s), ` +
           'offset one grid square (Ctrl+V)';
 
-      ctxMenu.style.left = `${e.clientX}px`;
-      ctxMenu.style.top = `${e.clientY}px`;
-      ctxMenu.style.display = 'block';
+      positionCtxMenu(e.clientX, e.clientY);
+    });
+
+    // Closing or reloading the tab discards the project too, and that path cannot be intercepted
+    // with the app's own dialog — browsers only honour preventDefault here and show their own
+    // wording. Registered last so it never fires during start-up.
+    globalThis.addEventListener('beforeunload', (e) => {
+      if (!hasUnsavedChanges()) return;
+      e.preventDefault();
+      // Legacy browsers keyed off a return value rather than preventDefault; harmless to set.
+      (e as BeforeUnloadEvent).returnValue = '';
     });
 
     // Render any pre-loaded blocks
