@@ -1552,6 +1552,7 @@ async function start() {
     const ctxAddForBtn = document.createElement('button');
     const ctxAddDescBtn = document.createElement('button');
     const ctxAddRefBtn = document.createElement('button');
+    const ctxExpandIfBtn = document.createElement('button');
     const ctxInputBtn = document.createElement('button');
     const ctxLockRowBtn = document.createElement('button');
     const ctxDelBranchBtn = document.createElement('button');
@@ -1573,6 +1574,8 @@ async function start() {
     ctxAddDescBtn.textContent = '+ description';
     ctxAddRefBtn.className = 'ctx-neutral-btn';
     ctxAddRefBtn.textContent = '+ reference';
+    ctxExpandIfBtn.className = 'ctx-neutral-btn';
+    ctxExpandIfBtn.textContent = 'expand if() to rows';
     ctxInputBtn.className = 'ctx-neutral-btn';
     ctxInputBtn.textContent = '⌨ make input row';
     ctxLockRowBtn.className = 'ctx-neutral-btn';
@@ -1603,6 +1606,7 @@ async function start() {
       ctxAddForBtn,
       ctxAddDescBtn,
       ctxAddRefBtn,
+      ctxExpandIfBtn,
       ctxInputBtn,
       ctxLockRowBtn,
       ctxDelBranchBtn,
@@ -1937,6 +1941,10 @@ async function start() {
       if (ctxFormulaRowEl) ctxFormulaActions?.addDescription(ctxFormulaRowEl);
       hideCtxMenu();
     });
+    ctxExpandIfBtn.addEventListener('click', () => {
+      ctxFormulaActions?.expandIf(ctxFormulaRowEl);
+      hideCtxMenu();
+    });
     ctxInputBtn.addEventListener('click', () => {
       if (!ctxFormulaRowEl) return;
       const { isInput } = ctxFormulaActions!.getRowInput(ctxFormulaRowEl);
@@ -2031,6 +2039,13 @@ async function start() {
         // Label the delete row button with what it will do
         const typeLabel = rowType ? ` (${rowType})` : '';
         ctxDelRowBtn.title = `Delete this row${typeLabel} (Ctrl+-)`;
+
+        // Shown only when the row really is `x = if(c, a, b)` and the call is the WHOLE
+        // right-hand side — expanding `M = if(c, M_p, M_r) * phi` would silently drop the `* phi`.
+        const canExpand = actions.canExpandIf(rowEl);
+        ctxExpandIfBtn.style.display = canExpand ? '' : 'none';
+        ctxExpandIfBtn.title =
+          'Rewrite as if / else rows, which show which branch ran on the printed sheet (Ctrl+Shift+Z to undo)';
 
         // Input rows. Offered on any named, non-control row the author can still edit; the
         // unit-kind picker appears only once the row IS an input, since it has nothing to

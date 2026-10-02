@@ -232,6 +232,24 @@ becoming one. Note the one case the program cannot read your mind on: if `V_u` a
 `V_u = V_n` is a perfectly legal **reassignment** and will overwrite it. **A check always shows OK
 or NG** — if you wrote one and see a plain number instead, you wrote an assignment.
 
+### Choosing a value: `if()` or if/else rows
+
+Two ways, for two different purposes. Write a choice inline when you want a **value**:
+
+```
+\phi = if(\lambda <= \lambda_p, 0.9, 0.75)
+```
+
+Use the right-click `+ if` rows when the **logic** matters on the printed sheet — the rows show
+which branch actually ran, and each branch gets its own description and reference.
+
+You can start inline and convert: right-click a row that is exactly `x = if(c, a, b)` and choose
+**expand if() to rows**. A nested `if` in the else position becomes an `elseif`, so
+`if(a, 1, if(b, 2, 3))` turns into a plain four-way chain. `Ctrl` + `Shift` + `Z` undoes it.
+
+The option only appears when the call is the whole right-hand side — expanding
+`M = if(c, M_p, M_r) * \phi` would have nowhere to put the `* \phi`.
+
 ### Text values
 
 Not every check is about a number. Text is written in **double quotes** and works as a value:

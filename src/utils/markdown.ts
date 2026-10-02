@@ -214,11 +214,21 @@ export function transformPiece(raw: string): string {
 }
 
 /** Split `s` at top-level commas (outside () and []). */
-function splitTopLevelCommas(s: string): string[] {
+/**
+ * Split an argument list on its top-level commas.
+ *
+ * Quote-aware since v2.7.2: a comma inside `"…"` is part of the text, not a separator, so
+ * `if(c, "Compact, heavy", x)` is three arguments and not four. Nothing had text to put a comma
+ * in before, which is why this went unnoticed — and it affected argument RENDERING as well as the
+ * expansion that now uses it.
+ */
+export function splitTopLevelCommas(s: string): string[] {
   const out: string[] = [];
-  let depth = 0, start = 0;
+  let depth = 0, start = 0, inStr = false;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
+    if (s[i] === '"') inStr = !inStr;
+    else if (inStr) continue;
+    else if (s[i] === '(' || s[i] === '[' || s[i] === '{') depth++;
     else if (s[i] === ')' || s[i] === ']' || s[i] === '}') depth--;
     else if (depth === 0 && s[i] === ',') {
       out.push(s.slice(start, i));

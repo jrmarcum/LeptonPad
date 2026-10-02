@@ -31,7 +31,12 @@ import {
   sectionSummaryVarNames,
   state,
 } from '../state.ts';
-import { prettifyExpr, renderInlineMd, transformUnit } from '../utils/markdown.ts';
+import {
+  prettifyExpr,
+  renderInlineMd,
+  splitTopLevelCommas,
+  transformUnit,
+} from '../utils/markdown.ts';
 
 /** Regex that detects comparison operators in a raw expression string. */
 const COMP_RE = /[<>]=?|[!=]=/;
@@ -147,6 +152,79 @@ export function safeSplitIndex(rows: FormulaRow[], wantIdx: number): number {
     if (depths[i] === 0 && !isContinuation(rows[i].type)) return i;
   }
   return 0;
+}
+
+/**
+ * Turn `x = if(c, a, b)` into `if c / x = a / else / x = b / end`.
+ *
+ * Offered as an explicit action rather than done automatically on entry: typing one thing and
+ * getting five rows is surprising, cannot be collapsed back, and is impossible when the call is a
+ * sub-expression — `M_n = if(c, M_p, M_r) * \phi` has nowhere to expand to. So this returns null
+ * unless the call is the WHOLE right-hand side, and the menu hides the action when it does.
+ *
+ * Why anyone wants it: the inline form yields a value and hides which branch ran; the row form
+ * shows the branch on the printed sheet and gives each one its own description and reference.
+ * Inline is the right way to write it and rows are often the right way to *present* it, so the
+ * conversion is worth having in the direction people actually need — see design-decisions.md.
+ *
+ * A nested `if` in the ELSE position becomes an `elseif` chain, which is the case where the inline
+ * form stops being readable at all: `if(a, 1, if(b, 2, 3))` is four rows of plain logic.
+ *
+ * Returns null when the row is not an expandable `if` — a control row, an input row, no `=`, or a
+ * call that is not the entire right-hand side.
+ */
+export function expandIfRow(row: FormulaRow): FormulaRow[] | null {
+  if (row.type || row.in) return null;
+  const eq = row.e.search(/(?<![=<>!])=(?!=)/);
+  if (eq <= 0) return null;
+  const name = row.e.slice(0, eq).trim();
+  if (!/^[a-zA-Z_]\w*$/.test(name)) return null;
+
+  /** Build the branch rows for one `if(...)`, chaining a nested else-if. */
+  const branches = (call: string, kind: 'if' | 'elseif'): FormulaRow[] | null => {
+    const m = call.match(/^if\s*\(/);
+    if (!m || !call.endsWith(')')) return null;
+    // The call must close exactly at the end, or it is only part of a larger expression.
+    let depth = 0;
+    for (let i = m[0].length - 1; i < call.length; i++) {
+      if (call[i] === '(') depth++;
+      else if (call[i] === ')' && --depth === 0 && i !== call.length - 1) return null;
+    }
+    const args = splitTopLevelCommas(call.slice(m[0].length, -1));
+    if (args.length !== 3 || args.some((a) => !a)) return null;
+    const [cond, thenVal, elseVal] = args;
+
+    const carry = (e: string, type?: FormulaRow['type']): FormulaRow => {
+      const r: FormulaRow = { e, d: '' };
+      if (type) r.type = type;
+      if (row.sp) r.sp = row.sp;
+      return r;
+    };
+    // The condition row carries the original description and reference: it is the row a reader
+    // looks at to understand the choice, and an if/for header is where the block group puts them.
+    const head = carry(cond, kind);
+    if (kind === 'if') {
+      if (row.d) head.d = row.d;
+      if (row.ref) head.ref = row.ref;
+    }
+    // The assignment rows produce the results, so display precision belongs on them.
+    const assign = (v: string): FormulaRow => {
+      const r = carry(`${name} = ${v}`);
+      if (row.sd) r.sd = row.sd;
+      return r;
+    };
+
+    const nested = branches(elseVal, 'elseif');
+    return nested
+      ? [head, assign(thenVal), ...nested]
+      : [head, assign(thenVal), carry('', 'else'), assign(elseVal)];
+  };
+
+  const body = branches(row.e.slice(eq + 1).trim(), 'if');
+  if (!body) return null;
+  const end: FormulaRow = { e: '', d: '', type: 'end' };
+  if (row.sp) end.sp = row.sp;
+  return [...body, end];
 }
 
 // ---------------------------------------------------------------------------
@@ -1370,6 +1448,32 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       block.content = JSON.stringify(arr);
       rebuildRows();
       reEvalAllFormulas();
+    },
+
+    /** Whether this row is `x = if(c, a, b)` and so can be turned into if/else rows. */
+    canExpandIf: (rowEl: HTMLElement | null): boolean => {
+      if (!rowEl || inPurchasedPack()) return false;
+      const arr = parseFormulaRows(block.content);
+      const r = arr[getRowIdx(rowEl)];
+      return !!r && !r.lk && expandIfRow(r) !== null;
+    },
+
+    /** Replace the row with the if/else rows it is equivalent to. */
+    expandIf: (rowEl: HTMLElement | null) => {
+      if (!rowEl) return;
+      const arr = parseFormulaRows(block.content);
+      const idx = getRowIdx(rowEl);
+      const rows = arr[idx] ? expandIfRow(arr[idx]) : null;
+      if (!rows) return;
+      // Pushed onto the row undo stack first, so Ctrl+Shift+Z brings the one-liner back — the
+      // expansion is not reversible by re-reading the rows, and an action this large should not
+      // be a one-way door.
+      // deno-lint-ignore no-explicit-any
+      const undo: Array<FormulaRow & { idx?: number }> = (rowsEl as any)._rowUndoStack ?? [];
+      undo.push(Object.assign({}, arr[idx], { idx }));
+      arr.splice(idx, 1, ...rows);
+      block.content = JSON.stringify(arr);
+      ctxRefocus(idx);
     },
 
     /** Whether this row is an author-declared input, and whether it could become one. */

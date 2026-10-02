@@ -21,10 +21,25 @@ The decider is the stamped sheet: a reviewer often has to see _which limit state
 the rows show and the inline form hides. But four rows to express one coefficient is noise. They
 are not competitors.
 
-**Offered and declined: auto-expanding an inline `if()` into rows.** Typing one thing and getting
-four is surprising, cannot be collapsed back, and is impossible when the `if()` is a sub-expression
-— `M_n = if(c, M_p, M_r) * \phi` has nowhere to expand to. If ever wanted, it should be an explicit
-right-click "Expand to if/else rows", offered only when the call is the whole right-hand side.
+**Auto-expanding on entry was declined; the explicit action was built (v2.7.2).** Typing one thing
+and getting five rows is surprising, cannot be collapsed back, and is impossible when the `if()` is
+a sub-expression — `M_n = if(c, M_p, M_r) * \phi` has nowhere to expand to. So it is a right-click
+**"expand if() to rows"**, shown only when `expandIfRow()` says the call is the whole right-hand
+side, and pushed onto the row undo stack so `Ctrl+Shift+Z` brings the one-liner back.
+
+A nested `if` in the ELSE position becomes an `elseif` chain, which is the case the inline form
+stops being readable for at all. The description and reference move to the **condition** row — that
+is the row a reader looks at to understand the choice, and an `if` header is where the block group
+hangs them — while display precision follows the **assignment** rows, which are the ones producing
+results.
+
+⚠️ **The dangerous case is a wrong yes**, not a wrong no: expanding
+`M = if(c, M_p, M_r) * \phi` would silently drop the `* \phi`. The tests are mostly refusals for
+that reason — sub-expression, wrong arity, comparison, control row, input row, unnamed.
+
+It also forced a latent fix: `splitTopLevelCommas` was not quote-aware, so
+`if(c, "Compact, rolled", x)` read as four arguments. Nothing could contain a comma before text
+existed, so it had never mattered — and it affected argument **rendering** as much as expansion.
 
 ### Text: assignable and comparable, not merely displayable
 
