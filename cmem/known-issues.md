@@ -106,11 +106,19 @@ loudly rather than falling through to a default that renders nothing.
 
 ---
 
-## 9. `PX_PER_MM` is imported only to be lint-suppressed
+## 9. `PX_PER_MM` imported only to be lint-suppressed — ALREADY RESOLVED, entry was stale
 
-`state.ts` imports `PX_PER_MM` from `types.ts` under a `// deno-lint-ignore no-unused-vars`. Either it
-should be used or the import (and the suppression) should go. Small, but it is exactly the kind of
-suppression that trains people to ignore the linter.
+**Re-verified 2026-10-02: there is nothing to fix.** `state.ts` no longer imports `PX_PER_MM`, and
+there is no `no-unused-vars` suppression anywhere in it. The constant is genuinely used in two
+places — `src/utils/units.ts` (`mmToPx`, `pxToMm`) and `src/types.ts` (the A4/A3 page sizes).
+
+Kept as a record of the entry being wrong, not of a defect. The lesson is about memory rather than
+code: **this entry survived two audits and a memory pass because nobody checked whether it was still
+true.** A stale open item is worse than no entry — it spends attention on work that is already done
+and, read in passing, suggests the linter is being ignored when it is not. When reviewing open
+items, verify before relaying. The rule is already in
+[`conventions.md`](conventions.md) ("Re-measure before quoting any number"); this extends it from
+numbers to claims.
 
 ---
 
@@ -279,8 +287,37 @@ corruption — it means the pack it wants already exists. Check with
 `git rev-list --objects --all | wc -l` against `git verify-pack -v <pack>.idx`; if the counts match,
 the remaining packs are redundant.
 
-**The real fix is to move the repo to an NTFS volume**, which would retire all three symptoms and the
-`sw.js` build abort with it. Not done — Jon's call.
+### 2026-10-02 — the configuration now travels, and tidying is a task
+
+`.git` had regrown to **125 MB** (429 loose objects × 256 KB ≈ 110 MB of slack; the packed content
+was 4.9 MB). `git repack -ad` **succeeded** this time — 125 MB → 19 MB, 429 loose objects → 0, one
+pack, `git fsck --connectivity-only` clean. So the rename failure is intermittent, not permanent:
+it depends on whether git currently has the target pack mapped.
+
+Jon's constraint, stated 2026-10-02: **the repo is meant to stay portable**, so moving to NTFS is
+not the answer — exFAT is what lets the drive be read anywhere. The fix is to make the workaround
+travel with the repo instead of living in one machine's config:
+
+| Task                  | What it does                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `deno task setup:git` | One-time per machine: adds `safe.directory` for the repo's own path, sets `maintenance.auto false` + `gc.auto 0` |
+| `deno task git:tidy`  | Occasional: `prune-packed`, `repack -ad`, then `fsck` — reports loose/pack counts before and after               |
+
+Both are idempotent and report what they actually changed rather than claiming success.
+
+⚠️ **`safe.directory` cannot be set repo-locally** — git deliberately ignores a repo-local value,
+since a repo you do not trust must not be able to declare itself trusted. That is precisely why the
+knowledge had to go into a tracked _script_ rather than `.git/config`: a fresh machine or a fresh
+clone gets "dubious ownership" on every command until someone remembers the incantation, and now
+they do not have to. `setup-git.ts` compares paths case-insensitively, because Windows hands out the
+drive letter in either case and an entry differing only by `D:` vs `d:` does not match — which is
+how the global list grew duplicate entries for other repos.
+
+`git:tidy` treats a repack failure as expected-and-survivable rather than an error: it says so,
+points here, and notes that everything reachable is also on GitHub.
+
+**Moving to NTFS would still retire all three symptoms** and the `sw.js` build abort with them, but
+it is explicitly not the chosen path — portability is the requirement.
 
 ---
 

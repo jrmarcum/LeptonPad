@@ -2,20 +2,22 @@
 
 ## Task graph (`deno.json`)
 
-| Task                     | What it runs                                                                              |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `deno task dev`          | `sync:version` → `build:wasm` → `dev.ts` — hot-reload server at `http://localhost:5173`   |
-| `deno task build`        | `sync:version` → `build:wasm` → `build.ts` — production `dist/`                           |
-| `deno task build:wasm`   | `deno run -A jsr:@jrmarcum/wasmtk modc solver/solver.ts -n dist/solver.wasm`              |
-| `deno task sync:version` | `scripts/sync-version.ts` — see below                                                     |
-| `deno task check`        | `deno fmt && deno lint`                                                                   |
-| `deno task api:dev`      | Runs `api/main.ts` locally on :8000, reading `.env.api`                                   |
-| `deno task db:check`     | 10-assertion regression test of the entitlement chain against Neon — see `testing.md`     |
-| `deno task promote`      | Lists Clerk accounts + roles. `promote <email> [role]` grants one. Admin tool, local only |
-| `deno task serve`        | `serve.ts` — serve an existing `dist/` at 5173                                            |
-| `deno task serve:prod`   | `main.ts` — static server for Deno Deploy                                                 |
-| `deno task install`      | build + `deno install -g -n leptonpad`                                                    |
-| `deno task compile`      | `deno compile` → standalone `leptonpad` binary                                            |
+| Task                     | What it runs                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `deno task dev`          | `sync:version` → `build:wasm` → `dev.ts` — hot-reload server at `http://localhost:5173`    |
+| `deno task build`        | `sync:version` → `build:wasm` → `build.ts` — production `dist/`                            |
+| `deno task build:wasm`   | `deno run -A jsr:@jrmarcum/wasmtk modc solver/solver.ts -n dist/solver.wasm`               |
+| `deno task sync:version` | `scripts/sync-version.ts` — see below                                                      |
+| `deno task check`        | `deno fmt && deno lint && deno task test`                                                  |
+| `deno task setup:git`    | One-time per machine — `safe.directory` + auto-maintenance off. See `known-issues.md` § 15 |
+| `deno task git:tidy`     | Occasional — `prune-packed`, `repack -ad`, `fsck`. Replaces the auto-gc exFAT cannot run   |
+| `deno task api:dev`      | Runs `api/main.ts` locally on :8000, reading `.env.api`                                    |
+| `deno task db:check`     | 10-assertion regression test of the entitlement chain against Neon — see `testing.md`      |
+| `deno task promote`      | Lists Clerk accounts + roles. `promote <email> [role]` grants one. Admin tool, local only  |
+| `deno task serve`        | `serve.ts` — serve an existing `dist/` at 5173                                             |
+| `deno task serve:prod`   | `main.ts` — static server for Deno Deploy                                                  |
+| `deno task install`      | build + `deno install -g -n leptonpad`                                                     |
+| `deno task compile`      | `deno compile` → standalone `leptonpad` binary                                             |
 
 Formatting is enforced: 2-space indent, **single quotes**, semicolons, `lineWidth: 100`,
 `proseWrap: preserve`, `dist/` excluded. Lint uses the `recommended` tag set. **Deno treats unused

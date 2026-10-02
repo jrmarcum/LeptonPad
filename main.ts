@@ -54,5 +54,18 @@ Deno.serve((req) => {
     });
   }
 
+  // As text/plain, not text/markdown. serveDir infers the latter from the extension and browsers
+  // DOWNLOAD that rather than displaying it — so the sidebar's "Third-party notices" link would
+  // drop a file in Downloads instead of showing the notice. Compliance is satisfied either way,
+  // since the file ships with the distribution; this is about the link doing what it looks like.
+  if (pathname === '/THIRD_PARTY_NOTICES.md') {
+    return serveDir(req, { fsRoot: 'dist', quiet: true }).then((res) => {
+      if (!res.ok) return res;
+      const headers = new Headers(res.headers);
+      headers.set('content-type', 'text/plain; charset=utf-8');
+      return new Response(res.body, { status: res.status, headers });
+    });
+  }
+
   return serveDir(req, { fsRoot: 'dist', quiet: true });
 });

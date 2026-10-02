@@ -11,7 +11,9 @@ Practical consequences:
 - **No copyleft dependencies.** Anything vendored or bundled must be permissive (MIT / BSD /
   Apache-2.0). A GPL or AGPL dependency in the browser bundle is not an option.
 - **Attribution obligations still apply.** MIT and Apache-2.0 both require the licence text to travel
-  with _distributed_ copies. `dist/` is the distribution — see the open question below.
+  with _distributed_ copies, and **`dist/` is the distribution** — the deployed site is a distributed
+  copy, so a notices file that exists only in the repo does not discharge the obligation. Shipped
+  since 2026-10-02; see the delivery table below.
 - **The source is not public**, so a "compliant repository" claim is worth less here than in an open
   project. What matters is what ships to a browser.
 
@@ -33,9 +35,28 @@ and its replacement `@clerk/clerk-js` **is** listed, along with `@clerk/backend`
 `@neon/serverless` for the API. All MIT, all verified from the packages themselves rather than
 assumed.
 
-⚠️ **One question remains open:** `THIRD_PARTY_NOTICES.md` is not copied into `dist/`, so decide how the
-notice reaches someone who only receives the deployed site (a link in the app's about/info panel is
-the usual answer for a web app).
+✅ **The delivery question is closed too (2026-10-02, v2.5.3).** `THIRD_PARTY_NOTICES.md` now
+actually reaches the people the licence is about:
+
+| Step                                | Where                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Copied into the distribution        | `build.ts` → `dist/THIRD_PARTY_NOTICES.md`                                                     |
+| Reachable offline                   | `public/sw.js` `PRECACHE`                                                                      |
+| Visible to a user                   | Sidebar link "Third-party notices", beside the licence line (`renderSidebar` in `src/main.ts`) |
+| Served so a browser **displays** it | `main.ts` forces `text/plain` for that one path                                                |
+
+Two details worth keeping:
+
+- **The link is relative (`/THIRD_PARTY_NOTICES.md`), not a GitHub URL.** The obligation is that the
+  notice travels with the distributed copy; a link off to a repository someone may not be able to
+  reach does not discharge it, and would break for an offline PWA install.
+- **`serveDir` infers `text/markdown`, and browsers download that.** Left alone, clicking the link
+  would have dropped a file into Downloads — compliant, since the file ships regardless, but not a
+  notice anyone would read. One explicit route in `main.ts` sets `text/plain`.
+
+⚠️ **When adding any dependency that reaches the browser bundle, add it to the ledger in the same
+commit.** That is the gap that bit once already (`@supabase/supabase-js`, closed 2026-08-13) and the
+shipping path above does nothing to catch a component that was never listed.
 
 **A compliant repository is not a compliant distribution.** Whoever loads the deployed page never sees
 the repo. If a licence obligation attaches to bundled code, the notice has to be reachable from the

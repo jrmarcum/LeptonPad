@@ -573,6 +573,18 @@ function renderSidebar() {
   licenseLink.className = 'sidebar-license';
   container.appendChild(licenseLink);
 
+  // LeptonPad itself is proprietary, but `@clerk/clerk-js` and `@std/*` are bundled into main.js
+  // and are MIT, which requires their notice to travel with distributed copies. The deployed site
+  // IS a distributed copy, so the notices file is shipped into dist/ and linked from here —
+  // relative, not a GitHub URL, so it resolves from the user's own install and offline.
+  const noticesLink = document.createElement('a');
+  noticesLink.href = '/THIRD_PARTY_NOTICES.md';
+  noticesLink.target = '_blank';
+  noticesLink.rel = 'noopener noreferrer';
+  noticesLink.textContent = 'Third-party notices';
+  noticesLink.className = 'sidebar-license';
+  container.appendChild(noticesLink);
+
   // deno-lint-ignore no-explicit-any
   const version = (globalThis as any).__LP_CONFIG__?.version ?? '';
   if (version) {

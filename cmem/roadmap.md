@@ -140,10 +140,16 @@ plausible-looking wrong answer rather than a crash.
 it shipped in v2.4.0. This item used to read as the one thing blocking live sign-in; it no longer
 blocks anything. — [`auth-and-licensing.md`](auth-and-licensing.md)
 
-**2. Decide how third-party notices reach someone who only receives the deployed site.**
-`THIRD_PARTY_NOTICES.md` is complete and correct but is not copied into `dist/`; `@clerk/clerk-js` is
-bundled and MIT requires its notice to travel with distributed copies. A link in an about panel is
-the usual answer. — [`licensing.md`](licensing.md)
+**2. ~~Decide how third-party notices reach someone who only receives the deployed site.~~ DONE
+2026-10-02 (v2.5.3).** `THIRD_PARTY_NOTICES.md` is now copied into `dist/` by `build.ts`, precached
+by the service worker so it resolves offline, and linked from the sidebar beside the existing
+licence line as **"Third-party notices"**. The link is relative rather than a GitHub URL, so it
+resolves from the user's own install.
+
+`main.ts` serves that one path as `text/plain`: `serveDir` infers `text/markdown` from the
+extension and browsers **download** that instead of displaying it, so the link would have dropped a
+file in Downloads rather than showing the notice. Compliance was satisfied either way once the file
+shipped — this was about the link doing what it appears to do. — [`licensing.md`](licensing.md)
 
 **3. ~~Tests for `expr.ts`.~~ DONE 2026-09-23** — `tests/`, 97 steps, wired into `deno task check`.
 It paid for itself immediately, exposing a dropped unit tag on function definitions and then

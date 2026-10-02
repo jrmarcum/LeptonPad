@@ -21,6 +21,17 @@ The migration was completed and the Supabase code removed the same day: `src/bac
 has been rewritten to the migrated state** — where Supabase still appears, it is deliberate history
 explaining why something is shaped the way it is, never a live description.
 
+✅ **Re-verified 2026-10-02, by grep rather than by belief.** There is no `supabase/` directory;
+`src/backends/` contains only `neon-clerk.ts`; `deno.lock` has **zero** Supabase entries, so nothing
+transitively depends on it either. Exactly two mentions survive in code, both comments explaining
+why a seam exists — `db/schema.sql:98` (Supabase's `auth.users` trigger guaranteed a row; Clerk has
+no equivalent, which is why `get_my_role` must not early-return) and `src/backend.ts:12` (the
+vendor-neutral `Backend` interface is what made the migration a one-file change). **Keep both** —
+they are the reason the code is shaped as it is, and deleting them would invite someone to
+"simplify" the thing that paid off. The only Supabase residue that is not deliberate is the old
+publishable anon key in git history, which was public by design and needs no rotation
+([`known-issues.md`](known-issues.md) § 1).
+
 **The one rule that replaced RLS:** the user id comes from the verified Clerk JWT and from nowhere
 else. Full account: [`backend-migration.md`](backend-migration.md).
 

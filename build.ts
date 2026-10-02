@@ -19,6 +19,11 @@ await Promise.all([
   Deno.copyFile('public/sw.js', 'dist/sw.js'),
   Deno.copyFile('public/index.html', 'dist/index.html'),
   Deno.copyFile('public/LeptonPadLogo.png', 'dist/LeptonPadLogo.png'),
+  // Shipped because it has to be. `@clerk/clerk-js` and `@std/*` are MIT, and MIT requires the
+  // notice to travel with distributed copies — the deployed site IS a distributed copy, so a
+  // notices file that only exists in the repo does not discharge it. Linked from the sidebar's
+  // About line and precached by the service worker so it resolves offline too.
+  Deno.copyFile('THIRD_PARTY_NOTICES.md', 'dist/THIRD_PARTY_NOTICES.md'),
   // sample_project.json is NOT shipped: nothing fetches it, index.html does not reference it, and
   // it is not in the service worker's precache list. `newFromTemplate()` opens a file picker
   // rather than loading a bundled sample. The file stays in public/ as a format reference.

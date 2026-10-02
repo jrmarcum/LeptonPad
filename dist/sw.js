@@ -1,4 +1,4 @@
-const CACHE = 'leptonpad-v2.5.2';
+const CACHE = 'leptonpad-v2.5.3';
 const PRECACHE = [
   '/',
   '/main.js',
@@ -7,6 +7,9 @@ const PRECACHE = [
   '/config.js',
   '/manifest.webmanifest',
   '/LeptonPadLogo.png',
+  // Precached so the MIT notices for the bundled dependencies are reachable offline. A licence
+  // notice that only resolves when the network is up is not reliably travelling with the copy.
+  '/THIRD_PARTY_NOTICES.md',
 ];
 
 self.addEventListener('install', (e) => {
