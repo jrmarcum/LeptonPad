@@ -268,32 +268,14 @@ function renderMatrixLiteral(s: string): string | null {
 const POSTFIX_FN_SUP: Record<string, string> = { transpose: 'T', inv: '−1' };
 
 /**
- * `transpose(X)` → Xᵀ, `inv(X)` → X⁻¹. X is shown bare when it is a plain name or a matrix literal,
- * otherwise in parentheses — (A × B)ᵀ — so the superscript clearly applies to the whole argument.
- * Returns null unless `s` is exactly one such call with one argument.
+ * If `s` is exactly one call — a name, a parenthesised argument list, and nothing after the closing
+ * paren — return the name (backslash included, since `\sqrt` is distinguished by it) and the
+ * arguments. Null otherwise, including when any argument is empty.
+ *
+ * The depth scan was written out three times before this existed, once in each call renderer. Two
+ * copies of the same logic are usually wrong the same way, so there is now one.
  */
-function renderPostfixFn(s: string): string | null {
-  const m = s.match(/^\\?(transpose|inv)\s*\(/);
-  if (!m || !s.endsWith(')')) return null;
-  let depth = 0;
-  for (let i = m[0].length - 1; i < s.length; i++) {
-    if (s[i] === '(') depth++;
-    else if (s[i] === ')' && --depth === 0 && i !== s.length - 1) return null;
-  }
-  const args = splitTopLevelCommas(s.slice(m[0].length, -1));
-  if (args.length !== 1 || !args[0]) return null;
-  const arg = args[0];
-  const simple = /^\\?[A-Za-z][A-Za-z0-9_\\]*$/.test(arg) || isBraceGroup(arg);
-  const body = simple ? renderExpr(arg) : `(${renderExpr(arg)})`;
-  return `${body}<sup>${POSTFIX_FN_SUP[m[1]]}</sup>`;
-}
-
-/**
- * Any other call — `solve(K, F)`, `det(A)`, `min(a, b)`, a user's `f(x)` — with each argument
- * rendered, so a matrix literal inside shows as a grid and units/Greek inside arguments come out.
- * `\sqrt(x)` keeps its √. Returns null unless `s` is exactly one call.
- */
-function renderCall(s: string): string | null {
+function parseSingleCall(s: string): { name: string; args: string[] } | null {
   const m = s.match(/^(\\?[A-Za-z_][A-Za-z0-9_]*)\s*\(/);
   if (!m || !s.endsWith(')')) return null;
   let depth = 0;
@@ -304,8 +286,60 @@ function renderCall(s: string): string | null {
   const inner = s.slice(m[0].length, -1);
   const args = inner.trim() ? splitTopLevelCommas(inner) : [];
   if (args.some((a) => !a)) return null;
+  return { name: m[1], args };
+}
+
+/** A call's subject shown bare when it is a plain name or a matrix literal, else parenthesised. */
+function callSubject(arg: string): string {
+  const simple = /^\\?[A-Za-z][A-Za-z0-9_\\]*$/.test(arg) || isBraceGroup(arg);
+  return simple ? renderExpr(arg) : `(${renderExpr(arg)})`;
+}
+
+/**
+ * `transpose(X)` → Xᵀ, `inv(X)` → X⁻¹. X is parenthesised unless it is a bare name or a matrix
+ * literal — (A × B)ᵀ — so the superscript clearly applies to the whole argument.
+ * Returns null unless `s` is exactly one such call with one argument.
+ */
+function renderPostfixFn(s: string): string | null {
+  const call = parseSingleCall(s);
+  if (!call || call.args.length !== 1) return null;
+  const sup = POSTFIX_FN_SUP[call.name.replace(/^\\/, '')];
+  if (!sup) return null;
+  return `${callSubject(call.args[0])}<sup>${sup}</sup>`;
+}
+
+/**
+ * `el(A, i, j)` → A with its indices subscripted: K₁,₂.
+ *
+ * Why this exists: `el(K, 1, 2)` rendered literally, so it read as code in the middle of an
+ * otherwise typeset calculation — and on a stamped sheet that is exactly where it gets noticed.
+ * The **name** cannot be improved, which is why only the display is: `A(1,2)` is indistinguishable
+ * from a function call, `A[1,2]` collides with unit syntax, and `A_12` with subscripted variable
+ * names. So `el` stays what you type and K₁,₂ is what you see.
+ *
+ * Indices run through `renderExpr`, so `el(u, i+1, 1)` subscripts the expression rather than
+ * printing it raw. Like `transpose`/`inv` above, a sheet's own three-argument function named `el`
+ * would also render this way — the renderer has no access to `fnScope`. The evaluator resolves that
+ * collision in the user's favour; the display cannot, and a user function called `el` taking a
+ * matrix and two indices is not a case worth more machinery than this note.
+ */
+function renderElementFn(s: string): string | null {
+  const call = parseSingleCall(s);
+  if (!call || call.name.replace(/^\\/, '') !== 'el' || call.args.length !== 3) return null;
+  const [mat, i, j] = call.args;
+  return `${callSubject(mat)}<sub>${renderExpr(i)},${renderExpr(j)}</sub>`;
+}
+
+/**
+ * Any other call — `solve(K, F)`, `det(A)`, `min(a, b)`, a user's `f(x)` — with each argument
+ * rendered, so a matrix literal inside shows as a grid and units/Greek inside arguments come out.
+ * `\sqrt(x)` keeps its √. Returns null unless `s` is exactly one call.
+ */
+function renderCall(s: string): string | null {
+  const call = parseSingleCall(s);
+  if (!call) return null;
+  const { name, args } = call;
   const body = args.map(renderExpr).join(', ');
-  const name = m[1];
   if (name === '\\sqrt') return `√(${body})`; // bare `sqrt(` stays text — the backslash rule
   // exp(x) is how Euler's number is written (there is no `\e`); draw it the way it is read.
   if (name === 'exp' && args.length === 1) return `e<sup>${renderExpr(args[0])}</sup>`;
@@ -337,7 +371,8 @@ function renderPower(s: string): string | null {
   const trailing = rest.slice(end).trim();
   if (!base || !exp) return null;
   const baseHtml = renderBigOp(base) ?? renderMatrixLiteral(base) ?? renderPostfixFn(base) ??
-    renderCall(base) ?? (stripOuter(base) !== base ? `(${renderExpr(stripOuter(base))})` : null) ??
+    renderElementFn(base) ?? renderCall(base) ??
+    (stripOuter(base) !== base ? `(${renderExpr(stripOuter(base))})` : null) ??
     transformPiece(base);
   return `${baseHtml}<sup>${renderExpr(exp)}</sup>` +
     (trailing ? ' ' + transformPiece(trailing) : '');
@@ -417,7 +452,8 @@ function renderBigOp(s: string): string | null {
 export function renderExpr(raw: string): string {
   const s = stripOuter(raw.trim());
   if (!s) return '';
-  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s) ?? renderPostfixFn(s) ?? renderCall(s);
+  const bigOp = renderBigOp(s) ?? renderMatrixLiteral(s) ?? renderPostfixFn(s) ??
+    renderElementFn(s) ?? renderCall(s);
   if (bigOp !== null) return bigOp;
 
   // A comparison splits first, so each side renders on its own: `a/b >= c` is a fraction ≥ c, not
@@ -501,7 +537,8 @@ export function renderExpr(raw: string): string {
       const stripped = stripOuter(piece);
       if (stripped !== piece) return '(' + renderExpr(stripped) + ')';
       return renderBigOp(piece) ?? renderMatrixLiteral(piece) ?? renderPostfixFn(piece) ??
-        renderCall(piece) ?? renderPower(piece) ?? transformPiece(piece);
+        renderElementFn(piece) ?? renderCall(piece) ?? renderPower(piece) ??
+        transformPiece(piece);
     };
     let html = '';
     let start = 0;

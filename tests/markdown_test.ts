@@ -90,6 +90,20 @@ Deno.test('expressions', async (t) => {
     assertStringIncludes(prettifyExpr('x = det(K_1)'), '<sub>1</sub>');
   });
 
+  await t.step('el() renders as a subscripted element, not as a call', () => {
+    // `el(K, 1, 2)` printed literally read as code in the middle of typeset maths. The name has to
+    // stay — `K(1,2)` is a call, `K[1,2]` is unit syntax, `K_12` is a subscripted variable — so the
+    // display is what changed. Added 2026-10-02.
+    assertStringIncludes(prettifyExpr('x = el(K, 1, 2)'), '<sub>1,2</sub>');
+    assertEquals(prettifyExpr('x = el(K, 1, 2)').includes('el('), false);
+    // Indices go through the expression renderer rather than being printed raw.
+    assertStringIncludes(prettifyExpr('x = el(u, i_1, 1)'), '<sub>i<sub>1</sub>,1</sub>');
+    // A compound subject is parenthesised, so the subscript clearly applies to all of it.
+    assertStringIncludes(prettifyExpr('x = el(solve(K, F), 1, 1)'), '(');
+    // Wrong arity is left to the generic call renderer — it is a user function, not element access.
+    assertStringIncludes(prettifyExpr('x = el(K, 1)'), 'el(');
+  });
+
   await t.step('an unclosed bracket does not blow the stack (the 2.3.11 crash)', () => {
     assertEquals(typeof prettifyExpr('[]('), 'string');
     assertEquals(typeof prettifyExpr('x = a['), 'string');

@@ -241,7 +241,27 @@ Implementation: `MATRIX_FNS` in `expr.ts` is dispatched in `atom()` **before** t
     fractions come out. `\sqrt(` keeps its √; bare `sqrt(` stays text, per the backslash rule.
 - Element access (v2.3.10): **`el(A, i, j)`**, 1-based, returning that element with its own unit —
   `el(u, 1, 1)` is a displacement usable in ordinary formulas. Row/column must be whole, unitless and
-  in range; each failure says which. Named for the functions-only convention; rename if Jon prefers.
+  in range; each failure says which.
+
+  **The name is forced, and that is settled (2026-10-02).** Every notation an engineer reaches for
+  first is already taken: `A(1,2)` is indistinguishable from a function call, `A[1,2]` collides with
+  unit syntax, `A_12` with subscripted variable names. So `el` stays — but the **display** was the
+  real complaint, since `el(K, 1, 2)` printed literally read as code in the middle of otherwise
+  typeset maths, which on a stamped sheet is exactly where it gets noticed. `renderElementFn()` in
+  `markdown.ts` now draws it as **K₁,₂**: indices run through `renderExpr` (so `el(u, i_1, 1)`
+  subscripts properly) and a compound subject is parenthesised. Dispatched before `renderCall` at all
+  three call sites. Fixing the display rather than the name also avoided orphaning any sheet that
+  already calls `el` — the same trap as the `mathwasm-custom-modules` key
+  ([`known-issues.md`](known-issues.md) § 5).
+
+  Known limit, accepted: a sheet's own three-argument function named `el` renders as a subscript too,
+  because the renderer has no access to `fnScope`. The evaluator resolves that collision in the
+  user's favour; the display cannot. `transpose`/`inv` have had the identical limitation since
+  v2.3.6.
+
+  Refactor that came with it: the "is `s` exactly one call?" depth scan existed in **three** copies,
+  one per call renderer. Now one `parseSingleCall()` plus a shared `callSubject()`. Two copies of the
+  same logic are usually wrong the same way — [`conventions.md`](conventions.md).
 - Exponent display (v2.3.10): `renderPower()` raises **any** exponent — `\e^(-x/2)`, `x^(2*n)`,
   `2^-1`, `2^3^2` (nested), `(a+b)^2` — not just a digit or single letter. A `[unit]` tag after the
   exponent stays out of it, and `renderExpr`'s additive split now skips a `+`/`-` straight after `^`
