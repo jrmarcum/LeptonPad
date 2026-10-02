@@ -777,6 +777,9 @@ function splitOnce(el: HTMLElement): string | null {
   const avail = pageBottomFor(top) - top;
   const at = splitPointOf(el, block, avail);
   if (at <= 0) return null;
+  // Where the block's content ENDED before the cut. Everything below it is positioned relative to
+  // this, so it is what the shift below is measured against — captured now, before the DOM shrinks.
+  const prevBottom = top + el.offsetHeight;
 
   let movedContent: string;
   if (block.type === 'text') {
@@ -826,21 +829,29 @@ function splitOnce(el: HTMLElement): string | null {
   // GRID_SIZE is added so the blocks end up a square apart rather than flush.
   const copyEl = document.getElementById(copy.id);
   if (copyEl) {
-    const needed = newTop + copyEl.offsetHeight + GRID_SIZE;
-    // Only disturb the page when something is actually in the way. Shifting unconditionally would
-    // push content — and possibly add a page — every time a split happened under empty space.
-    const collides = state.blocks.some((b) => {
-      if (b.id === copy.id || b.parentSectionId) return false;
-      const other = document.getElementById(b.id);
-      if (!other) return false;
-      const oTop = parseInt(other.style.top);
-      return Number.isFinite(oTop) && oTop >= newTop && oTop < needed;
-    });
-    if (collides) {
-      const delta = Math.ceil((copyEl.offsetHeight + GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
-      // Everything below moves as a unit, which preserves the spacing the user arranged — the same
-      // "insert space" behaviour Shift+Enter already uses.
-      shiftBlocksVertical(newTop, delta, copy.id);
+    const copyBottom = newTop + copyEl.offsetHeight;
+    // The content used to end at `prevBottom` and now ends at `copyBottom`, so everything that
+    // followed moves by the DIFFERENCE. That preserves each following block's gap from the end of
+    // the split block exactly, which is the point: shifting by the continuation's whole height
+    // instead pushed a block that was already well down the page onto the next one
+    // (reported 2026-10-02 as "aggressive").
+    const relDelta = copyBottom - prevBottom;
+
+    const followingTops = state.blocks
+      .filter((b) => b.id !== copy.id && b.id !== block.id && !b.parentSectionId)
+      .map((b) => parseInt(document.getElementById(b.id)?.style.top ?? ''))
+      .filter((t) => Number.isFinite(t) && t >= newTop);
+
+    if (followingTops.length) {
+      // A block the OLD block was already overlapping has a negative original gap, so preserving
+      // it would preserve the overlap. In that case clear the continuation by one square instead.
+      const clearance = copyBottom + GRID_SIZE - Math.min(...followingTops);
+      const raw = clearance > 0 ? Math.max(relDelta, clearance) : relDelta;
+      // A whole number of squares, away from zero, so everything below stays on the lines.
+      const delta = raw >= 0
+        ? Math.ceil(raw / GRID_SIZE) * GRID_SIZE
+        : Math.floor(raw / GRID_SIZE) * GRID_SIZE;
+      if (delta !== 0) shiftBlocksVertical(newTop, delta, copy.id);
     }
   }
 

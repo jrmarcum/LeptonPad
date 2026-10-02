@@ -206,10 +206,18 @@ the next page"_). The margin guide draws a `GRID_SIZE` background starting at `m
   may sit. **Not the bottom bound.** v2.6.4 used it as one, and that was a category error — the
   lined box extends past the final line (lines 136…1016, box to 1032), and content may fill to the
   box. A block's _bottom_ is bounded by `pageWorkArea().bottom`; a block's _top_ by the lines.
-- `snapToPageGrid` is floored at `firstGridLine` **and capped at `lastGridLine`**, overflowing to the
-  next page's first line beyond that. Uncapped, a top could land in the unlined strip or in the page
-  break, where the space remaining on the page is zero or negative — so the split finds nothing to
-  move and the overlap becomes permanent with no option offered.
+- `snapToPageGrid` clamps to `[firstGridLine, lastGridLine]` **of the page decided once, from its
+  input**. 🔑 **Snapping must never relocate a block** — it is the reposition path as well as the
+  placement path. Two versions violated that and both produced the same visible symptom, a block
+  parked at the bottom-left of the canvas off the lines (reported 2026-10-02):
+  - v2.6.7 sent an over-run to `firstGridLine(pi + 1)`, copying `moveGridCursor`. Right for a
+    cursor the user is watching; wrong here, because the target page might not exist yet, and
+    `updateMarginGuide`'s `CANVAS_H - offsetHeight` clamp then caught it.
+  - the floor called `clearTitleBlock(snapped)`, which **re-derives the page from the value handed
+    to it** — so rounding up across a page boundary got floored onto the NEXT page's content top
+    before the cap could pull it back. The quieter of the two, and the one that actually bit.
+    **A helper that recomputes context from its argument cannot be used inside a function that has
+    already fixed that context.**
 - `snapToPageGrid(top)` — snaps **per page**, because **`PAGE_H` is not a grid multiple either**
   (US Letter is 1056 px). `Canvas.snap()` against the canvas as a whole lands between the lines of
   any page but the first, drifting further down the document. `addBlock` now uses this.
@@ -290,8 +298,14 @@ Four details that make it behave:
 - **Measured after render.** The continuation's height is its content's; it cannot be predicted.
 - **`exceptId`** — the continuation sits exactly at the threshold, so without excluding it it would
   shift itself out of the gap it just made.
-- **Delta rounded up to a whole number of grid squares**, plus one square of clearance, so
-  everything below stays on the lines and the blocks end up a square apart rather than flush.
+- **Delta = `copyBottom − prevBottom`**, the difference between where the content used to end and
+  where it now ends — so each following block keeps its exact gap from the end of the split block.
+  ⚠️ v2.6.10 shifted by the continuation's whole HEIGHT instead, which pushed a block that was
+  already well down the page onto the next one (reported 2026-10-02 as "aggressive"). A block the
+  old block was already overlapping has a _negative_ original gap, so preserving it would preserve
+  the overlap; that case falls back to clearing the continuation by one square.
+- **Rounded to a whole number of grid squares, away from zero**, so everything below stays on the
+  lines. The delta can legitimately be negative — a short continuation pulls the rest back up.
 - **Only when something actually collides.** Shifting unconditionally would push content down — and
   possibly add a page — every time a split happened under empty space.
 

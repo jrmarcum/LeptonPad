@@ -171,18 +171,24 @@ export function snapToPageGrid(top: number): number {
   const pi = pageIndexOf(top);
   const go = gridOriginOf(pi);
   const snapped = go + Math.round((top - go) / GRID_SIZE) * GRID_SIZE;
-  // The floor IS clearTitleBlock — since the grid origin became the work-area top, "below the
-  // title block" and "on the first line" are the same position. Calling it rather than repeating
-  // the comparison keeps that an identity instead of two expressions that have to stay in step.
-  const floored = clearTitleBlock(snapped);
-  if (floored !== snapped) return floored;
-  // Capped as well as floored. Without this a top could land past the last line — in the unlined
-  // strip below it, or in the page break itself — and a block there is unfixable: the space left
-  // on its page is zero or negative, so the split computes nothing to move and the overlap becomes
-  // permanent with no option offered. Overflowing to the next page's first line is what the
-  // keyboard cursor has always done in the same situation.
-  const last = lastGridLine(pi);
-  return snapped > last ? firstGridLine(pi + 1) : snapped;
+  // Clamped to the lines of page `pi` — the page decided ONCE, at the top, from the input.
+  //
+  // **Snapping must never relocate a block.** Two ways it used to:
+  //
+  //  - v2.6.7 sent an over-run to `firstGridLine(pi + 1)`, copying what the keyboard cursor does.
+  //    Right for a cursor the user is watching, wrong here, because this is also the REPOSITION
+  //    path: a block dropped low on the last page went to a page that did not exist yet, and
+  //    `updateMarginGuide`'s `CANVAS_H - offsetHeight` clamp then parked it at the bottom of the
+  //    canvas, off the lines.
+  //  - the floor called `clearTitleBlock(snapped)`, which re-derives the page from the value
+  //    handed to it. Rounding up across a page boundary therefore got floored onto the NEXT
+  //    page's content top before the cap above could pull it back — the same relocation by a
+  //    quieter route, and the one that actually produced the "always placed at the lower left
+  //    corner of the grid" report of 2026-10-02.
+  //
+  // Both are gone: one clamp, one page, computed from `pi` alone. `moveGridCursor` keeps the
+  // page-advancing behaviour, where advancing is a deliberate choice and the user can see it.
+  return Math.min(Math.max(snapped, firstGridLine(pi)), lastGridLine(pi));
 }
 
 // Setters for `let` exports that external modules need to reassign

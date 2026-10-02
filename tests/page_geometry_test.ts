@@ -143,16 +143,22 @@ Deno.test('page geometry and the title block', async (t) => {
   });
 
   await t.step(
-    'a top past the last line moves to the next page, it does not stay in the gap',
+    'a top past the last line is clamped to it, NOT moved to another page',
     () => {
-      // The lined box ends 8 px below the final line (lines 24…1024, box to 1032), and the page break
-      // follows. A top left in that strip is UNFIXABLE: zero or negative space remains on its page, so
-      // the split finds nothing to move and the overlap is permanent with no option offered.
+      // v2.6.7 sent an over-run to the next page's first line, copying moveGridCursor. Right for a
+      // cursor the user is watching; wrong here, because snapToPageGrid is also the REPOSITION
+      // path. A block dropped low on the last page was sent to a page that did not exist yet, and
+      // updateMarginGuide's `CANVAS_H - offsetHeight` clamp then parked it at the bottom of the
+      // canvas, off the lines — reported 2026-10-02 as always landing at the lower-left corner.
+      // **Snapping must never relocate a block.** Only the cursor advances pages.
       setTitleBlockEnabled(false);
       const last = lastGridLine(0);
       assertEquals(snapToPageGrid(last), last); // on the last line: stays
-      assertEquals(snapToPageGrid(last + GRID_SIZE), firstGridLine(1)); // past it: next page
-      assertEquals(snapToPageGrid(PAGE_H - 2), firstGridLine(1)); // inside the page break itself
+      assertEquals(snapToPageGrid(last + GRID_SIZE), last); // past it: clamped back
+      assertEquals(snapToPageGrid(PAGE_H - 2), last); // in the unlined strip: still page 0
+      // The page of the RESULT must be the page it was asked about, in both directions.
+      assertEquals(pageIndexOf(snapToPageGrid(PAGE_H - 2)), 0);
+      assertEquals(pageIndexOf(snapToPageGrid(PAGE_H + margins.top + 100)), 1);
     },
   );
 
