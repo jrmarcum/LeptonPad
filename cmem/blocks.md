@@ -278,6 +278,27 @@ now the same for the text block also?"_, and until then the answer was no).
 
 Both paths share the budget calculation: rects relative to the block, minus `chromeBelow`.
 
+### A split makes room for its continuation (v2.6.10)
+
+The continuation was placed at the next page's first line **on top of whatever was already there** —
+so a split could hide a block instead of relocating it (reported 2026-10-02). It now calls the
+existing `shiftBlocksVertical()`, the same "insert space" operation Shift+Enter uses, so everything
+below moves down as a unit and the spacing the user arranged is preserved.
+
+Four details that make it behave:
+
+- **Measured after render.** The continuation's height is its content's; it cannot be predicted.
+- **`exceptId`** — the continuation sits exactly at the threshold, so without excluding it it would
+  shift itself out of the gap it just made.
+- **Delta rounded up to a whole number of grid squares**, plus one square of clearance, so
+  everything below stays on the lines and the blocks end up a square apart rather than flush.
+- **Only when something actually collides.** Shifting unconditionally would push content down — and
+  possibly add a page — every time a split happened under empty space.
+
+A block pushed down may itself end up overflowing. It is **marked, not auto-split**: the worklist
+covers the blocks the split created, not bystanders it moved, which keeps "marker, not modal"
+intact. `placeBlock`'s snap floors anything shifted into a title block back out of it.
+
 `rowDepths()` is exported and the closure inside `buildFormulaBlock` now delegates to it — it was a
 byte-identical second copy, and the split needed the same calculation.
 

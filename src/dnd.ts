@@ -137,9 +137,12 @@ export function deleteBlock(el: HTMLElement) {
 // Title blocks are pinned to the top of their page and must never move — they carry the `.block`
 // class, so without this guard Shift+Enter pushed page 2+ title blocks down one grid square per
 // press. Section children are positioned relative to their section and move with it.
-export function shiftBlocksVertical(thresholdY: number, delta: number) {
+export function shiftBlocksVertical(thresholdY: number, delta: number, exceptId?: string) {
   for (const el of canvas.domElement.querySelectorAll<HTMLElement>('.block')) {
     if (el.classList.contains('title-block') || childToSection.has(el.id)) continue;
+    // `exceptId` is the block the space is being made FOR. It sits at the threshold, so without
+    // this it would shift itself out of the gap it just created.
+    if (exceptId && el.id === exceptId) continue;
     const top = parseInt(el.style.top);
     if (top >= thresholdY) {
       const newTop = clamp(top + delta, margins.top, CANVAS_H + PAGE_H);
@@ -813,6 +816,33 @@ function splitOnce(el: HTMLElement): string | null {
   canvas.domElement.style.height = `${CANVAS_H}px`;
   syncPageSeparators();
   renderBlock(copy);
+
+  // Make room for the continuation: anything already sitting at or below where it lands moves
+  // down. Without this the continuation is simply drawn on top of whatever was on the next page
+  // (reported 2026-10-02) — a split silently hid a block instead of relocating it.
+  //
+  // Measured after render, because the height is the content's, not something we can predict.
+  // Rounded UP to a whole number of grid squares so everything below stays on the lines, and
+  // GRID_SIZE is added so the blocks end up a square apart rather than flush.
+  const copyEl = document.getElementById(copy.id);
+  if (copyEl) {
+    const needed = newTop + copyEl.offsetHeight + GRID_SIZE;
+    // Only disturb the page when something is actually in the way. Shifting unconditionally would
+    // push content — and possibly add a page — every time a split happened under empty space.
+    const collides = state.blocks.some((b) => {
+      if (b.id === copy.id || b.parentSectionId) return false;
+      const other = document.getElementById(b.id);
+      if (!other) return false;
+      const oTop = parseInt(other.style.top);
+      return Number.isFinite(oTop) && oTop >= newTop && oTop < needed;
+    });
+    if (collides) {
+      const delta = Math.ceil((copyEl.offsetHeight + GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
+      // Everything below moves as a unit, which preserves the spacing the user arranged — the same
+      // "insert space" behaviour Shift+Enter already uses.
+      shiftBlocksVertical(newTop, delta, copy.id);
+    }
+  }
 
   // Re-render the shortened original so its rows match its content again.
   const stale = document.getElementById(block.id);
