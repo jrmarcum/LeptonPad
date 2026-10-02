@@ -35,6 +35,7 @@ import {
 import { clamp } from './utils/units.ts';
 import { parseFormulaRows, reEvalAllFormulas, safeSplitIndex } from './blocks/formula.ts';
 import { safeTextSplitLine } from './blocks/text.ts';
+import { renderMarkdown } from './utils/markdown.ts';
 import {
   nextSectionName,
   refreshSectionHeight,
@@ -648,6 +649,53 @@ function pageBottomFor(top: number): number {
   return pageWorkArea(pageIndexOf(top)).bottom;
 }
 
+/**
+ * The most source lines of a text block that still render within `budget` pixels.
+ *
+ * A formula block can be measured per row, because each row is its own element. Markdown has no
+ * such correspondence — the renderer emits HTML into a flat list, so a rendered paragraph cannot be
+ * traced back to the line that produced it, and one source line may be a heading, a blank, a
+ * wrapped sentence or part of a code fence. The previous estimate scaled the line COUNT by the
+ * height ratio, which assumes every line is equally tall; markdown violates that constantly.
+ *
+ * So the candidate is measured rather than guessed: render the first k lines into an offscreen
+ * probe and binary-search k. ~5 renders of a small string per call, exact rather than proportional.
+ *
+ * The probe lives INSIDE the block and copies the view's class and width, because the rendered
+ * height depends on both — `.md-view`'s line-height reads `--block-line-space`, which is set on the
+ * block element, so a probe parented anywhere else would measure a different paragraph.
+ */
+function fittingLineCount(
+  el: HTMLElement,
+  view: HTMLElement,
+  lines: string[],
+  budget: number,
+): number {
+  const probe = document.createElement('div');
+  probe.className = view.className;
+  probe.style.cssText =
+    `position:absolute;visibility:hidden;pointer-events:none;left:-99999px;top:0;` +
+    `width:${view.clientWidth}px`;
+  el.appendChild(probe);
+  try {
+    let lo = 1, best = 0;
+    let hi = lines.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      probe.innerHTML = renderMarkdown(lines.slice(0, mid).join('\n'));
+      if (probe.offsetHeight <= budget) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return best;
+  } finally {
+    probe.remove();
+  }
+}
+
 /** Only formula-ish and text blocks have a seam. A plot or figure has nowhere to cut. */
 const SPLITTABLE = new Set<Block['type']>(['formula', 'summary', 'text']);
 
@@ -675,14 +723,6 @@ export function canSplitAtPageBreak(el: HTMLElement): boolean {
  * in the wrong place on exactly the sheets that need this most.
  */
 function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
-  // `avail` is measured from the BLOCK's top, and `offsetTop` on a descendant is relative to the
-  // block (it is the positioned offsetParent) — so the two are already in the same frame and the
-  // block's own chrome is counted automatically.
-  //
-  // This is where it was wrong: the row loop subtracted the first row's offsetTop as a "base",
-  // which discarded the label, the divider and the block's top padding. The kept part was then
-  // allowed to be (chrome + avail) tall and still ran past the bottom margin by exactly the height
-  // of its own header. The text path had the same hole — it ignored `view.offsetTop`.
   // Everything is measured as a rect RELATIVE TO THE BLOCK, never via offsetTop.
   //
   // `.formula-rows` is `position: relative`, so it — not `.block` — is the offsetParent of every
@@ -703,10 +743,7 @@ function splitPointOf(el: HTMLElement, block: Block, avail: number): number {
     const chromeBelow = el.offsetHeight - relBottom(view);
     const forContent = avail - (view.getBoundingClientRect().top - blockTop) - chromeBelow;
     if (forContent <= 0) return 0;
-    // Proportional: the rendered view has no per-line elements to measure. Over-estimating is
-    // safe because safeTextSplitLine only ever walks the candidate BACK, never forward.
-    const want = Math.floor(lines.length * (forContent / Math.max(1, view.offsetHeight)));
-    return safeTextSplitLine(block.content || '', Math.min(want, lines.length - 1));
+    return safeTextSplitLine(block.content || '', fittingLineCount(el, view, lines, forContent));
   }
   const rowEls = Array.from(el.querySelectorAll<HTMLElement>('.formula-rows > .formula-row'));
   if (rowEls.length < 2) return 0;

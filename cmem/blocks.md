@@ -259,10 +259,24 @@ measurement needs a DOM:
 - **Both return 0 for "cannot split", and callers must not read that as "move everything"** — that
   would empty the original and duplicate it into the new block.
 
-Formula rows are measured individually from the DOM rather than estimated: row heights vary with
-line spacing, matrices, wrapped descriptions and stacked fractions, so an average would cut in the
-wrong place on exactly the sheets that need this. Text uses a proportional estimate, which is safe
-because `safeTextSplitLine` only ever walks the candidate **back**.
+**Both block types are measured, neither is estimated** (v2.6.9 — asked directly: _"Is this setting
+now the same for the text block also?"_, and until then the answer was no).
+
+- **Formula** rows are measured individually: row heights vary with line spacing, matrices, wrapped
+  descriptions and stacked fractions, so an average would cut in the wrong place on exactly the
+  sheets that need this.
+- **Text** had no per-line elements to measure, because the renderer emits HTML into a flat list and
+  a rendered paragraph cannot be traced back to the source line that produced it. It used to scale
+  the line COUNT by the height ratio — which assumes every line is equally tall, and markdown
+  violates that constantly (headings, blanks, wrapped sentences, code fences). `fittingLineCount()`
+  now renders the first _k_ lines into an **offscreen probe and binary-searches k**: about five
+  renders of a small string, exact instead of proportional.
+
+  ⚠️ The probe must live **inside the block** and copy `.md-view`'s class and width. Rendered height
+  depends on both, and `.md-view`'s `line-height` reads `--block-line-space`, which is set on the
+  block element — a probe parented anywhere else measures a different paragraph.
+
+Both paths share the budget calculation: rects relative to the block, minus `chromeBelow`.
 
 `rowDepths()` is exported and the closure inside `buildFormulaBlock` now delegates to it — it was a
 byte-identical second copy, and the split needed the same calculation.
