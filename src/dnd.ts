@@ -8,6 +8,8 @@ import {
   CANVAS_H,
   CANVAS_W,
   childToSection,
+  clearTitleBlock,
+  clipboardBlocks,
   customModules,
   deletionStack,
   gridCursor,
@@ -18,6 +20,7 @@ import {
   selectedEl,
   selectedEls,
   setCANVAS_H,
+  setClipboardBlocks,
   setNumPages,
   setSelectedEl,
   state,
@@ -28,6 +31,7 @@ import { clamp } from './utils/units.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
 import {
   nextSectionName,
+  refreshSectionHeight,
   reparentToSection,
   sectionAtPoint,
   unparentFromSection,
@@ -426,6 +430,11 @@ export function buildTitleBlockOverlay(el: HTMLElement, pageIdx = 0) {
 
 export function placeBlock(el: HTMLElement, newLeft: number, newTop: number) {
   const b = state.blocks.find((blk) => blk.id === el.id);
+  // A drag had no title-block guard at all — only the keyboard grid cursor did — so a block could
+  // be dropped straight onto a title block and disappear behind it (z-index 2). Clamped here so
+  // every placement path shares the rule, and the STORED y is the clamped one: a position that is
+  // only corrected for display diverges from the data and reappears wrong on the next open.
+  newTop = clearTitleBlock(newTop);
   if (b?.type === 'section') {
     el.style.left = `${margins.left}px`;
     el.style.top = `${newTop}px`;
@@ -583,6 +592,103 @@ export function moveGridCursor(canvasX: number, canvasY: number) {
 
 export function renderBlock(block: Block) {
   canvas.addBlock(block);
+}
+
+// ---------------------------------------------------------------------------
+// Copy / paste
+// ---------------------------------------------------------------------------
+
+const newBlockId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+/**
+ * Snapshot the given block elements into the clipboard buffer.
+ *
+ * A copied **section** takes its children with it. Without that, copying a section would place an
+ * empty one and quietly lose the calculation inside — the kind of silent loss that is only noticed
+ * after the sheet is printed. Children are stored after their section so paste can remap them.
+ *
+ * Child blocks selected on their own are copied as plain blocks: pasting a lone child onto the
+ * canvas gives a canvas block, which is the only sensible reading when its section is not involved.
+ */
+export function copyBlocks(els: HTMLElement[]) {
+  const ids = new Set(els.map((e) => e.id));
+  const picked: Block[] = [];
+  for (const b of state.blocks) {
+    if (ids.has(b.id)) picked.push({ ...b });
+  }
+  // Children of any copied section, even when not themselves selected.
+  for (const b of state.blocks) {
+    if (b.parentSectionId && ids.has(b.parentSectionId) && !ids.has(b.id)) {
+      picked.push({ ...b });
+    }
+  }
+  setClipboardBlocks(picked);
+}
+
+/**
+ * Re-create the clipboard contents as new blocks, offset one grid square down and right so the
+ * copy is visibly its own object rather than sitting exactly on the original.
+ *
+ * Every block gets a fresh id and `parentSectionId` is remapped through an id map, so a pasted
+ * section owns its pasted children rather than re-parenting the originals — which would move the
+ * source section's contents into the copy and leave the original empty.
+ */
+export function pasteBlocks(): number {
+  if (clipboardBlocks.length === 0) return 0;
+
+  const idMap = new Map<string, string>();
+  for (const b of clipboardBlocks) idMap.set(b.id, newBlockId());
+
+  const made: Block[] = [];
+  for (const src of clipboardBlocks) {
+    const copy: Block = { ...src, id: idMap.get(src.id)! };
+    // `inputs` is a nested object; a shallow spread would have the copy and the original share it,
+    // so typing into one would change the other.
+    if (src.inputs) copy.inputs = { ...src.inputs };
+    if (src.parentSectionId) {
+      const mapped = idMap.get(src.parentSectionId);
+      // Parent came along → stay a child of the copy. Parent did not → become a canvas block,
+      // rather than silently remaining attached to the ORIGINAL section.
+      if (mapped) copy.parentSectionId = mapped;
+      else delete copy.parentSectionId;
+    }
+    if (!copy.parentSectionId) {
+      copy.x += GRID_SIZE;
+      copy.y += GRID_SIZE;
+    }
+    made.push(copy);
+  }
+
+  for (const b of made) {
+    state.blocks.push(b);
+    if (!b.parentSectionId) renderBlock(b);
+  }
+  // Children after their sections exist, mirroring loadProject's two-pass attach.
+  for (const b of made) {
+    if (!b.parentSectionId) continue;
+    const sectionEl = document.getElementById(b.parentSectionId);
+    const content = sectionEl?.querySelector<HTMLElement>('.section-content');
+    if (!content) continue;
+    renderBlock(b);
+    const childEl = document.getElementById(b.id);
+    if (!childEl) continue;
+    content.appendChild(childEl);
+    childEl.style.left = `${b.x}px`;
+    childEl.style.top = `${b.y}px`;
+    childEl.style.maxWidth = '';
+    childToSection.set(b.id, b.parentSectionId);
+    refreshSectionHeight(sectionEl!);
+  }
+
+  clearSelection();
+  for (const b of made) {
+    if (b.parentSectionId) continue;
+    const el = document.getElementById(b.id);
+    if (el) addToSelection(el);
+  }
+  reEvalAllFormulas();
+  updatePageCount();
+  return made.filter((b) => !b.parentSectionId).length;
 }
 
 export function dropBlock(type: Block['type'], subtype: string, canvasX: number, canvasY: number) {

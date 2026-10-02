@@ -1510,6 +1510,22 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       ctxRefocus(idx + 1);
     },
 
+    /**
+     * Insert above the clicked row. The keyboard has had this since v2.3.x as Ctrl+Alt+Enter; the
+     * menu only ever offered "+ row", which inserts below — so the half of the pair a mouse user
+     * could reach was the half they could not name.
+     *
+     * With no row clicked it inserts at the very top, which is the only reading of "before" that
+     * makes sense when nothing is selected (its sibling appends to the end for the same reason).
+     */
+    insertRowBefore: (rowEl: HTMLElement | null) => {
+      const arr = parseFormulaRows(block.content);
+      const idx = rowEl ? getRowIdx(rowEl) : 0;
+      arr.splice(idx, 0, { e: '', d: '' });
+      block.content = JSON.stringify(arr);
+      ctxRefocus(idx);
+    },
+
     insertIfAfter: (rowEl: HTMLElement | null) => {
       const arr = parseFormulaRows(block.content);
       const idx = rowEl ? getRowIdx(rowEl) : arr.length - 1;

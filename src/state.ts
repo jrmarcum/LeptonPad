@@ -44,6 +44,39 @@ export function titleBlockH(): number {
   return titleBlockEnabled ? TITLE_BLOCK_H : 0;
 }
 
+/**
+ * Page geometry — ONE definition, because there were four and they disagreed.
+ *
+ * A title block overlay is drawn at the top of **every** page with `z-index: 2`, so any block
+ * sharing that space is hidden behind it. Four places computed where a block may sit, and only one
+ * of them got it right:
+ *
+ *   - `moveGridCursor` (dnd.ts)      per-page, correct — keyboard placement never lands under one
+ *   - `placeBlock` (dnd.ts)          no title-block guard at all, so a DRAG could park a block there
+ *   - `Canvas.addBlock`              no guard, and for a section also missing the titleBlockH() that
+ *                                    `placeBlock` subtracts when storing `y` — so a section saved
+ *                                    directly under the title block reopened 112px too high, inside it
+ *   - `Canvas.updateMarginGuide`     a floor, but only for PAGE 1; pages 2+ were unprotected
+ *
+ * Reported 2026-10-02 as "blocks are getting hidden behind the title block on open".
+ */
+export function pageIndexOf(canvasY: number): number {
+  return Math.max(0, Math.floor(canvasY / PAGE_H));
+}
+
+/** The topmost y a block may occupy on `pageIdx` — below that page's title block. */
+export function pageContentTop(pageIdx: number): number {
+  return pageIdx * PAGE_H + margins.top + titleBlockH();
+}
+
+/**
+ * Push `top` down out of its own page's title block if it falls inside it; otherwise leave it
+ * alone. Applies per page, so a block near the top of page 3 is handled like one on page 1.
+ */
+export function clearTitleBlock(top: number): number {
+  return Math.max(top, pageContentTop(pageIndexOf(top)));
+}
+
 // Setters for `let` exports that external modules need to reassign
 export function setCANVAS_W(v: number) {
   CANVAS_W = v;
@@ -127,6 +160,24 @@ export function packSectionOf(block: Block): Block | undefined {
 // ---------------------------------------------------------------------------
 
 export const deletionStack: Block[] = [];
+
+/**
+ * Blocks held by Copy, waiting for Paste. Deliberately an in-app buffer rather than the system
+ * clipboard: a block is a structured record (rows, units, input values, pack ciphertext), and the
+ * only faithful text form of it is the project JSON. Round-tripping that through the OS clipboard
+ * would invite pasting a half-understood blob from somewhere else into a stamped calculation.
+ *
+ * Always SNAPSHOTS, never live references — a copied block that still points at the original
+ * mutates when the original is edited, so Paste would place whatever the block looks like now
+ * instead of what was copied.
+ *
+ * A copied section carries its children here too, so the set must be rebuilt as a whole on paste.
+ */
+export let clipboardBlocks: Block[] = [];
+
+export function setClipboardBlocks(blocks: Block[]) {
+  clipboardBlocks = blocks;
+}
 
 // ---------------------------------------------------------------------------
 // Custom modules

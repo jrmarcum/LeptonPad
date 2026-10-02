@@ -114,8 +114,25 @@ Sign-up confirmation and the MFA step share one code field in the dialog.
 | `Ctrl` + `Enter`            | Insert a blank row below                                       |
 | `Ctrl` + `I` / `Ctrl` + `L` | Insert an `if`/`end` or `for`/`end` block                      |
 | `Ctrl` + `E`                | Add an `elseif` branch (`Ctrl` + `Shift` + `E` for `else`)     |
+| `Ctrl` + `Alt` + `Enter`    | Insert a blank row **above** the current one                   |
 | `Ctrl` + `-`                | Delete the current row or branch                               |
 | `Alt` + `Enter`             | Line break inside a cell                                       |
+
+The right-click menu carries the same pair as **+ row before** and **+ row after**.
+
+## Keyboard — blocks
+
+| Keys           | Action                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| `Ctrl` + `C`   | Copy the selected block(s) — a section brings its contents with it |
+| `Ctrl` + `V`   | Paste, offset one grid square from the original                    |
+| `Ctrl` + `Z`   | Undo the last block deletion                                       |
+| `Ctrl` + arrow | Move the selected block on the page                                |
+
+Copy and Paste are also in the right-click menu. They apply to the whole selection when several
+blocks are selected, otherwise to the block you clicked. Inside a formula cell, `Ctrl` + `C` and
+`Ctrl` + `V` still copy and paste **text** as usual — the block shortcuts only apply when no cell
+has focus.
 
 Arrow keys on their own move the caret inside a cell and `Shift` + arrow selects text, so cell
 navigation uses `Alt`. `Ctrl` + arrow moves the whole block on the page, even while a cell has

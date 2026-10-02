@@ -7,6 +7,7 @@ import {
   CANVAS_H,
   CANVAS_W,
   childToSection,
+  clearTitleBlock,
   margins,
   onAddToSelection,
   onSelectBlock,
@@ -115,8 +116,8 @@ export class Canvas {
         el.style.left = `${margins.left}px`;
         el.style.top = `${
           clamp(
-            margins.top + titleBlockH() + block.y,
-            margins.top + titleBlockH(),
+            clearTitleBlock(margins.top + titleBlockH() + block.y),
+            margins.top,
             CANVAS_H - el.offsetHeight,
           )
         }px`;
@@ -124,14 +125,19 @@ export class Canvas {
         el.style.maxWidth = '';
         return;
       }
-      const tbH = titleBlockH();
       const absLeft = clamp(
         margins.left + block.x,
         margins.left,
         CANVAS_W - margins.right - el.offsetWidth,
       );
-      // block.y is stored as (newTop - margins.top), so restore without adding tbH again
-      const absTop = clamp(margins.top + block.y, margins.top + tbH, CANVAS_H - el.offsetHeight);
+      // block.y is stored as (newTop - margins.top), so restore without adding tbH again.
+      // The floor used to be `margins.top + tbH` — page 1 only, so a block near the top of page 2
+      // or 3 stayed behind that page's title block. clearTitleBlock applies it per page.
+      const absTop = clamp(
+        clearTitleBlock(margins.top + block.y),
+        margins.top,
+        CANVAS_H - el.offsetHeight,
+      );
       el.style.left = `${absLeft}px`;
       el.style.top = `${absTop}px`;
       el.style.maxWidth = `${CANVAS_W - margins.right - absLeft}px`;
@@ -159,7 +165,12 @@ export class Canvas {
       // Snap in margin-relative coords so blocks align with the margin-offset grid
       const initLeft = margins.left + this.snap(block.x);
       el.style.left = `${initLeft}px`;
-      el.style.top = `${margins.top + this.snap(block.y)}px`;
+      // A section's `y` is stored BELOW the title block (placeBlock subtracts titleBlockH), so it
+      // has to be added back here — without it a section saved directly under the title block
+      // reopened 112px too high, inside an overlay that draws above it. Regular blocks store `y`
+      // from the margin, so they only need the per-page floor.
+      const base = margins.top + (block.type === 'section' ? titleBlockH() : 0);
+      el.style.top = `${clearTitleBlock(base + this.snap(block.y))}px`;
       el.style.maxWidth = `${CANVAS_W - margins.right - initLeft}px`;
     } else {
       el.style.left = `${this.snap(block.x)}px`;

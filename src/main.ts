@@ -40,10 +40,12 @@ import { applyBlockLineSpacing, Canvas } from './canvas.ts';
 import {
   addToSelection,
   clearSelection,
+  copyBlocks,
   deleteBlock,
   dropBlock,
   hideCursor,
   moveGridCursor,
+  pasteBlocks,
   placeBlock,
   renderBlock,
   resolveOverlapsRight,
@@ -69,6 +71,7 @@ import {
   canvas,
   CANVAS_H,
   CANVAS_W,
+  clipboardBlocks,
   type CustomModule,
   customModules,
   deletionStack,
@@ -1332,6 +1335,23 @@ async function start() {
       const active = document.activeElement as HTMLElement;
       if (active?.tagName === 'INPUT' || active?.isContentEditable) return;
 
+      // Ctrl+C / Ctrl+V on blocks. Reached only after the guard above has returned for an INPUT
+      // or a contenteditable, so copying text inside a formula cell still goes to the OS clipboard
+      // and is untouched by this.
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'c' || e.key === 'v')) {
+        if (e.key === 'c') {
+          const els = selectedEls.size > 0 ? [...selectedEls] : selectedEl ? [selectedEl] : [];
+          if (els.length === 0) return;
+          e.preventDefault();
+          copyBlocks(els);
+        } else {
+          if (clipboardBlocks.length === 0) return;
+          e.preventDefault();
+          pasteBlocks();
+        }
+        return;
+      }
+
       // Ctrl+Z: undo last block deletion
       if (e.ctrlKey && e.key === 'z' && !e.shiftKey && !e.altKey) {
         const block = deletionStack.pop();
@@ -1490,6 +1510,7 @@ async function start() {
     ctxFormulaGroup.appendChild(ctxFormulaHeader);
 
     const ctxAddRowBtn = document.createElement('button');
+    const ctxAddRowBeforeBtn = document.createElement('button');
     const ctxAddIfBtn = document.createElement('button');
     const ctxAddElseifBtn = document.createElement('button');
     const ctxAddElseBtn = document.createElement('button');
@@ -1502,7 +1523,9 @@ async function start() {
     const ctxDelRowBtn = document.createElement('button');
 
     ctxAddRowBtn.className = 'ctx-neutral-btn';
-    ctxAddRowBtn.textContent = '+ row';
+    ctxAddRowBtn.textContent = '+ row after';
+    ctxAddRowBeforeBtn.className = 'ctx-neutral-btn';
+    ctxAddRowBeforeBtn.textContent = '+ row before';
     ctxAddIfBtn.className = 'ctx-neutral-btn';
     ctxAddIfBtn.textContent = '+ if';
     ctxAddElseifBtn.className = 'ctx-neutral-btn';
@@ -1522,7 +1545,8 @@ async function start() {
     ctxDelBranchBtn.textContent = '× branch';
     ctxDelRowBtn.textContent = '× delete row';
 
-    ctxAddRowBtn.title = 'Insert blank row after this row (Ctrl+Enter)';
+    ctxAddRowBtn.title = 'Insert a blank row below this one (Ctrl+Enter)';
+    ctxAddRowBeforeBtn.title = 'Insert a blank row above this one (Ctrl+Alt+Enter)';
     ctxAddIfBtn.title = 'Insert if/end block after this row (Ctrl+I)';
     ctxAddElseifBtn.title = 'Add elseif branch to enclosing if (Ctrl+E)';
     ctxAddElseBtn.title = 'Add else branch to enclosing if (Ctrl+Shift+E)';
@@ -1536,6 +1560,7 @@ async function start() {
     ctxDelRowBtn.title = 'Delete this row or block (Ctrl+-)';
 
     [
+      ctxAddRowBeforeBtn,
       ctxAddRowBtn,
       ctxAddIfBtn,
       ctxAddElseifBtn,
@@ -1585,6 +1610,21 @@ async function start() {
     ctxSaveToolBtn.textContent = '⭐ Save as Tool';
     ctxSaveToolBtn.title = 'Save this formula block as a reusable toolbar item';
     ctxMenu.appendChild(ctxSaveToolBtn);
+    // Copy / Paste on the block itself. Paste is always present but disabled with nothing to
+    // paste, so the pair stays in one place rather than appearing and disappearing — a menu whose
+    // items move between openings is harder to use than one with a greyed entry.
+    const ctxCopyBtn = document.createElement('button');
+    ctxCopyBtn.className = 'ctx-neutral-btn';
+    ctxCopyBtn.textContent = 'Copy';
+    ctxCopyBtn.title = 'Copy the selected block(s) — a section brings its contents (Ctrl+C)';
+    ctxMenu.appendChild(ctxCopyBtn);
+
+    const ctxPasteBtn = document.createElement('button');
+    ctxPasteBtn.className = 'ctx-neutral-btn';
+    ctxPasteBtn.textContent = 'Paste';
+    ctxPasteBtn.title = 'Paste the copied block(s), offset one grid square (Ctrl+V)';
+    ctxMenu.appendChild(ctxPasteBtn);
+
     const ctxDeleteBtn = document.createElement('button');
     ctxDeleteBtn.textContent = 'Delete Block';
     ctxMenu.appendChild(ctxDeleteBtn);
@@ -1759,6 +1799,18 @@ async function start() {
       hideCtxMenu();
     });
 
+    /** The blocks a block-level action applies to: the whole selection, else the clicked block. */
+    const ctxBlockTargets = (): HTMLElement[] =>
+      selectedEls.size > 1 ? [...selectedEls] : ctxTarget ? [ctxTarget] : [];
+
+    ctxCopyBtn.addEventListener('click', () => {
+      copyBlocks(ctxBlockTargets());
+      hideCtxMenu();
+    });
+    ctxPasteBtn.addEventListener('click', () => {
+      pasteBlocks();
+      hideCtxMenu();
+    });
     ctxDeleteBtn.addEventListener('click', () => {
       if (ctxTarget) deleteBlock(ctxTarget);
       hideCtxMenu();
@@ -1767,6 +1819,10 @@ async function start() {
     // Formula action button handlers — delegate to ctxFormulaActions captured at menu-open time
     ctxAddRowBtn.addEventListener('click', () => {
       ctxFormulaActions?.insertRowAfter(ctxFormulaRowEl);
+      hideCtxMenu();
+    });
+    ctxAddRowBeforeBtn.addEventListener('click', () => {
+      ctxFormulaActions?.insertRowBefore(ctxFormulaRowEl);
       hideCtxMenu();
     });
     ctxAddIfBtn.addEventListener('click', () => {
@@ -1852,7 +1908,9 @@ async function start() {
         // opens. These four are otherwise always visible and so were never reset — until the
         // lock below started hiding them, at which point they would have stayed hidden for
         // every row opened afterwards.
-        for (const b of [ctxAddRowBtn, ctxAddIfBtn, ctxAddForBtn, ctxDelRowBtn]) {
+        for (
+          const b of [ctxAddRowBeforeBtn, ctxAddRowBtn, ctxAddIfBtn, ctxAddForBtn, ctxDelRowBtn]
+        ) {
           b.style.display = '';
         }
 
@@ -1911,6 +1969,7 @@ async function start() {
         if (locked) {
           for (
             const b of [
+              ctxAddRowBeforeBtn,
               ctxAddRowBtn,
               ctxAddIfBtn,
               ctxAddElseifBtn,
@@ -1960,6 +2019,13 @@ async function start() {
         blockSpacing.mark(blkActs ? blkActs.getUniformSpacing() : (b?.lineSpacing ?? 1));
         if (blkActs) blockDigits.mark(blkActs.getUniformSigDigits());
       }
+
+      // Paste is offered whenever something has been copied, whether or not a block was clicked.
+      ctxPasteBtn.disabled = clipboardBlocks.length === 0;
+      ctxPasteBtn.title = clipboardBlocks.length === 0
+        ? 'Nothing copied yet'
+        : `Paste ${clipboardBlocks.filter((b) => !b.parentSectionId).length} block(s), ` +
+          'offset one grid square (Ctrl+V)';
 
       ctxMenu.style.left = `${e.clientX}px`;
       ctxMenu.style.top = `${e.clientY}px`;
