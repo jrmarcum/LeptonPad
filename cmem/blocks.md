@@ -89,6 +89,20 @@ still recorded rather than discarded, so nothing the user typed is lost. `uk` is
 **dimensionally**, so a `force` input takes kip, kN or lbf alike; an unrecognised `uk` in a template
 is ignored rather than locking the user out of their own sheet.
 
+**Renaming an `in` id: toggle the row off and back on.** There is no rename UI and none is needed
+(Jon worked this out, 2026-10-02). The id re-seeds from the current variable name, and the value
+survives because it is read back from the row's own text. `uk` is deliberately **kept** across the
+toggle — discarding it would make a rename silently relax a validation rule.
+
+Within a sheet an `in` id lives in exactly two places and both are in the same block: the row's
+`in` field and the key in `Block.inputs`. There is nothing to propagate, so the rename is local.
+
+⚠️ **The case that does matter is a published pack.** Once a template has been distributed and
+buyers hold values keyed to the old id, renaming it in a later version **orphans every one of
+them** — silently, because `applyInputOverlay` keeps unmatched ids rather than erroring. That is
+the whole reason the id is independent of the variable name. Rename freely before publishing;
+after publishing, treat an `in` id as frozen.
+
 **Authoring**: right-click a row → **"make input row"**. The id is seeded from the variable name and
 the unit kind is **inferred from the unit already typed** (`10 [kip]` → force), so the common case
 asks nothing. A dropdown then adjusts the requirement. Offered only on a named, non-control row —

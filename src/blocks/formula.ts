@@ -1406,7 +1406,11 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         // stale number silently reappear if the row were ever made an input again.
         if (r.in) delete block.inputs?.[r.in];
         delete r.in;
-        delete r.uk;
+        // `uk` is KEPT. Toggling off and back on is how an author renames an id — the id re-seeds
+        // from the current variable name — and discarding the required unit kind would make that
+        // rename silently relax a validation rule (Jon asked whether the toggle was the rename
+        // mechanism, 2026-10-02; it is, so it has to be lossless). It is ignored while the row is
+        // not an input, and the picker can still change it.
       } else {
         const { name, value } = splitInputRow(r.e);
         if (!name) return;
@@ -1414,8 +1418,12 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
         let id = name;
         for (let n = 2; taken.has(id); n++) id = `${name}_${n}`;
         r.in = id;
-        const kind = inputUnitKindOf(value);
-        if (kind) r.uk = kind;
+        // Inferred only when the row does not already say — so a kind the author chose survives
+        // the round trip, and is not quietly replaced by whatever the current value happens to be.
+        if (!r.uk) {
+          const kind = inputUnitKindOf(value);
+          if (kind) r.uk = kind;
+        }
         (block.inputs ??= {})[id] = value;
       }
       block.content = JSON.stringify(arr);
