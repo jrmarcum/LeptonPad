@@ -12,11 +12,12 @@ import {
   clipboardBlocks,
   customModules,
   deletionStack,
+  firstGridLine,
   gridCursor,
+  lastGridLine,
   margins,
   numPages,
   PAGE_H,
-  pageContentTop,
   pageIndexOf,
   pageNumberingEnabled,
   pageWorkArea,
@@ -550,22 +551,16 @@ export function blockAtCursor(canvasX: number, canvasY: number): HTMLElement | n
 }
 
 export function moveGridCursor(canvasX: number, canvasY: number) {
-  const tbH = titleBlockH();
-
   const snappedX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
   gridCursor.x = clamp(snappedX, margins.left, CANVAS_W - margins.right);
 
+  // These were the ONLY correct copy of the page-band rule; they are now the shared definition in
+  // state.ts, so the split and load-time placement measure against the same lines the cursor does.
   const gridOrigin = (pi: number) => pi * PAGE_H + margins.top;
-  const pageEffTop = (pi: number) => pi * PAGE_H + margins.top + tbH;
-  const pageEffBot = (pi: number) => pi * PAGE_H + PAGE_H - margins.bottom;
-  const firstGridY = (pi: number) => {
-    const go = gridOrigin(pi);
-    return go + Math.ceil((pageEffTop(pi) - go) / GRID_SIZE) * GRID_SIZE;
-  };
-  const lastGridY = (pi: number) => {
-    const go = gridOrigin(pi);
-    return go + Math.floor((pageEffBot(pi) - go) / GRID_SIZE) * GRID_SIZE;
-  };
+  const pageEffTop = (pi: number) => pageWorkArea(pi).top;
+  const pageEffBot = (pi: number) => pageWorkArea(pi).bottom;
+  const firstGridY = firstGridLine;
+  const lastGridY = lastGridLine;
 
   const rawPageIdx = Math.max(0, Math.floor(canvasY / PAGE_H));
   let finalY: number;
@@ -612,7 +607,10 @@ export function renderBlock(block: Block) {
  * state.ts bounds it by the top margin, the title block and the bottom margin together.
  */
 function pageBottomFor(top: number): number {
-  return pageWorkArea(pageIndexOf(top)).bottom;
+  // The LAST GRID LINE, not the raw bottom margin. The margin is where the lined area stops being
+  // drawn; the last line is where content can actually sit. Measuring to the margin let a block
+  // end in the gap past the final line, which is what the 2026-10-02 report describes.
+  return lastGridLine(pageIndexOf(top));
 }
 
 /** Only formula-ish and text blocks have a seam. A plot or figure has nowhere to cut. */
@@ -700,7 +698,11 @@ function splitOnce(el: HTMLElement): string | null {
   }
 
   const nextPage = pageIndexOf(top) + 1;
-  const newTop = pageContentTop(nextPage);
+  // The first GRID LINE below that page's title block, not the bare content top. pageContentTop is
+  // `margin + titleBlockH`, and TITLE_BLOCK_H (112) is not a multiple of GRID_SIZE (20) — so using
+  // it directly placed the continuation 8 px off the lines every time, which is the second half of
+  // the 2026-10-02 report: it did not know where the top of the next page's lined area was.
+  const newTop = firstGridLine(nextPage);
   const copy: Block = {
     id: newBlockId(),
     type: block.type,

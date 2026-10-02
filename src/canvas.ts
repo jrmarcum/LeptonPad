@@ -14,6 +14,7 @@ import {
   PAGE_H,
   selectedEls,
   setMultiDragState,
+  snapToPageGrid,
   state,
   titleBlockH,
 } from './state.ts';
@@ -170,7 +171,11 @@ export class Canvas {
       // reopened 112px too high, inside an overlay that draws above it. Regular blocks store `y`
       // from the margin, so they only need the per-page floor.
       const base = margins.top + (block.type === 'section' ? titleBlockH() : 0);
-      el.style.top = `${clearTitleBlock(base + this.snap(block.y))}px`;
+      // Snapped against the page the block lands on, not against the canvas. `PAGE_H` is not a
+      // multiple of `GRID_SIZE`, so `this.snap(block.y)` on a y that spans pages lands BETWEEN that
+      // page's grid lines — the further down the document, the further off. snapToPageGrid also
+      // floors at the first line below the title block, which supersedes clearTitleBlock here.
+      el.style.top = `${snapToPageGrid(base + block.y)}px`;
       el.style.maxWidth = `${CANVAS_W - margins.right - initLeft}px`;
     } else {
       el.style.left = `${this.snap(block.x)}px`;

@@ -13,15 +13,18 @@
 import { assertEquals } from '@std/assert';
 import {
   clearTitleBlock,
+  firstGridLine,
+  lastGridLine,
   margins,
   PAGE_H,
   pageContentTop,
   pageIndexOf,
   pageWorkArea,
   setTitleBlockEnabled,
+  snapToPageGrid,
   titleBlockH,
 } from '../src/state.ts';
-import { TITLE_BLOCK_H } from '../src/types.ts';
+import { GRID_SIZE, TITLE_BLOCK_H } from '../src/types.ts';
 
 Deno.test('page geometry and the title block', async (t) => {
   await t.step('with no title block, nothing is pushed anywhere', () => {
@@ -84,6 +87,51 @@ Deno.test('page geometry and the title block', async (t) => {
       assertEquals(w.bottom, first.bottom + page * PAGE_H);
       assertEquals(w.height, first.height);
     }
+  });
+
+  await t.step('grid lines bound the band, not the raw margins', () => {
+    // "not respecting the boundary ... past the lined part of the page inside the bottom margin"
+    // (2026-10-02). The margin is where the lined area stops being DRAWN; the last grid line is
+    // where content can actually sit, and the gap between them is what a block was overrunning
+    // into. Both bounds must be ON the grid, and inside the work area.
+    setTitleBlockEnabled(true);
+    for (const page of [0, 1, 4]) {
+      const area = pageWorkArea(page);
+      const first = firstGridLine(page);
+      const last = lastGridLine(page);
+      const origin = page * PAGE_H + margins.top;
+
+      assertEquals((first - origin) % GRID_SIZE, 0, `page ${page} first line off-grid`);
+      assertEquals((last - origin) % GRID_SIZE, 0, `page ${page} last line off-grid`);
+      assertEquals(first >= area.top, true, `page ${page}: first line above the title block`);
+      assertEquals(last <= area.bottom, true, `page ${page}: last line past the bottom margin`);
+      // And no SLACK: one more line in either direction would leave the band.
+      assertEquals(first - GRID_SIZE < area.top, true, `page ${page}: first line too low`);
+      assertEquals(last + GRID_SIZE > area.bottom, true, `page ${page}: last line too high`);
+    }
+  });
+
+  await t.step('TITLE_BLOCK_H is not a grid multiple — which is why this is needed', () => {
+    // 112 against a 20 px grid. Placing a continuation at `margin + titleBlockH` put it 8 px off
+    // the lines every time; firstGridLine is what makes it land on one.
+    assertEquals(TITLE_BLOCK_H % GRID_SIZE !== 0, true);
+    setTitleBlockEnabled(true);
+    assertEquals(firstGridLine(0), margins.top + Math.ceil(TITLE_BLOCK_H / GRID_SIZE) * GRID_SIZE);
+  });
+
+  await t.step('snapping is per page, because PAGE_H is not a grid multiple either', () => {
+    // US Letter is 1056 px against a 20 px grid. Snapping against the canvas as a whole lands
+    // between the lines of any page but the first, and drifts further down the document.
+    assertEquals(PAGE_H % GRID_SIZE !== 0, true);
+    setTitleBlockEnabled(false);
+    for (const page of [0, 1, 3]) {
+      const origin = page * PAGE_H + margins.top;
+      const snapped = snapToPageGrid(origin + GRID_SIZE * 3 + 7);
+      assertEquals((snapped - origin) % GRID_SIZE, 0, `page ${page} snap off-grid`);
+    }
+    // Never above the page's first usable line, even when asked for something higher.
+    setTitleBlockEnabled(true);
+    assertEquals(snapToPageGrid(PAGE_H + margins.top) >= firstGridLine(1), true);
   });
 
   await t.step('pageIndexOf never returns a negative page', () => {

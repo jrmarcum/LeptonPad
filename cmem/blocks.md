@@ -150,6 +150,26 @@ because "where may content go on this page" was open-coded at each site and ever
 different subset of the three (reported 2026-10-02: _"still not taking into account the margins and
 the title block space as part of the active work area"_).
 
+⚠️ **But the margins are not the usable bounds — the GRID LINES are** (second report, same day:
+_"still not respecting the boundary ... past the lined part of the page inside the bottom margin"_
+and _"does not understand where to place the top boundary ... in relation to the top lined part of
+the next page"_). The margin guide draws a `GRID_SIZE` background starting at `margins.top` on
+**every** page, so:
+
+- `lastGridLine(pageIdx)` — the last line at or above the bottom margin. Measuring to the margin
+  itself let a block end in the unlined gap past the final line.
+- `firstGridLine(pageIdx)` — the first line at or below the work-area top. `pageContentTop` is
+  `margin + titleBlockH`, and **`TITLE_BLOCK_H` (112) is not a multiple of `GRID_SIZE` (20)**, so a
+  continuation placed there sat 8 px off the lines every time.
+- `snapToPageGrid(top)` — snaps **per page**, because **`PAGE_H` is not a grid multiple either**
+  (US Letter is 1056 px). `Canvas.snap()` against the canvas as a whole lands between the lines of
+  any page but the first, drifting further down the document. `addBlock` now uses this.
+
+`moveGridCursor` held the only correct copy of this rule all along; it now delegates to the shared
+definition, so the cursor, load-time placement and the split all measure against the same lines.
+Pinned in `tests/page_geometry_test.ts` — both bounds on-grid, inside the band, and with no slack in
+either direction.
+
 Two things that report exposed, both fixed in v2.6.3:
 
 1. **The row loop subtracted the first row's `offsetTop` as a "base"**, discarding the label, the

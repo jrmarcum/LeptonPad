@@ -6,6 +6,7 @@
 import {
   type Block,
   type CustomModule,
+  GRID_SIZE,
   PAGE_SIZES,
   PX_PER_IN,
   TITLE_BLOCK_H,
@@ -89,6 +90,45 @@ export function pageWorkArea(pageIdx: number): { top: number; bottom: number; he
   const top = pageContentTop(pageIdx);
   const bottom = pageIdx * PAGE_H + PAGE_H - margins.bottom;
   return { top, bottom, height: Math.max(0, bottom - top) };
+}
+
+/**
+ * Where the grid lines fall on a page — the **lined part** the user actually sees.
+ *
+ * The margin guide is drawn from `margins.top` with a background grid of `GRID_SIZE`, so lines
+ * restart at the top margin of **every** page. `PAGE_H` is not a multiple of `GRID_SIZE` (US Letter
+ * is 1056 px against a 20 px grid), which is why a position cannot be snapped against the canvas as
+ * a whole: snapping a y that spans pages lands between that page's lines.
+ *
+ * `firstGridLine` is the first line at or below the work area's top — below the title block, on the
+ * grid. `lastGridLine` is the last line at or above the bottom margin. Between them is the band
+ * content may occupy, and they are what the split must measure against: stopping at the raw bottom
+ * margin leaves a block ending past the last line, which is what
+ * "not respecting the boundary ... past the lined part of the page" describes.
+ */
+function gridOriginOf(pageIdx: number): number {
+  return pageIdx * PAGE_H + margins.top;
+}
+
+export function firstGridLine(pageIdx: number): number {
+  const go = gridOriginOf(pageIdx);
+  return go + Math.ceil((pageWorkArea(pageIdx).top - go) / GRID_SIZE) * GRID_SIZE;
+}
+
+export function lastGridLine(pageIdx: number): number {
+  const go = gridOriginOf(pageIdx);
+  return go + Math.floor((pageWorkArea(pageIdx).bottom - go) / GRID_SIZE) * GRID_SIZE;
+}
+
+/**
+ * Snap an absolute canvas y to the grid of the page it lands on, then keep it inside that page's
+ * lined band. Page-relative on purpose — see the note above about `PAGE_H` and `GRID_SIZE`.
+ */
+export function snapToPageGrid(top: number): number {
+  const pi = pageIndexOf(top);
+  const go = gridOriginOf(pi);
+  const snapped = go + Math.round((top - go) / GRID_SIZE) * GRID_SIZE;
+  return Math.max(snapped, firstGridLine(pi));
 }
 
 // Setters for `let` exports that external modules need to reassign
