@@ -35,6 +35,14 @@ Instead: create or change files with the Write/Edit tools; put any throwaway scr
 single-quoted PowerShell here-string. Paid for 2026-09-21 — three edit scripts in one session reported
 0 matches or threw on content that plainly existed, and one command hung for two minutes.
 
+**Never pass a commit message with `git commit -m` — always `git commit -F <file>`.** Backticks in
+a `-m` argument are command substitution to bash: the shell runs the backticked text and splices in
+its output, so `` `pi * PAGE_H` `` becomes empty and the message silently loses the very expression
+it was explaining. Happened three times on 2026-10-02 despite this file already saying to use `-F`;
+knowing the rule is not the same as reaching for it, so **write the message with the Write tool and
+pass the path.** Check afterwards with `git log -1 --format=%B` — a mangled message is only
+recoverable before anyone pulls.
+
 **Never write a tracked file with PowerShell `Set-Content` or `Out-File`.** On Windows PowerShell
 5.1, `-Encoding utf8` means **UTF-8 with a BOM**. A BOM at the head of `deno.json` makes it
 unparseable — `Unexpected token on line 1 column 1` — and the same applies to any JSON, TS or CSS
