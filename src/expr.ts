@@ -35,12 +35,21 @@ export type UnitMap = Readonly<Record<string, number>>;
 /**
  * A numeric value paired with its unit — or, when `m` is set, a matrix. A matrix is rows of scalar
  * Quantities, each with its OWN unit (stiffness matrices mix kip/in, kip and kip·in); its own `v` is
- * NaN and `u` is {}. Every scalar operation must reject a matrix (`noMatrix`) rather than read that NaN.
+ * NaN and `u` is {}. Every scalar operation must reject a matrix (`scalarOnly`) rather than read that NaN.
  */
 export interface Quantity {
   v: number;
   u: UnitMap;
   m?: Quantity[][];
+  /**
+   * Text, written `"like this"`. A real value kind, not a display flourish: it assigns to a
+   * variable and compares with `==` / `!=`, because plenty of engineering checks are not about
+   * numbers — section class, bolt grade, governing limit state (Jon, 2026-10-02).
+   *
+   * `v` is NaN whenever this is set, so a numeric path that somehow escapes `scalarOnly()` yields
+   * NaN rather than a plausible number.
+   */
+  s?: string;
   /** Set on the 1/0 of a comparison, so a trailing [unit] never labels a pass/fail as "1 kip". */
   isTest?: boolean;
 }
@@ -58,6 +67,7 @@ export interface Statement {
   value: number;
   unit: UnitMap; // derived unit (empty = dimensionless)
   matrix?: Quantity[][]; // set when the result is a matrix (value is then NaN)
+  text?: string; // set when the result is text (value is then NaN) — rendered plain, without quotes
   error?: string;
   isFn?: boolean; // true when this statement defines a user function
   fnParam?: string; // parameter name when isFn is true
@@ -316,11 +326,30 @@ function addU(a: UnitMap, b: UnitMap): UnitMap {
 // ---------------------------------------------------------------------------
 
 /** Throw if `q` is a matrix — for every operation that only makes sense on a single number. */
-function noMatrix(q: Quantity, what: string): Quantity {
+/**
+ * Refuse anything that is not a single number. **This is the one guard for every non-scalar kind.**
+ *
+ * It was `noMatrix` and rejected only matrices. When text became a value kind (v2.7.0) the obvious
+ * move was a parallel `noText()` beside each of its 21 call sites — and a parallel guard is how
+ * this codebase has repeatedly ended up with one path updated and the rest left behind. Widening
+ * the existing guard makes the coverage total by construction: every place that already refused a
+ * matrix now refuses text, with no site to miss.
+ *
+ * Keep it that way. A new value kind belongs HERE, not in a second function.
+ */
+function scalarOnly(q: Quantity, what: string): Quantity {
   if (q.m) {
     throw new Error(`${what} needs a single value, not a ${q.m.length}×${q.m[0].length} matrix`);
   }
+  if (q.s !== undefined) {
+    throw new Error(`${what} needs a number, not text ("${q.s}")`);
+  }
   return q;
+}
+
+/** A text value. `v` is NaN so any numeric path that slips past a guard yields NaN, never a number. */
+function textOf(s: string): Quantity {
+  return { v: NaN, u: {}, s };
 }
 
 function matrixOf(rows: Quantity[][]): Quantity {
@@ -329,6 +358,12 @@ function matrixOf(rows: Quantity[][]): Quantity {
 
 /** Scalar arithmetic with unit bookkeeping — the one place + − * / on two numbers is defined. */
 function scalarOp(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity {
+  // Text has no arithmetic. Without this `"A" + 1` fell through to NaN arithmetic and reported a
+  // bare NaN — a result with no explanation, which on a calculation sheet is the worst kind.
+  // Deliberately not concatenation: `+` joining strings in a unit-checked engine would make
+  // `"P" + 1` plausible-looking nonsense.
+  scalarOnly(a, `Arithmetic (${op})`);
+  scalarOnly(b, `Arithmetic (${op})`);
   switch (op) {
     case '+': {
       // The right side is converted into the left's unit, so the result reads in the unit the
@@ -447,7 +482,7 @@ function findRoot(at: (q: Quantity) => Quantity, lo: Quantity, hi: Quantity): Qu
   let evals = 0;
   const f = (x: number): number => {
     if (++evals > 1000) throw new Error('findroot(): gave up before converging');
-    const q = noMatrix(at({ v: x, u: xu }), 'findroot()');
+    const q = scalarOnly(at({ v: x, u: xu }), 'findroot()');
     if (!isFinite(q.v)) throw new Error(`findroot(): the expression is not finite at ${x}`);
     if (Object.keys(q.u).length > 0) {
       if (Object.keys(fu).length === 0) fu = q.u;
@@ -730,7 +765,7 @@ const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Qua
 function minMax(name: string, args: Quantity[]): Quantity {
   if (args.length === 0) throw new Error(`${name}() needs at least one value`);
   const values = args.length === 1 && args[0].m ? args[0].m!.flat() : args;
-  for (const v of values) noMatrix(v, `${name}()`);
+  for (const v of values) scalarOnly(v, `${name}()`);
   // Compare in ONE unit. These used to compare raw `.v` behind an exact-equality check, so
   // `max(1 [ft], 6 [in])` was an error while `1 [ft] + 6 [in]` converts — and had the check ever
   // been relaxed without converting, it would have returned the larger *number* rather than the
@@ -768,14 +803,14 @@ function interp(args: Quantity[]): Quantity {
   };
 
   if (args.length === 5) {
-    const [x, x1, y1, x2, y2] = args.map((a) => noMatrix(a, 'interp()'));
+    const [x, x1, y1, x2, y2] = args.map((a) => scalarOnly(a, 'interp()'));
     return lerp(x, x1, y1, x2, y2);
   }
   if (args.length !== 3) {
     throw new Error('Usage: interp(x, x1, y1, x2, y2) or interp(x, Xvector, Yvector)');
   }
   const [x, X, Y] = args;
-  noMatrix(x, 'interp() x');
+  scalarOnly(x, 'interp() x');
   if (!X.m || !Y.m) throw new Error('interp(x, X, Y): X and Y must be vectors');
   const xs = X.m.flat(), ys = Y.m.flat();
   if (xs.length !== ys.length) {
@@ -801,7 +836,7 @@ function interp(args: Quantity[]): Quantity {
 function element(a: Quantity, i: Quantity, j: Quantity): Quantity {
   if (!a.m) throw new Error('el() needs a matrix as its first argument');
   const idx = (q: Quantity, what: string, max: number): number => {
-    noMatrix(q, `el() ${what}`);
+    scalarOnly(q, `el() ${what}`);
     if (Object.keys(q.u).length > 0) throw new Error(`el(): the ${what} must be unitless`);
     const n = Math.round(q.v);
     if (Math.abs(q.v - n) > 1e-9) throw new Error(`el(): the ${what} must be a whole number`);
@@ -988,6 +1023,7 @@ type TT =
   | 'RBRACE'
   | 'DOTSTAR'
   | 'UNIT'
+  | 'STR'
   | 'EQ'
   | 'NEQ'
   | 'LT'
@@ -1164,6 +1200,18 @@ function lex(src: string): Tok[] {
     if (ops[ch]) {
       out.push({ t: ops[ch], v: ch });
       i++;
+      continue;
+    }
+
+    // Text literal: "Compact". Double quotes only — a single quote is a prime mark in engineering
+    // notation (feet, minutes) and claiming it for strings would break expressions that read
+    // naturally today. No escapes: a quote inside a label is not a case worth the grammar, and
+    // an unterminated literal says so rather than swallowing the rest of the row.
+    if (ch === '"') {
+      const end = src.indexOf('"', i + 1);
+      if (end === -1) throw new Error(`Unclosed text: ${src.slice(i)}`);
+      out.push({ t: 'STR', v: src.slice(i + 1, end) });
+      i = end + 1;
       continue;
     }
 
@@ -1481,9 +1529,9 @@ class Parser {
       throw new Error(`${name}(): 2nd argument must be the variable name — ${usage}`);
     }
     this.need('COMMA');
-    const lo = noMatrix(this.compare(), `${name}() limit`);
+    const lo = scalarOnly(this.compare(), `${name}() limit`);
     this.need('COMMA');
-    const hi = noMatrix(this.compare(), `${name}() limit`);
+    const hi = scalarOnly(this.compare(), `${name}() limit`);
     this.need('RPAREN');
 
     const at = (q: Quantity): Quantity => {
@@ -1494,7 +1542,7 @@ class Parser {
       );
       const r = p.compare();
       if (p.peek().t !== 'EOF') throw new Error(`${name}(): unexpected input in the expression`);
-      return noMatrix(r, `${name}()`);
+      return scalarOnly(r, `${name}()`);
     };
     if (name === 'integral') return integrate(at, lo, hi);
     if (name === 'findroot') return findRoot(at, lo, hi);
@@ -1510,10 +1558,10 @@ class Parser {
     this.need('LBRACE');
     if (this.peek().t === 'RBRACE') throw new Error('Empty matrix {}');
     const readRow = (): Quantity[] => {
-      const row = [noMatrix(this.compare(), 'A matrix element')];
+      const row = [scalarOnly(this.compare(), 'A matrix element')];
       while (this.peek().t === 'COMMA') {
         this.eat();
-        row.push(noMatrix(this.compare(), 'A matrix element'));
+        row.push(scalarOnly(this.compare(), 'A matrix element'));
       }
       return row;
     };
@@ -1546,9 +1594,30 @@ class Parser {
   compare(): Quantity {
     const q = this.arithmetic();
     if (CMP_OPS.includes(this.peek().t)) {
-      noMatrix(q, 'A comparison');
       const op = this.eat().t;
-      const r = alignUnits(q, noMatrix(this.arithmetic(), 'A comparison'), 'a comparison', false);
+      const rhs = this.arithmetic();
+
+      // Text comparison, handled before the scalar guard because text is exactly what that guard
+      // exists to keep out of the numeric path below.
+      if (q.s !== undefined || rhs.s !== undefined) {
+        if (q.s === undefined || rhs.s === undefined) {
+          const text = q.s ?? rhs.s;
+          throw new Error(
+            `Cannot compare text ("${text}") with a number — compare it with text, like == "${text}"`,
+          );
+        }
+        // Equality only. Ordering text would have to be alphabetical, and "Compact" < "Slender"
+        // is a fact about the alphabet, not about sections — a comparison that looks like a
+        // design check and is not one. Refused rather than quietly answered.
+        if (op !== 'EQ' && op !== 'NEQ') {
+          throw new Error('Text can only be compared with == or != , not < > <= >=');
+        }
+        const same = q.s === rhs.s;
+        return { v: (op === 'EQ' ? same : !same) ? 1 : 0, u: {}, isTest: true };
+      }
+
+      scalarOnly(q, 'A comparison');
+      const r = alignUnits(q, scalarOnly(rhs, 'A comparison'), 'a comparison', false);
       let result: boolean;
       const EPS = 1e-12;
       switch (op) {
@@ -1614,8 +1683,8 @@ class Parser {
     // `3 [in]^2` — allow a power on the tagged quantity
     if (this.peek().t === 'CARET') {
       this.eat();
-      noMatrix(t, 'A power');
-      const exp = noMatrix(this.unary(), 'An exponent');
+      scalarOnly(t, 'A power');
+      const exp = scalarOnly(this.unary(), 'An exponent');
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
@@ -1640,8 +1709,8 @@ class Parser {
     const base = this.atom();
     if (this.peek().t === 'CARET') {
       this.eat();
-      noMatrix(base, 'A power');
-      const exp = noMatrix(this.unary(), 'An exponent');
+      scalarOnly(base, 'A power');
+      const exp = scalarOnly(this.unary(), 'An exponent');
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
@@ -1666,6 +1735,11 @@ class Parser {
     }
 
     if (tok.t === 'LBRACE') return this.matrixLiteral();
+
+    if (tok.t === 'STR') {
+      this.eat();
+      return textOf(tok.v);
+    }
 
     if (tok.t === 'ID') {
       this.eat();
@@ -1695,6 +1769,17 @@ class Parser {
           if (name === 'interp') return interp(args);
         }
 
+        // ── if(cond, then, else) ──────────────────────────────────────────────
+        // Dispatched BEFORE the blanket scalar guard below, because picking between two TEXT
+        // values is most of the reason text exists: `if(λ <= λ_p, "Compact", "Slender")`.
+        // Only the condition is guarded — the branches may be numbers, text, or a matrix, and
+        // whatever comes out is checked by whatever consumes it.
+        if (args.length === 3 && name === 'if' && !(name in this.fnScope)) {
+          const [cond, thenVal, elseVal] = args;
+          scalarOnly(cond, 'An if() condition');
+          return cond.v !== 0 ? thenVal : elseVal;
+        }
+
         // ── Matrix functions (unless the sheet defines its own of that name) ──
         if (name in MATRIX_FNS && !(name in this.fnScope)) {
           const fn = MATRIX_FNS[name];
@@ -1705,7 +1790,7 @@ class Parser {
         }
 
         // All other functions (built-in and user-defined) take single values only.
-        for (const a of args) noMatrix(a, `${name}()`);
+        for (const a of args) scalarOnly(a, `${name}()`);
 
         // ── Single-arg functions ────────────────────────────────────────────
         if (args.length === 1) {
@@ -1824,10 +1909,7 @@ class Parser {
         }
 
         // ── Three-arg functions ─────────────────────────────────────────────
-        if (args.length === 3 && name === 'if') {
-          const [cond, thenVal, elseVal] = args;
-          return cond.v !== 0 ? thenVal : elseVal;
-        }
+        // `if` is handled above, ahead of the scalar guard, so its branches may be text.
         if (args.length === 3 && name === 'clamp') {
           const [x, lo, hi] = args;
           // Bounds convert into x's unit — `clamp(18 [in], 1 [ft], 2 [ft])` used to be an error,
@@ -1890,6 +1972,14 @@ function applyStatementUnits(q: Quantity, tag?: UnitMap, target?: UnitMap): Quan
   // `P_u != 0 [kip]` — the tag belongs to the 0 being compared against, not to the pass/fail.
   // Labelling a 1 as "1 kip" was meaningless; the comparison itself is unaffected.
   if (q.isTest) return q;
+  // Text has no unit and cannot be converted to one. Saying so beats letting `[kip]` attach to a
+  // label and print "Compact kip".
+  if (q.s !== undefined) {
+    if (tag !== undefined || target !== undefined) {
+      throw new Error(`Text ("${q.s}") cannot carry a unit`);
+    }
+    return q;
+  }
   // The legacy whole-result tag would silently overwrite a matrix's own per-element units
   // (`Km / 2 [in]` turned every element into "in"). Allow it only on a matrix whose elements are
   // still unitless (`{{12, -6}, {-6, 4}} [kip/in]`); otherwise the unit belongs next to its number.
@@ -1910,7 +2000,7 @@ function applyStatementUnits(q: Quantity, tag?: UnitMap, target?: UnitMap): Quan
       (x) => Object.keys(cleanU(x.u)).length === 0 ? { v: x.v, u: tag } : applyTargetUnit(x, tag),
     );
   }
-  if (target !== undefined) q = applyTargetUnit(noMatrix(q, 'Unit conversion [[…]]'), target);
+  if (target !== undefined) q = applyTargetUnit(scalarOnly(q, 'Unit conversion [[…]]'), target);
   return q;
 }
 
@@ -2032,6 +2122,7 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
             value: q.v,
             unit: q.u,
             matrix: q.m,
+            text: q.s,
             isTest: q.isTest,
           });
         } catch (e) {
@@ -2069,6 +2160,7 @@ export function evalStatements(src: string, scope: Scope, fnScope: FnScope = {})
         value: q.v,
         unit: q.u,
         matrix: q.m,
+        text: q.s,
         isTest: q.isTest,
       });
     } catch (e) {
@@ -2216,7 +2308,7 @@ function parseForHeader(
   }
   const startExpr = lhs.slice(eqIdx + 1).trim();
 
-  const num = (src: string) => noMatrix(evalExpr(src, scope, fnScope), 'A for-loop limit').v;
+  const num = (src: string) => scalarOnly(evalExpr(src, scope, fnScope), 'A for-loop limit').v;
   const startVal = num(startExpr);
   const endVal = num(endExpr);
   const stepVal = stepExpr ? num(stepExpr) : (endVal >= startVal ? 1 : -1);
@@ -2268,7 +2360,7 @@ function execNodes(
         let condError: string | undefined;
         if (active) {
           try {
-            condVal = noMatrix(evalExpr(branch.cond || '0', scope, fnScope), 'An if condition').v;
+            condVal = scalarOnly(evalExpr(branch.cond || '0', scope, fnScope), 'An if condition').v;
           } catch (e) {
             condError = (e as Error).message;
           }

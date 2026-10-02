@@ -302,6 +302,12 @@ export function applyEvalResults(formulaEl: HTMLElement, stmts: Statement[]) {
       r.innerHTML = matrixResultHtml(stmt.matrix, sig);
       r.title = `${stmt.matrix.length}×${stmt.matrix[0].length} matrix`;
       r.className = 'formula-result';
+    } else if (stmt.text !== undefined) {
+      // Plain, WITHOUT the quotes (Jon, 2026-10-02): the quotes mark a literal in the formula, but
+      // around a result on a stamped sheet they read as punctuation. `Compact`, not `"Compact"`.
+      r.textContent = stmt.text;
+      r.title = 'Text result';
+      r.className = 'formula-result formula-result-text';
     } else if (stmt.isTest) {
       // A comparison is a check, so it reads as a check: OK or NG, not 1 or 0.
       const pass = stmt.value !== 0;

@@ -3,6 +3,56 @@
 Each entry is a choice that looks wrong or arbitrary until you know why. Do not undo one without
 reading its reason.
 
+## Text is a value kind, and inline `if()` coexists with `if` rows (2026-10-02, v2.7.0)
+
+Jon asked whether to allow an Excel-style inline `if(c, a, b)` or reject it and keep only the
+context-menu `if`/`elseif`/`end` rows. **The question had a false premise**: the inline form already
+existed as a three-arg builtin, so "reject it" would have meant removing a working feature. Both
+were kept, because they do different jobs:
+
+|                                  | inline `if(c, a, b)`                           | rows `if`/`elseif`/`else`/`end`     |
+| -------------------------------- | ---------------------------------------------- | ----------------------------------- |
+| produces                         | a **value**, usable inside a larger expression | **statements**, several per branch  |
+| on a printed sheet               | only the chosen result                         | **which branch executed** (`▶`/`▷`) |
+| per-branch description/reference | no                                             | yes                                 |
+| cost of a simple pick            | one row                                        | four                                |
+
+The decider is the stamped sheet: a reviewer often has to see _which limit state governs_, which
+the rows show and the inline form hides. But four rows to express one coefficient is noise. They
+are not competitors.
+
+**Offered and declined: auto-expanding an inline `if()` into rows.** Typing one thing and getting
+four is surprising, cannot be collapsed back, and is impossible when the `if()` is a sub-expression
+— `M_n = if(c, M_p, M_r) * \phi` has nowhere to expand to. If ever wanted, it should be an explicit
+right-click "Expand to if/else rows", offered only when the call is the whole right-hand side.
+
+### Text: assignable and comparable, not merely displayable
+
+Jon chose the larger scope deliberately — _"we want the assignability due to needs to perform checks
+that aren't about numbers"_ — so `class = "Compact"` then `if(class == "Compact", …)` works, and a
+text comparison reads as OK/NG like any other check.
+
+What it deliberately does **not** do, each refused with a message rather than answered:
+
+- **Arithmetic**, not even `+` as concatenation: in a unit-checked engine `"P" + 1` would be
+  plausible-looking nonsense. Before the guard was widened it produced a bare `NaN`.
+- **Units.** `"A" [kip]` would print "Compact kip".
+- **Ordering** (`<` `>` `<=` `>=`). Only alphabetical is available, and `"Compact" < "Slender"` is a
+  fact about the alphabet — a comparison that _looks_ like a design check and is not one.
+
+🔑 **The guard was widened, not duplicated.** `noMatrix` became `scalarOnly` and now refuses text
+too, so all 21 existing call sites cover the new kind with **no site to miss**. A parallel
+`noText()` beside each of them is precisely how this codebase has repeatedly ended up with one path
+updated and the rest behind. **A future value kind belongs in `scalarOnly`, not a third function.**
+
+Rendering (Jon's call): quotes **in the formula**, where they mark a literal; **plain in the result
+column**, where they would read as punctuation on a stamped sheet.
+
+⚠️ **A literal is opaque to the renderer.** Rendered in place, the regex substitutions subscripted
+`x_1`, styled `[kip]` as a unit, and emitted _broken HTML_ — `"x_1 and y^2"` came back with the
+closing quote inside a `<sup>`. `prettifyExpr` now masks literals out, renders, then restores them
+escaped. Found by probing the renderer before shipping, not by a user.
+
 ## Why the math engine is TypeScript, not WASM
 
 The project name and repo location (`wasmExamples/`) suggest a WASM-first design. It is not, and that

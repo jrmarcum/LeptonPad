@@ -232,6 +232,28 @@ becoming one. Note the one case the program cannot read your mind on: if `V_u` a
 `V_u = V_n` is a perfectly legal **reassignment** and will overwrite it. **A check always shows OK
 or NG** — if you wrote one and see a plain number instead, you wrote an assignment.
 
+### Text values
+
+Not every check is about a number. Text is written in **double quotes** and works as a value:
+
+```
+\lambda = 0.4
+class = if(\lambda <= 0.38, "Compact", "Slender")      Slender
+class == "Slender"                                      OK
+```
+
+It assigns to a variable, compares with `==` and `!=`, and a comparison reads as **OK** / **NG**
+like any other check. The quotes appear in the formula, where they mark a literal; the result
+column shows the text plain.
+
+Text deliberately does **not** do arithmetic, carry a unit, or compare with `<` `>` `<=` `>=`.
+Ordering text could only be alphabetical, and `"Compact" < "Slender"` is a fact about the alphabet
+rather than about sections — it would look like a design check without being one. Each of these
+says what is wrong rather than producing a number.
+
+Inside quotes your text is left exactly as typed: `"P [kip]"` is prose, not a unit, and `"x_1"`
+is not subscripted.
+
 ### Significant digits
 
 Right-click a formula row → **Significant digits (this row)**, or the block's label → **(whole

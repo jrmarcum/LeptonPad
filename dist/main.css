@@ -1293,6 +1293,20 @@ main {
   opacity: 0.75;
   margin-left: 0.15em;
 }
+/* A text literal in a FORMULA, quotes included — they are what marks it as a literal rather than
+   a variable name. Upright, because the surrounding maths is italic and this is prose. */
+.fp-text {
+  font-style: normal;
+  color: #0f766e;
+}
+
+/* A text result. Same face and colour as a numeric one — it is the row's answer, and only a
+   status (err, OK, NG) earns a colour of its own. `tabular-nums` is pointless here, and the
+   quotes are deliberately NOT shown: they mark a literal in the formula, not in the answer. */
+.formula-result-text {
+  font-variant-numeric: normal;
+}
+
 .formula-fn {
   color: #7c3aed;
   font-style: italic;

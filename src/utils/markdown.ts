@@ -557,8 +557,50 @@ export function renderExpr(raw: string): string {
  * Handles: assignment (name = expr), top-level division → stacked fraction,
  * Greek letters, superscripts, subscripts, sqrt → √, * → ×.
  */
+/** A placeholder that cannot occur in a formula, used to hide text literals from the renderer. */
+const STR_SLOT = '\u0000S';
+
+/**
+ * Pull `"quoted text"` out of an expression before anything else looks at it.
+ *
+ * A text literal is **opaque**: it is the user's prose, not notation. Rendered in place it got
+ * `x_1` subscripted, `[kip]` styled as a unit, and — because the substitutions are regex-based and
+ * know nothing about quotes — `"x_1 and y^2"` came back as `"x<sub>1</sub> and y<sup>2"</sup>`,
+ * with the closing quote INSIDE the superscript. Broken HTML, from a label that just said what it
+ * said. Found by probing the renderer before shipping text (2026-10-02).
+ */
+function hideTextLiterals(s: string): { masked: string; literals: string[] } {
+  const literals: string[] = [];
+  const masked = s.replace(/"([^"]*)"/g, (_m, inner: string) => {
+    literals.push(inner);
+    return `${STR_SLOT}${literals.length - 1}\u0000`;
+  });
+  return { masked, literals };
+}
+
+/** Put the literals back, HTML-escaped and quoted, after rendering is done. */
+function restoreTextLiterals(html: string, literals: string[]): string {
+  return html.replace(
+    new RegExp(`${STR_SLOT}(\\d+)\u0000`, 'g'),
+    (_m, i: string) => {
+      const esc = (literals[Number(i)] ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Quotes ARE shown here: in the formula they mark a literal. The RESULT column drops them.
+      return `<span class="fp-text">"${esc}"</span>`;
+    },
+  );
+}
+
 export function prettifyExpr(src: string): string {
-  const raw = src.trim();
+  const trimmed = src.trim();
+  if (!trimmed) return '';
+  // Masked for the whole of the rendering below, including the trailing-[unit] detection — a
+  // `[kip]` inside quotes is prose, not a tag, and must not be peeled off as one.
+  const { masked, literals } = hideTextLiterals(trimmed);
+  return restoreTextLiterals(prettifyExprInner(masked), literals);
+}
+
+function prettifyExprInner(raw: string): string {
   if (!raw) return '';
 
   // Strip [[targetUnit]] first, then [sourceUnit], for display
