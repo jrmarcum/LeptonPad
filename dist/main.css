@@ -2282,6 +2282,118 @@ h2.custom-tools-heading {
   }
 }
 
+/* ── Table block ─────────────────────────────────────────────────────────── */
+
+/* The five source fields. Edited in place rather than behind a dialog, because where a table's
+   numbers came from is exactly what a reviewer wants to see — and hidden in PRINT, so the sheet
+   carries the table and not its plumbing. */
+.tbl-src {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e4e4e7;
+}
+.tbl-src-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.tbl-src-label {
+  flex: 0 0 4.2rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  user-select: none;
+}
+.tbl-src-input {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+  padding: 1px 3px;
+  border-bottom: 1px solid transparent;
+  overflow-wrap: anywhere;
+}
+.tbl-src-input:hover:not(:focus) {
+  border-bottom-color: #d4d4d8;
+}
+.tbl-src-input:focus {
+  border-bottom-color: #3b82f6;
+}
+.tbl-src-input:empty::before {
+  content: attr(data-placeholder);
+  color: #c4c4c7;
+  pointer-events: none;
+}
+
+.tbl-title {
+  /* Spans the full width of the table (Jon, 2026-10-02), above everything else. */
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.15rem 0 0.3rem;
+}
+.tbl-grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--math-font);
+  font-size: calc(0.78rem * var(--math-text-scale));
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.tbl-grid th,
+.tbl-grid td {
+  border: 1px solid #94a3b8;
+  padding: 2px 6px;
+  text-align: right;
+}
+.tbl-grid th {
+  background: #f8fafc;
+  font-weight: 600;
+  text-align: center;
+}
+/* The corner names both axes, so it reads as a label rather than a heading of either one. */
+.tbl-corner {
+  text-align: center;
+  font-style: italic;
+  white-space: pre;
+}
+.tbl-rowhead {
+  text-align: right;
+}
+.tbl-error {
+  color: #dc2626;
+  font-size: 0.75rem;
+  padding: 0.2rem 0;
+}
+.table-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  opacity: 0;
+}
+.block:hover .table-resize-handle {
+  opacity: 1;
+  background: rgba(59, 130, 246, 0.25);
+}
+
+@media print {
+  /* Only the table prints — the source fields are editing chrome. */
+  .tbl-src,
+  .table-resize-handle {
+    display: none !important;
+  }
+  .tbl-grid th {
+    background: none !important;
+  }
+}
+
 /* ── Title block ─────────────────────────────────────────────────────────── */
 .title-block {
   padding: 0 !important;

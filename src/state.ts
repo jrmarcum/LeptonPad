@@ -255,6 +255,20 @@ export const sectionSummaryComparisons = new Map<
 export const childToSection: Map<string, string> = new Map();
 
 /**
+ * Renders a table block, called from `reEvalAllFormulas` at that block's place in document order.
+ *
+ * A slot rather than a direct import: the table renderer needs `fmtNum` from `formula.ts`, and
+ * `formula.ts` has to call the renderer — importing both ways would close a cycle. This is what
+ * the callback-slot pattern is for.
+ */
+type RenderTableFn = (host: HTMLElement, block: Block, scope: Scope, fnScope: FnScope) => void;
+
+export let onRenderTable: RenderTableFn | null = null;
+export function setOnRenderTable(fn: RenderTableFn) {
+  onRenderTable = fn;
+}
+
+/**
  * The purchased-pack section this block sits INSIDE, or undefined.
  *
  * A pack section is not its own child: the buyer places it on their sheet and may move, resize and

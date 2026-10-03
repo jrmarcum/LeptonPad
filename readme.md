@@ -250,6 +250,34 @@ You can start inline and convert: right-click a row that is exactly `x = if(c, a
 The option only appears when the call is the whole right-hand side — expanding
 `M = if(c, M_p, M_r) * \phi` would have nowhere to put the `* \phi`.
 
+### Table block
+
+Drag a **Table** onto the canvas. It renders a matrix with headings — it does not hold data, so
+there is no typing into cells. Five fields:
+
+| Field   | What it takes                                                   |
+| ------- | --------------------------------------------------------------- |
+| Title   | text, spanning the full width                                   |
+| Corner  | the label naming both axes, e.g. `b/a  /  x`                    |
+| Columns | comma-separated: `"END", "0.1b / 0.9b", …`                      |
+| Rows    | the same — or a single vector, whose values become the headings |
+| Values  | one matrix: a variable, a literal, or `tabulate(…)`             |
+
+A heading list splices a vector, so the row headings of a lookup table can be **the same vector
+you key `interp2` on** rather than the numbers retyped:
+
+```
+Rows:    ba
+Values:  Cdx
+```
+
+Retyping them would be a second copy that can quietly disagree with the first.
+
+Headings are optional, but a wrong _count_ is an error rather than being padded or truncated — a
+table whose labels have slipped by one column is worse than one with no labels. Units stay on each
+cell, since the matrix already carries them. The source fields are hidden when you print, so the
+sheet shows the table and not its plumbing.
+
 ### Reading a published table
 
 `interp(x, X, Y)` reads down a one-way table, interpolating between the two bracketing rows.

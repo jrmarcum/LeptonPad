@@ -26,6 +26,7 @@ import {
   globalScope,
   margins,
   onRefreshAllSectionHeights,
+  onRenderTable,
   onSectionSummaryUpdate,
   sectionSummaryComparisons,
   sectionSummaryVarNames,
@@ -416,6 +417,10 @@ export function reEvalAllFormulas() {
     ...Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.formula-block'))
       .filter((el) => !childToSection.has(el.id)),
     ...Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.section-block')),
+    // Tables join the SAME ordered pass, so one sees the variables defined above it and not
+    // those below — the document-order rule every other block already follows.
+    ...Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.table-block'))
+      .filter((el) => !childToSection.has(el.id)),
   ].sort((a, b) => {
     const dy = parseInt(a.style.top) - parseInt(b.style.top);
     return dy !== 0 ? dy : parseInt(a.style.left) - parseInt(b.style.left);
@@ -424,6 +429,12 @@ export function reEvalAllFormulas() {
   for (const el of topLevelEls) {
     const block = state.blocks.find((b) => b.id === el.id);
     if (!block) continue;
+
+    if (block.type === 'table') {
+      const out = el.querySelector<HTMLElement>('.tbl-out');
+      if (out) onRenderTable?.(out, block, globalScope, globalFnScope);
+      continue;
+    }
 
     if (block.type === 'section') {
       const prefix = sectionPrefix(block.sectionName);

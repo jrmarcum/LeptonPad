@@ -29,6 +29,7 @@ import {
 import { clamp, pxToUnit, unitToPx } from './utils/units.ts';
 import { isDark } from './utils/theme.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
+import { parseTableSource, renderTableInto, setOnTableChanged } from './blocks/table.ts';
 import {
   refreshAllSectionHeights,
   refreshSectionHeight,
@@ -103,6 +104,7 @@ import {
   setOnMoveGridCursor,
   setOnRefreshAllSectionHeights,
   setOnRefreshCustomModulesList,
+  setOnRenderTable,
   setOnSectionSummaryUpdate,
   setOnSelectBlock,
   setPAGE_H,
@@ -141,6 +143,7 @@ const MODULES: {
   { id: 'sect-prop', name: 'Section Properties', icon: '\u{1F3D7}', type: 'math' },
   { id: 'plot', name: 'Plot', icon: '\u{1F4C8}', type: 'plot' },
   { id: 'figure', name: 'Figure', icon: '\u{1F5BC}', type: 'figure' },
+  { id: 'table', name: 'Table', icon: '\u{1F4CA}', type: 'table' },
   { id: 'text', name: 'Text Block', icon: '\u{1F4DD}', type: 'text' },
 ];
 
@@ -1028,6 +1031,12 @@ async function start() {
     // setOnClearSelection were removed 2026-09-23 with zero `?.()` call sites — those functions
     // are imported and called directly where they are needed.
     setOnSectionSummaryUpdate(updateSectionSummary);
+    // Both directions of the table's cycle-avoiding seam: formula.ts renders a table at its place
+    // in document order, and the table asks for a re-evaluation when one of its fields changes.
+    setOnRenderTable((host, blk, scope, fnScope) =>
+      renderTableInto(host, parseTableSource(blk.content), scope, fnScope)
+    );
+    setOnTableChanged(() => reEvalAllFormulas());
     setOnRefreshAllSectionHeights(refreshAllSectionHeights);
     setOnSelectBlock(selectBlock);
     setOnAddToSelection(addToSelection);

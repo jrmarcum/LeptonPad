@@ -410,6 +410,39 @@ Three things that are easy to get wrong and are handled:
 A child whose parent did not come along becomes a canvas block rather than silently staying attached
 to the original section.
 
+## Table block (v2.8.1, 2026-10-02)
+
+**A pure renderer.** It evaluates expressions and draws the result; it never owns data, and typing
+into cells is explicitly not a goal (Jon, 2026-10-02). Values come from a matrix expression, so the
+same matrix feeds a table, `interp2` and a plot without being written twice.
+
+Five fields, stored as JSON in `block.content`: `title` (spans the full width), `corner` (the label
+naming both axes), `cols`, `rows`, `values`. Shape taken from the Cdx reference table Jon supplied.
+
+🔑 **A heading list splices a vector.** `Rows: ba` uses the same vector `interp2` keys on, rather
+than the ten numbers retyped — and retyping them is a second copy of the data that can silently
+disagree with the first. Scalars, text and vectors mix freely in one comma-separated list.
+
+Headings are optional; a wrong **count** is reported rather than padded or truncated. A table whose
+labels have slipped by one column is worse than a table with no labels at all. A `values`
+expression that yields a single value is also refused — it is almost always a mistyped variable
+name, and rendering a 1×1 table would hide that.
+
+**Units stay per cell**, not hoisted into the heading: they are already in the matrix and a column
+is not always unit-consistent.
+
+Tables join `reEvalAllFormulas`'s ordered pass, so one sees the variables defined **above** it —
+the same document-order rule every other block follows.
+
+⚠️ **The cycle-avoiding seam.** `table.ts` needs `fmtNum` from `formula.ts`, and `formula.ts` must
+call the renderer during evaluation. Importing both ways would close a cycle, so it goes through
+two slots: `state.onRenderTable` (formula → table) and `table.onTableChanged` (table → formula),
+both wired in `main.ts`. This is what the callback-slot pattern in `state.ts` is for.
+
+The source fields are edited **in place** and hidden in print. Where a table's numbers came from is
+exactly what a reviewer wants to see, so it should not be behind a dialog — but it is plumbing, so
+it should not be on the stamped sheet either.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

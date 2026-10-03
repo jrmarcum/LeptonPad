@@ -27,6 +27,7 @@ import { buildSectPropBlock } from './blocks/sect-prop.ts';
 import { buildBeamDefBlock } from './blocks/beam-def.ts';
 import { buildTextBlock } from './blocks/text.ts';
 import { buildFigureBlock } from './blocks/figure.ts';
+import { buildTableBlock } from './blocks/table.ts';
 
 /**
  * Push a block's line-spacing setting onto its element as `--block-line-space`.
@@ -233,9 +234,11 @@ export class Canvas {
       buildTextBlock(el, block);
     } else if (block.type === 'figure') {
       buildFigureBlock(el, block);
+    } else if (block.type === 'table') {
+      buildTableBlock(el, block);
     } else {
-      // An UNRECOGNISED block type. TypeScript narrows `block.type` to `'table' | 'math'` here —
-      // `'table'` is declared with no implementation, and a `'math'` block with an unknown
+      // An UNRECOGNISED block type. TypeScript narrows `block.type` to `'math'` here —
+      // a `'math'` block with an unknown
       // subtype lands here too, as does anything a hand-edited or newer-version file carries.
       //
       // This used to render a contenteditable
