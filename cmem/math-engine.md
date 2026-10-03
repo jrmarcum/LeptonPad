@@ -35,6 +35,22 @@ Private helpers, all pure, all operating on `UnitMap`:
 | `alignUnits`    | Converts the right operand into the left's unit, or throws. Used by `+`, `−` and compare. |
 | `formatUnit`    | `UnitMap` → display string.                                                               |
 
+## Unfolding a folded table: `mirror` and `mirrorkeys` (2026-10-02, v2.8.3)
+
+A published table folded about midspan — columns headed `0.1b / 0.9b` — stores half the plate.
+`mirror(M)` mirrors the columns about the **last** one, so a 10×6 half becomes a 10×11 whole and
+the 50 mirrored numbers are never retyped. The centre column appears **once**: it is the axis, not
+a pair.
+
+🔑 **`mirrorkeys` is a separate function on purpose. Data REPEATS across the axis; a coordinate
+CONTINUES past it.** Mirroring keys as though they were data gives `0, 0.1 … 0.5, 0.4, 0.3` —
+non-monotonic, which `interp2` rejects outright, and which would label the right half of the plate
+with the left half's positions. Each added key is reflected as `2·kₙ₋₁ − kᵢ`, preserving the
+axis's direction and its unit.
+
+Rows rather than columns: `transpose(mirror(transpose(M)))` — composed from what exists rather
+than given its own function.
+
 ## Reading published tables: `interp`, `interp2`, and monotonic axes (2026-10-02, v2.8.0)
 
 `interp2(M, rowKeys, colKeys, row, col)` is **bilinear** — four surrounding values, interpolated

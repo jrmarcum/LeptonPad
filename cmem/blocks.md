@@ -439,6 +439,12 @@ call the renderer during evaluation. Importing both ways would close a cycle, so
 two slots: `state.onRenderTable` (formula → table) and `table.onTableChanged` (table → formula),
 both wired in `main.ts`. This is what the callback-slot pattern in `state.ts` is for.
 
+**The source strip collapses when you are not working on the block** (Jon, 2026-10-02 — the same
+bargain the formula block strikes, where a row shows rendered maths and reveals its source only
+when you are in it). Pure CSS, shown on three conditions that are all things the user is already
+doing: `.selected`, `:focus-within`, and `.tbl-needs-src` — the last set whenever `values` is
+empty, because a block with nothing rendered and a hidden strip would be blank with no clue.
+
 The source fields are edited **in place** and hidden in print. Where a table's numbers came from is
 exactly what a reviewer wants to see, so it should not be behind a dialog — but it is plumbing, so
 it should not be on the stamped sheet either.

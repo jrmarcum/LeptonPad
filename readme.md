@@ -278,6 +278,23 @@ table whose labels have slipped by one column is worse than one with no labels. 
 cell, since the matrix already carries them. The source fields are hidden when you print, so the
 sheet shows the table and not its plumbing.
 
+### Unfolding a folded table
+
+A table whose columns read `0.1b / 0.9b` stores only half the plate. `mirror()` writes the other
+half, and `mirrorkeys()` produces the axis to go with it:
+
+```
+Cdx_full = mirror(Cdx)           6 columns → 11, the centre appearing once
+xb_full  = mirrorkeys(xb)        0 … 0.5  → 0 … 1.0
+```
+
+They are two functions because they do two different things. **Data repeats across the axis; a
+coordinate continues past it.** Mirroring the keys as though they were data would give
+`0, 0.1 … 0.5, 0.4, 0.3`, which runs backwards and would label the right half of the plate with
+the left half's positions.
+
+For rows instead of columns: `transpose(mirror(transpose(M)))`.
+
 ### Heat map block
 
 Shows a matrix as a field — the same three inputs as a Table (values, row keys, column keys), so

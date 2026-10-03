@@ -2287,13 +2287,27 @@ h2.custom-tools-heading {
 /* The five source fields. Edited in place rather than behind a dialog, because where a table's
    numbers came from is exactly what a reviewer wants to see — and hidden in PRINT, so the sheet
    carries the table and not its plumbing. */
+/* Hidden until you are working on the block — the same bargain the formula block strikes, where
+   a row shows rendered maths and reveals its source only when you are in it. The table a reviewer
+   reads is the output; the five expressions are how you got there, and they should not be in the
+   way of the thing they produce.
+
+   Shown on three conditions, all of them things the user is already doing:
+     .selected      the block is picked, so you are working on it
+     :focus-within  you clicked straight into a field
+     .tbl-needs-src nothing has been entered yet, so there is nothing else to look at */
 .tbl-src {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 2px;
   margin-bottom: 0.5rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid #e4e4e7;
+}
+.block.selected > .tbl-src,
+.block.tbl-needs-src > .tbl-src,
+.tbl-src:focus-within {
+  display: flex;
 }
 .tbl-src-row {
   display: flex;

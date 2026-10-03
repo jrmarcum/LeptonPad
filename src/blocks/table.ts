@@ -216,6 +216,9 @@ export function buildTableBlock(el: HTMLElement, block: Block) {
     const commit = () => {
       src[key] = inp.textContent ?? '';
       block.content = JSON.stringify(src);
+      // An empty block keeps its fields visible: with nothing rendered there is nothing else to
+      // look at, and a strip that only appears on selection would leave a blank block and no clue.
+      el.classList.toggle('tbl-needs-src', !src.values.trim());
       onTableChanged?.();
     };
     inp.addEventListener('blur', commit);
@@ -234,6 +237,8 @@ export function buildTableBlock(el: HTMLElement, block: Block) {
   field('cols', 'Columns', '"END", "0.1b / 0.9b", …');
   field('rows', 'Rows', 'a vector such as ba, or "A", "B", …');
   field('values', 'Values', 'a matrix: Cdx, or tabulate(x, 0, L, L/10, w(x))');
+  // Same rule at build time, so a block restored from a file opens in the right state.
+  el.classList.toggle('tbl-needs-src', !src.values.trim());
   el.appendChild(srcWrap);
 
   const out = document.createElement('div');

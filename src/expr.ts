@@ -749,12 +749,63 @@ function solveSystem(k: Quantity, f: Quantity): Quantity {
 }
 
 /** Functions that take matrices, dispatched before the scalar-only argument guard in atom(). */
+/**
+ * Unfold a half-table: mirror the columns about the LAST one, which is the axis of symmetry.
+ *
+ * A published table folded about midspan — columns headed `0.1b / 0.9b` — stores only half the
+ * plate. `mirror` writes the other half, so a 10×6 half becomes a 10×11 whole without the 50
+ * mirrored numbers being retyped. Retyping them would be a second copy of the data that can
+ * silently disagree with the first.
+ *
+ * The centre column appears ONCE: it is the axis, not a pair. Columns c₀…cₙ₋₁ become
+ * c₀…cₙ₋₁,cₙ₋₂…c₀.
+ *
+ * For rows instead of columns, compose with the function that already exists:
+ * `transpose(mirror(transpose(M)))`.
+ */
+function mirrorCols(a: Quantity): Quantity {
+  if (!a.m) throw new Error('mirror() needs a matrix');
+  const n = a.m[0].length;
+  if (n < 2) throw new Error('mirror() needs at least two columns to mirror about the last');
+  return matrixOf(a.m.map((row) => [...row, ...row.slice(0, n - 1).reverse()]));
+}
+
+/**
+ * The key vector that matches a mirrored table.
+ *
+ * ⚠️ **Not the same operation as `mirror`, and this is the whole point of it being separate.**
+ * Data REPEATS across the axis; a coordinate CONTINUES past it. Mirroring the keys as if they
+ * were data gives `0, 0.1 … 0.5, 0.4, 0.3 …` — non-monotonic, which `interp2` rejects and which
+ * would label the right half of the axis with the left half's numbers.
+ *
+ * Each added key is reflected about the last: `2·kₙ₋₁ − kᵢ`. So `0 … 0.5` continues `0.6 … 1.0`,
+ * and the direction of the axis is preserved whichever way it ran.
+ */
+function mirrorKeys(a: Quantity): Quantity {
+  if (!a.m) throw new Error('mirrorkeys() needs a vector');
+  const flat = a.m.flat();
+  const n = flat.length;
+  if (n < 2) throw new Error('mirrorkeys() needs at least two keys');
+  const u = flat[0].u;
+  const vals = flat.map((k) =>
+    alignUnits(flat[0], scalarOnly(k, 'mirrorkeys()'), 'mirrorkeys()', true).v
+  );
+  const axis = vals[n - 1];
+  const out = vals.map((v) => ({ v, u }));
+  for (let i = n - 2; i >= 0; i--) out.push({ v: 2 * axis - vals[i], u });
+  // Returned in the shape it arrived in: a row vector stays a row, a column stays a column, so
+  // it can go straight back where the original came from.
+  return a.m.length === 1 ? matrixOf([out]) : matrixOf(out.map((q) => [q]));
+}
+
 const MATRIX_FNS: Record<string, { arity: number; run: (args: Quantity[]) => Quantity }> = {
   transpose: { arity: 1, run: ([a]) => transpose(a) },
   det: { arity: 1, run: ([a]) => det(a) },
   inv: { arity: 1, run: ([a]) => inv(a) },
   solve: { arity: 2, run: ([k, f]) => solveSystem(k, f) },
   el: { arity: 3, run: ([a, i, j]) => element(a, i, j) },
+  mirror: { arity: 1, run: ([a]) => mirrorCols(a) },
+  mirrorkeys: { arity: 1, run: ([a]) => mirrorKeys(a) },
 };
 
 /**

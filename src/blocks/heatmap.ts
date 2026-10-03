@@ -293,6 +293,9 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
     const commit = () => {
       src[key] = inp.textContent ?? '';
       block.content = JSON.stringify(src);
+      // An empty block keeps its fields visible: with nothing rendered there is nothing else to
+      // look at, and a strip that only appears on selection would leave a blank block and no clue.
+      el.classList.toggle('tbl-needs-src', !src.values.trim());
       onHeatChanged?.();
     };
     inp.addEventListener('blur', commit);
@@ -309,6 +312,8 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
   field('values', 'Values', 'a matrix, e.g. w or tabulate(…)');
   field('rows', 'Row keys', 'optional vector for the vertical axis');
   field('cols', 'Col keys', 'optional vector for the horizontal axis');
+  // Same rule at build time, so a block restored from a file opens in the right state.
+  el.classList.toggle('tbl-needs-src', !src.values.trim());
   el.appendChild(srcWrap);
 
   const out = document.createElement('div');
