@@ -2394,6 +2394,88 @@ h2.custom-tools-heading {
   }
 }
 
+/* ── Heat map block ──────────────────────────────────────────────────────── */
+
+.heat-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.heat-contour {
+  stroke: #1f2937;
+  stroke-width: 0.6;
+  fill: none;
+}
+/* The label carries the value. Colour may not survive printing, so on paper these ARE the data —
+   the halo keeps them readable over whatever fill is behind them. */
+.heat-contour-label {
+  font-size: 7px;
+  fill: #111827;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+.heat-tick {
+  font-size: 8px;
+  fill: #6b7280;
+}
+.heat-tick-x {
+  text-anchor: middle;
+}
+.heat-tick-y {
+  text-anchor: end;
+}
+.heat-hover circle {
+  fill: #111827;
+}
+.heat-hover-box {
+  fill: rgba(255, 255, 255, 0.92);
+  stroke: #94a3b8;
+  stroke-width: 0.5;
+}
+.heat-hover-text {
+  font-size: 9px;
+  fill: #111827;
+  dominant-baseline: middle;
+}
+.heat-legend {
+  font-size: 0.7rem;
+  color: #6b7280;
+  padding-top: 0.2rem;
+}
+.heat-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  opacity: 0;
+}
+.block:hover .heat-resize-handle {
+  opacity: 1;
+  background: rgba(59, 130, 246, 0.25);
+}
+
+@media print {
+  .heat-resize-handle,
+  .heat-hover {
+    display: none !important;
+  }
+  /* Contours and their labels darken, since on paper they carry the values on their own. */
+  .heat-contour {
+    stroke: #000;
+    stroke-width: 0.7;
+  }
+  .heat-contour-label {
+    fill: #000;
+  }
+}
+
 /* ── Title block ─────────────────────────────────────────────────────────── */
 .title-block {
   padding: 0 !important;

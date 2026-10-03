@@ -28,6 +28,7 @@ import { buildBeamDefBlock } from './blocks/beam-def.ts';
 import { buildTextBlock } from './blocks/text.ts';
 import { buildFigureBlock } from './blocks/figure.ts';
 import { buildTableBlock } from './blocks/table.ts';
+import { buildHeatMapBlock } from './blocks/heatmap.ts';
 
 /**
  * Push a block's line-spacing setting onto its element as `--block-line-space`.
@@ -236,6 +237,8 @@ export class Canvas {
       buildFigureBlock(el, block);
     } else if (block.type === 'table') {
       buildTableBlock(el, block);
+    } else if (block.type === 'heatmap') {
+      buildHeatMapBlock(el, block);
     } else {
       // An UNRECOGNISED block type. TypeScript narrows `block.type` to `'math'` here —
       // a `'math'` block with an unknown

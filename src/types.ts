@@ -16,7 +16,8 @@ export interface Block {
     | 'formula'
     | 'section'
     | 'summary'
-    | 'figure';
+    | 'figure'
+    | 'heatmap';
   subtype?: string; // module id for math blocks: 'beam-def' | 'sect-prop'
   x: number;
   y: number;

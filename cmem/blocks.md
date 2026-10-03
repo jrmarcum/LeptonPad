@@ -443,6 +443,43 @@ The source fields are edited **in place** and hidden in print. Where a table's n
 exactly what a reviewer wants to see, so it should not be behind a dialog — but it is plumbing, so
 it should not be on the stamped sheet either.
 
+## Heat map block (v2.8.2, 2026-10-02)
+
+Built for plate deflection. Takes the **same three inputs as the table** — values matrix, row
+keys, column keys — so a sheet defines the data once and can show it as numbers or as a field.
+
+| Decision | Jon, 2026-10-02                                                                                                      |
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
+| Cells    | **discrete**, not smoothed — a 10×6 matrix has 10×6 of resolution and a smooth fill implies detail that is not there |
+| Contours | **20 bands from lowest to highest**, so 19 interior lines, uniformly spaced                                          |
+| Block    | its own type, not a plot mode                                                                                        |
+| Print    | colour need not survive, **as long as the contours are labelled**                                                    |
+
+That last one makes **labels load-bearing rather than decorative**: on paper the labels and the
+legend range are the only numbers on the map. One label per level, on its longest run, and only
+where the run is long enough to hold the text — crowded areas are left clear rather than
+overprinted, because 19 labels forced onto a small field hide the contours they describe.
+
+Colour is **anchored at zero** even though the levels are uniform across the range, so the sign of
+a deflection reads at a glance; all-positive data then uses one hue, which is the correct reading
+rather than a wasted palette.
+
+**Contour geometry lives in `contours.ts`, pure and tested** (`contourLevels`, `marchingSquares`,
+`gridRange`). Marching squares is wrong _invisibly_ — a mis-set case gives a plausible field with
+its lines in the wrong place — so the saddle resolution, the linear crossing, the divide-by-zero
+guard when a level sits exactly on a sample, and the degenerate grids are all pinned against
+fields whose contours can be worked out by hand.
+
+🔑 **Hover goes through the same interpolation the calculation uses**, so the number under the
+cursor and the contour through that point agree by construction rather than by coincidence.
+
+Samples are the **corners** of the field, so a cell spans between four of them. Drawing each
+sample as a patch centred on itself would put half a cell of invented data outside the grid.
+
+Wiring mirrors the table exactly: `state.onRenderHeat` and `heatmap.onHeatChanged`, both wired in
+`main.ts`, because `heatmap.ts` needs `fmtNum` from `formula.ts` and `formula.ts` must call the
+renderer.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

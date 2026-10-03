@@ -278,6 +278,23 @@ table whose labels have slipped by one column is worse than one with no labels. 
 cell, since the matrix already carries them. The source fields are hidden when you print, so the
 sheet shows the table and not its plumbing.
 
+### Heat map block
+
+Shows a matrix as a field — the same three inputs as a Table (values, row keys, column keys), so
+one set of data can be presented either way.
+
+- **Cells are discrete.** A 10 × 6 matrix has 10 × 6 of resolution, and a smoothed fill would
+  imply detail that is not in the data.
+- **20 contour bands** from the lowest value to the highest, giving 19 labelled lines.
+- **Colour is anchored at zero**, so the sign of a deflection reads at a glance. All-positive data
+  simply uses one hue.
+- **Hovering** reads the value under the cursor, interpolated the same way `interp2` interpolates —
+  so the number and the contour through that point agree.
+
+The **contour labels carry the values**, which is what makes the map usable on paper: colour may
+not survive printing, so the labels and the range in the legend are the data. A label is placed
+only where its contour has room for it, leaving crowded areas clear rather than overprinted.
+
 ### Reading a published table
 
 `interp(x, X, Y)` reads down a one-way table, interpolating between the two bracketing rows.

@@ -30,6 +30,7 @@ import { clamp, pxToUnit, unitToPx } from './utils/units.ts';
 import { isDark } from './utils/theme.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
 import { parseTableSource, renderTableInto, setOnTableChanged } from './blocks/table.ts';
+import { parseHeatSource, renderHeatInto, setOnHeatChanged } from './blocks/heatmap.ts';
 import {
   refreshAllSectionHeights,
   refreshSectionHeight,
@@ -104,6 +105,7 @@ import {
   setOnMoveGridCursor,
   setOnRefreshAllSectionHeights,
   setOnRefreshCustomModulesList,
+  setOnRenderHeat,
   setOnRenderTable,
   setOnSectionSummaryUpdate,
   setOnSelectBlock,
@@ -144,6 +146,7 @@ const MODULES: {
   { id: 'plot', name: 'Plot', icon: '\u{1F4C8}', type: 'plot' },
   { id: 'figure', name: 'Figure', icon: '\u{1F5BC}', type: 'figure' },
   { id: 'table', name: 'Table', icon: '\u{1F4CA}', type: 'table' },
+  { id: 'heatmap', name: 'Heat Map', icon: '\u{1F321}', type: 'heatmap' },
   { id: 'text', name: 'Text Block', icon: '\u{1F4DD}', type: 'text' },
 ];
 
@@ -1037,6 +1040,10 @@ async function start() {
       renderTableInto(host, parseTableSource(blk.content), scope, fnScope)
     );
     setOnTableChanged(() => reEvalAllFormulas());
+    setOnRenderHeat((host, blk, scope, fnScope) =>
+      renderHeatInto(host, parseHeatSource(blk.content), scope, fnScope)
+    );
+    setOnHeatChanged(() => reEvalAllFormulas());
     setOnRefreshAllSectionHeights(refreshAllSectionHeights);
     setOnSelectBlock(selectBlock);
     setOnAddToSelection(addToSelection);

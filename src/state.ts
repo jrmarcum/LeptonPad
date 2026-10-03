@@ -268,6 +268,12 @@ export function setOnRenderTable(fn: RenderTableFn) {
   onRenderTable = fn;
 }
 
+/** The same seam for the heat map block. */
+export let onRenderHeat: RenderTableFn | null = null;
+export function setOnRenderHeat(fn: RenderTableFn) {
+  onRenderHeat = fn;
+}
+
 /**
  * The purchased-pack section this block sits INSIDE, or undefined.
  *

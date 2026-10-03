@@ -26,6 +26,7 @@ import {
   globalScope,
   margins,
   onRefreshAllSectionHeights,
+  onRenderHeat,
   onRenderTable,
   onSectionSummaryUpdate,
   sectionSummaryComparisons,
@@ -421,6 +422,8 @@ export function reEvalAllFormulas() {
     // those below — the document-order rule every other block already follows.
     ...Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.table-block'))
       .filter((el) => !childToSection.has(el.id)),
+    ...Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.heatmap-block'))
+      .filter((el) => !childToSection.has(el.id)),
   ].sort((a, b) => {
     const dy = parseInt(a.style.top) - parseInt(b.style.top);
     return dy !== 0 ? dy : parseInt(a.style.left) - parseInt(b.style.left);
@@ -433,6 +436,12 @@ export function reEvalAllFormulas() {
     if (block.type === 'table') {
       const out = el.querySelector<HTMLElement>('.tbl-out');
       if (out) onRenderTable?.(out, block, globalScope, globalFnScope);
+      continue;
+    }
+
+    if (block.type === 'heatmap') {
+      const out = el.querySelector<HTMLElement>('.heat-out');
+      if (out) onRenderHeat?.(out, block, globalScope, globalFnScope);
       continue;
     }
 
