@@ -290,6 +290,7 @@ export function renderHeatInto(
     const uy = ((sy / rect.height) * H - PAD_T) / cellH;
     if (ux < 0 || uy < 0 || ux > colsN - 1 || uy > rowsN - 1) {
       hov.style.display = 'none';
+      svg.classList.remove('heat-tracking');
       return;
     }
     const i = Math.min(rowsN - 2, Math.floor(uy)), j = Math.min(colsN - 2, Math.floor(ux));
@@ -305,6 +306,11 @@ export function renderHeatInto(
     }`;
 
     hov.style.display = '';
+    // The pointer is hidden over the field so the DOT is the cursor — the block inherits
+    // `cursor: grab` from `.block`, and a hand sitting on top of the reading obscures the one
+    // pixel the reading is about. Toggled with the dot rather than set on the SVG outright, so
+    // there is never a moment with neither: step into the margin and the hand comes back.
+    svg.classList.add('heat-tracking');
     dot.setAttribute('cx', gx(ux).toFixed(1));
     dot.setAttribute('cy', gy(uy).toFixed(1));
     const w = label.length * 5.4 + 8;
@@ -320,6 +326,7 @@ export function renderHeatInto(
   });
   svg.addEventListener('mouseleave', () => {
     hov.style.display = 'none';
+    svg.classList.remove('heat-tracking');
   });
 
   host.appendChild(svg);

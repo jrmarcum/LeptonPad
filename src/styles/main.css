@@ -2416,6 +2416,13 @@ h2.custom-tools-heading {
   height: auto;
   overflow: visible;
 }
+/* Over the field the pointer is hidden and the dot IS the cursor: a hand sitting on top of the
+   reading obscures the one pixel the reading is about. The class is toggled with the dot rather
+   than set here unconditionally, so stepping into the axis margin brings the pointer straight
+   back — there is never a moment with neither a cursor nor a dot. */
+.heat-svg.heat-tracking {
+  cursor: none;
+}
 .heat-contour {
   stroke: #1f2937;
   stroke-width: 0.6;
