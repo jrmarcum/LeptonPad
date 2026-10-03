@@ -788,6 +788,65 @@ function minMax(name: string, args: Quantity[]): Quantity {
  *   interp(x, X, Y)           — down a table: X and Y are equal-length vectors, X increasing.
  *                               Outside the table it is an error, not a guess.
  */
+/**
+ * The key values of a lookup axis, all brought into the FIRST key's unit.
+ *
+ * ⚠️ `interp` used to align units only inside its final lerp, while the range check and the
+ * bracket search compared raw `.v`. A table keyed in ft read at a value in inches therefore
+ * bracketed against the wrong pair and then interpolated correctly between them — a plausible
+ * wrong number. Aligning once, up front, is what makes the comparisons mean anything.
+ */
+function axisValues(keys: Quantity[], what: string): number[] {
+  return keys.map((k) => alignUnits(keys[0], scalarOnly(k, what), what, true).v);
+}
+
+/**
+ * Which way an axis runs: +1 increasing, −1 decreasing. Throws unless it is strictly one or the
+ * other.
+ *
+ * **Monotonic, not ascending** (Jon, 2026-10-02). The original rule demanded increasing keys, but
+ * what it was really catching is a MALFORMED axis — a swapped pair, or a duplicate that would
+ * divide by zero. Published engineering tables are often written descending: the Cdx coefficient
+ * table runs b/a from 4.0 down to 0.5 while its columns run 0 up to 0.5, so direction has to be
+ * decided per axis and neither orientation can be assumed.
+ *
+ * A table must stay transcribable in its source document's order, because the reviewer checks the
+ * sheet against that document. Reordering rows to satisfy the tool is a transcription error
+ * waiting to happen.
+ */
+function axisDirection(vals: number[], what: string): 1 | -1 {
+  if (vals.length < 2) throw new Error(`${what}: needs at least two points`);
+  const dir = vals[1] > vals[0] ? 1 : -1;
+  for (let i = 1; i < vals.length; i++) {
+    const d = vals[i] - vals[i - 1];
+    if (d === 0 || (d > 0 ? 1 : -1) !== dir) {
+      throw new Error(
+        `${what}: the keys must increase or decrease throughout (position ${i + 1} does not)`,
+      );
+    }
+  }
+  return dir;
+}
+
+/**
+ * The index `i` with the lookup value between `vals[i]` and `vals[i+1]`, plus how far along it
+ * sits. Out of range is an ERROR, never an extrapolation: beyond a published table a coefficient
+ * can come back with the wrong sign, not merely the wrong magnitude.
+ */
+function bracketAxis(vals: number[], x: number, what: string): { i: number; t: number } {
+  const dir = axisDirection(vals, what);
+  const lo = Math.min(vals[0], vals[vals.length - 1]);
+  const hi = Math.max(vals[0], vals[vals.length - 1]);
+  // Reported low-to-high whatever the direction — `(4 … 0.5)` reads as a mistake in the message.
+  if (x < lo || x > hi) throw new Error(`${what}: ${x} is outside the table (${lo} … ${hi})`);
+  for (let i = 0; i < vals.length - 1; i++) {
+    const a = vals[i], b = vals[i + 1];
+    const inside = dir > 0 ? x >= a && x <= b : x <= a && x >= b;
+    if (inside) return { i, t: (x - a) / (b - a) };
+  }
+  return { i: vals.length - 2, t: 1 }; // only reachable at the far end, within rounding
+}
+
 function interp(args: Quantity[]): Quantity {
   const lerp = (x: Quantity, x1: Quantity, y1: Quantity, x2: Quantity, y2: Quantity): Quantity => {
     // x, x1 and x2 are brought into x's unit, and y2 into y1's — the same-kind rule `+` uses.
@@ -816,20 +875,64 @@ function interp(args: Quantity[]): Quantity {
   if (xs.length !== ys.length) {
     throw new Error(`interp(): X has ${xs.length} values, Y has ${ys.length}`);
   }
-  if (xs.length < 2) throw new Error('interp(): the table needs at least two points');
-  for (let i = 1; i < xs.length; i++) {
-    if (xs[i].v <= xs[i - 1].v) {
-      throw new Error(`interp(): the X values must increase (position ${i + 1} does not)`);
-    }
-  }
-  if (x.v < xs[0].v || x.v > xs[xs.length - 1].v) {
-    throw new Error(
-      `interp(): ${x.v} is outside the table (${xs[0].v} … ${xs[xs.length - 1].v})`,
-    );
-  }
-  let i = xs.length - 2;
-  while (i > 0 && x.v < xs[i].v) i--;
+  const vals = axisValues(xs, 'interp()');
+  const xv = alignUnits(xs[0], x, 'interp()', true).v;
+  const { i } = bracketAxis(vals, xv, 'interp()');
   return lerp(x, xs[i], ys[i], xs[i + 1], ys[i + 1]);
+}
+
+/**
+ * `interp2(M, rowKeys, colKeys, r, c)` — bilinear lookup into a two-way table.
+ *
+ * Built for published coefficient tables, where neither key lands on a grid line in practice:
+ * for b/a = 1.6 and x/b = 0.25 the answer comes from FOUR values, interpolated in both
+ * directions. Bilinear is separable, so interpolating rows-then-columns gives the identical
+ * result as columns-then-rows — which matters because someone will check the sheet by hand.
+ *
+ * Each axis takes its own direction (see `axisDirection`), so a table with descending rows and
+ * ascending columns — the usual shape of a printed table — needs no rearranging.
+ *
+ * Deliberately NOT built in: axis folding and end clamping. A table whose columns read
+ * `0.1b / 0.9b` is symmetric about midspan, and a panel with b/a above the last row is
+ * effectively one-way — but both of those are facts about the TABLE, not about interpolation.
+ * They belong on the sheet as their own rows, `x_f = min(x/b, 1 - x/b)` and `r = min(b/a, 4)`,
+ * where a reviewer can see the assumption was made. An assumption hidden in a function is one
+ * the reviewer cannot check.
+ */
+function interp2(args: Quantity[]): Quantity {
+  if (args.length !== 5) {
+    throw new Error('Usage: interp2(M, rowKeys, colKeys, row, col)');
+  }
+  const [M, R, C, r, c] = args;
+  if (!M.m) throw new Error('interp2(): the first argument must be a matrix');
+  if (!R.m || !C.m) throw new Error('interp2(): rowKeys and colKeys must be vectors');
+  scalarOnly(r, 'interp2() row');
+  scalarOnly(c, 'interp2() col');
+
+  const rk = R.m.flat(), ck = C.m.flat();
+  if (rk.length !== M.m.length) {
+    throw new Error(`interp2(): ${rk.length} row keys for ${M.m.length} rows`);
+  }
+  if (ck.length !== M.m[0].length) {
+    throw new Error(`interp2(): ${ck.length} column keys for ${M.m[0].length} columns`);
+  }
+
+  const rv = axisValues(rk, 'interp2() rows');
+  const cv = axisValues(ck, 'interp2() columns');
+  const row = bracketAxis(rv, alignUnits(rk[0], r, 'interp2() rows', true).v, 'interp2() rows');
+  const col = bracketAxis(cv, alignUnits(ck[0], c, 'interp2() columns', true).v, 'interp2() cols');
+
+  // The four corners, every one brought into the top-left's unit — so a column in different but
+  // compatible units still interpolates, and an incompatible one says so instead of averaging
+  // raw numbers from two scales.
+  const at = (i: number, j: number) => scalarOnly(M.m![i][j], 'interp2() value');
+  const v00 = at(row.i, col.i);
+  const u = v00.u;
+  const n = (q: Quantity) => alignUnits(v00, q, 'interp2()', true).v;
+  const top = v00.v + col.t * (n(at(row.i, col.i + 1)) - v00.v);
+  const bot = n(at(row.i + 1, col.i)) +
+    col.t * (n(at(row.i + 1, col.i + 1)) - n(at(row.i + 1, col.i)));
+  return { v: top + row.t * (bot - top), u };
 }
 
 /** el(A, i, j) — one element of a matrix, 1-based, with its own unit. */
@@ -1767,6 +1870,7 @@ class Parser {
         if (!(name in this.fnScope)) {
           if (name === 'min' || name === 'max') return minMax(name, args);
           if (name === 'interp') return interp(args);
+          if (name === 'interp2') return interp2(args);
         }
 
         // ── if(cond, then, else) ──────────────────────────────────────────────

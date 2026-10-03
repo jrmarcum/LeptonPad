@@ -250,6 +250,36 @@ You can start inline and convert: right-click a row that is exactly `x = if(c, a
 The option only appears when the call is the whole right-hand side — expanding
 `M = if(c, M_p, M_r) * \phi` would have nowhere to put the `* \phi`.
 
+### Reading a published table
+
+`interp(x, X, Y)` reads down a one-way table, interpolating between the two bracketing rows.
+`interp2(M, rowKeys, colKeys, row, col)` does the same for a two-way coefficient table, taking
+the **four** surrounding values and interpolating in both directions:
+
+```
+ba  = {4.0, 3.0, 2.5, 2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5}
+xb  = {{0, 0.1, 0.2, 0.3, 0.4, 0.5}}
+Cdx = {{0, 2.60, 6.20, 8.70, 10.10, 10.50}, … }
+
+c = interp2(Cdx, ba, xb, 1.6, 0.25)                     1.59
+```
+
+Keys may **increase or decrease** — transcribe a table in the order the source document prints it,
+so a reviewer can compare the two line by line. Each axis is independent, so descending rows with
+ascending columns is fine. A repeated or out-of-sequence key is still an error, because that is a
+transcription mistake rather than a direction.
+
+**A value outside the table is an error, never an extrapolation.** Beyond a published range a
+coefficient can come back with the wrong sign, not merely the wrong magnitude.
+
+Two things are deliberately left to your sheet rather than built into the function, so that the
+assumption is visible to whoever checks the calculation:
+
+```
+x_f = min(x/b, 1 - x/b)      the table is symmetric about midspan
+r   = min(b/a, 4)            above 4 the panel is effectively one-way
+```
+
 ### Text values
 
 Not every check is about a number. Text is written in **double quotes** and works as a value:

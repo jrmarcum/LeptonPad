@@ -35,6 +35,40 @@ Private helpers, all pure, all operating on `UnitMap`:
 | `alignUnits`    | Converts the right operand into the left's unit, or throws. Used by `+`, `−` and compare. |
 | `formatUnit`    | `UnitMap` → display string.                                                               |
 
+## Reading published tables: `interp`, `interp2`, and monotonic axes (2026-10-02, v2.8.0)
+
+`interp2(M, rowKeys, colKeys, row, col)` is **bilinear** — four surrounding values, interpolated
+in both directions, because on a real coefficient table neither key lands on a grid line.
+Separable, so rows-then-columns equals columns-then-rows; someone will check the sheet by hand.
+
+**Axes are monotonic, not ascending** (Jon's call). The old rule demanded increasing keys; what it
+was actually catching is a _malformed_ axis — a swapped pair, or a duplicate that divides by zero.
+Both are still refused. The relaxation is **strictly widening**: it turns errors into results and
+cannot change an answer a working sheet already gives, since the key/value pairs stay together
+whichever way they are written.
+
+Why it matters: the reference table that drove this (Cdx, supplied 2026-10-02) runs **rows
+descending 4.0 → 0.5 and columns ascending 0 → 0.5**, so direction has to be per axis and neither
+orientation can be assumed. More importantly a table must stay transcribable in its source
+document's order — the reviewer compares the sheet against that document, and reordering rows to
+satisfy the tool is a transcription error waiting to happen.
+
+⚠️ **Latent bug fixed on the way.** `interp` aligned units only inside its final lerp, while the
+range check and the bracket search compared raw `.v`. A table keyed in ft, read at a value in
+inches, bracketed against the wrong pair and then interpolated _correctly between them_ — a
+plausible wrong number. `axisValues()` now aligns once, up front, and both functions share it
+along with `axisDirection()` and `bracketAxis()`. One rule, not two copies.
+
+Out of range is an **error**, never an extrapolation: past a published range a coefficient can come
+back with the wrong sign. Range messages report low-to-high whichever way the axis runs, so a
+descending table does not print `(4 … 0.5)`.
+
+**Deliberately NOT in the function: axis folding and end clamping.** A table whose columns read
+`0.1b / 0.9b` is symmetric about midspan, and a panel above the last row is effectively one-way —
+but those are facts about the _table_, not about interpolation. They belong on the sheet as
+`x_f = min(x/b, 1 - x/b)` and `r = min(b/a, 4)`, where a reviewer can see the assumption was made.
+**An assumption hidden inside a function is one the reviewer cannot check.**
+
 ## `=` assigns, `==` compares — and until v2.6.0 it depended on a parsing accident
 
 **Settled 2026-10-02 (Jon): `=` is assignment only, `==` is the only equality.** Before that the
