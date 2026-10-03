@@ -16,14 +16,25 @@ import { evalExpr, type FnScope, formatUnit, type Quantity, type Scope } from '.
 import { fmtNum, SIG_DEFAULT } from './formula.ts';
 import { contourLevels, gridRange, marchingSquares } from './contours.ts';
 
+/**
+ * The same five fields as the table block, in the same order and with the same labels (Jon,
+ * 2026-10-02) — so moving between the two needs no re-learning and a table can be copied into a
+ * map by copying its fields across.
+ *
+ * Two read slightly differently here, which is the cost of the shared layout and worth it:
+ * `cols`/`rows` are the numeric KEY vectors that scale the axes rather than text headings, and
+ * `corner` — which in a table names both axes, as `b/a  /  x` — is split on its last `/` into the
+ * vertical and horizontal axis labels.
+ */
 export interface HeatSource {
   title: string;
-  values: string;
-  rows: string;
+  corner: string;
   cols: string;
+  rows: string;
+  values: string;
 }
 
-const EMPTY: HeatSource = { title: '', values: '', rows: '', cols: '' };
+const EMPTY: HeatSource = { title: '', corner: '', cols: '', rows: '', values: '' };
 
 export function parseHeatSource(content: string): HeatSource {
   try {
@@ -31,15 +42,23 @@ export function parseHeatSource(content: string): HeatSource {
     if (p && typeof p === 'object' && !Array.isArray(p)) {
       return {
         title: String(p.title ?? ''),
-        values: String(p.values ?? ''),
-        rows: String(p.rows ?? ''),
+        corner: String(p.corner ?? ''),
         cols: String(p.cols ?? ''),
+        rows: String(p.rows ?? ''),
+        values: String(p.values ?? ''),
       };
     }
   } catch {
     if (content.trim()) return { ...EMPTY, values: content };
   }
   return { ...EMPTY };
+}
+
+/** Split a table-style corner label into the vertical and horizontal axis names. */
+export function axisLabels(corner: string): { y: string; x: string } {
+  const i = corner.lastIndexOf('/');
+  if (i < 0) return { y: '', x: corner.trim() };
+  return { y: corner.slice(0, i).trim(), x: corner.slice(i + 1).trim() };
 }
 
 /**
@@ -60,6 +79,18 @@ export function heatColor(v: number, scale: number): string {
   const mag = Math.abs(t);
   const lo = Math.round(255 - 150 * mag);
   return t >= 0 ? `rgb(255,${lo},${lo})` : `rgb(${lo},${lo},255)`;
+}
+
+/**
+ * The height the field should draw at.
+ *
+ * Read from the inline height the resize handle sets, NOT from `clientHeight`: the container is
+ * sized by its content until it has been resized, so measuring it would feed the last drawing's
+ * height back in and let the map creep on every re-render.
+ */
+function hostHeight(host: HTMLElement): number {
+  const explicit = parseFloat(host.style.height);
+  return Number.isFinite(explicit) && explicit > 0 ? explicit : 240;
 }
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -121,14 +152,29 @@ export function renderHeatInto(
   const colKeys = keyVals(src.cols, colsN);
 
   // ── Geometry ─────────────────────────────────────────────────────────────
-  const PAD_L = 54, PAD_R = 14, PAD_T = 8, PAD_B = 30;
-  const cellW = 34, cellH = 22;
-  const pw = (colsN - 1) * cellW, ph = (rowsN - 1) * cellH;
-  const W = pw + PAD_L + PAD_R, H = ph + PAD_T + PAD_B;
+  const labels = axisLabels(src.corner);
+  const PAD_L = 54 + (labels.y ? 12 : 0);
+  const PAD_R = 14;
+  const PAD_T = 8;
+  const PAD_B = 30 + (labels.x ? 14 : 0);
+
+  // The field fills whatever the block has been resized to, in BOTH directions (Jon, 2026-10-02).
+  //
+  // Done by recomputing the cell size rather than by stretching the SVG: `preserveAspectRatio:
+  // none` would scale the axis ticks and contour labels along with the field, and distorted text
+  // on a stamped sheet is worse than a map that is slightly the wrong shape. So the drawing is
+  // laid out at the size it will be shown at and the type stays upright and uniform.
+  const availW = Math.max(160, host.clientWidth || 320);
+  const availH = Math.max(120, hostHeight(host));
+  const cellW = Math.max(8, (availW - PAD_L - PAD_R) / (colsN - 1));
+  const cellH = Math.max(8, (availH - PAD_T - PAD_B) / (rowsN - 1));
+  const W = (colsN - 1) * cellW + PAD_L + PAD_R;
+  const H = (rowsN - 1) * cellH + PAD_T + PAD_B;
 
   const svg = svgEl('svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('width', String(W));
+  svg.setAttribute('height', String(H));
   svg.setAttribute('class', 'heat-svg');
 
   // Samples sit at the CORNERS of the field, so a cell spans between four of them. Drawing each
@@ -202,6 +248,20 @@ export function renderHeatInto(
   }
   for (let r = 0; r < rowsN; r++) {
     tick(PAD_L - 6, gy(r) + 4, fmtNum(rowKeys ? rowKeys[r] : r, 4), 'heat-tick heat-tick-y');
+  }
+  // The corner label, split the way a table's corner reads: left of the slash names the rows,
+  // right of it names the columns.
+  if (labels.x) tick(PAD_L + (W - PAD_L - PAD_R) / 2, H - 4, labels.x, 'heat-axis heat-tick-x');
+  if (labels.y) {
+    const t = svgEl('text');
+    const cy = PAD_T + (H - PAD_T - PAD_B) / 2;
+    t.setAttribute('x', '10');
+    t.setAttribute('y', String(cy));
+    t.setAttribute('class', 'heat-axis');
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('transform', `rotate(-90 10 ${cy.toFixed(1)})`);
+    t.textContent = labels.y;
+    svg.appendChild(t);
   }
 
   // ── Hover readout ────────────────────────────────────────────────────────
@@ -308,41 +368,69 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
     row.append(lab, inp);
     srcWrap.appendChild(row);
   };
-  field('title', 'Title', 'spans the map');
-  field('values', 'Values', 'a matrix, e.g. w or tabulate(…)');
-  field('rows', 'Row keys', 'optional vector for the vertical axis');
-  field('cols', 'Col keys', 'optional vector for the horizontal axis');
+  // The table block's five fields, same order and same labels — see HeatSource.
+  field('title', 'Title', 'spans the map, e.g. Along Midheight (y = a/2)');
+  field('corner', 'Corner', 'names both axes, e.g. b/a  /  x');
+  field('cols', 'Columns', 'vector scaling the horizontal axis, e.g. xb');
+  field('rows', 'Rows', 'vector scaling the vertical axis, e.g. ba');
+  field('values', 'Values', 'a matrix: Cdx, mirror(Cdx), tabulate(…)');
   // Same rule at build time, so a block restored from a file opens in the right state.
   el.classList.toggle('tbl-needs-src', !src.values.trim());
   el.appendChild(srcWrap);
 
   const out = document.createElement('div');
   out.className = 'heat-out';
+  // The drawing height is a property of the block, so it survives a save and a reload the way the
+  // width does. Without it a resized map would come back at the default on open.
+  out.style.height = `${block.h ?? 240}px`;
   el.appendChild(out);
 
-  const handle = document.createElement('div');
-  handle.className = 'heat-resize-handle';
-  handle.addEventListener('pointerdown', (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const startX = e.clientX, startW = el.offsetWidth;
-    handle.setPointerCapture(e.pointerId);
-    const onMove = (ev: PointerEvent) => {
-      const w = Math.max(
-        GRID_SIZE * 8,
-        Math.round((startW + ev.clientX - startX) / GRID_SIZE) * GRID_SIZE,
-      );
-      el.style.width = `${w}px`;
-      block.w = w;
-    };
-    const onUp = () => {
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-    };
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
+  // Resizing changes the layout, not just the scale, so the field is drawn again rather than
+  // stretched — see the note in renderHeatInto about distorted type. A ResizeObserver picks up
+  // BOTH handles and anything else that changes the size, so there is one path rather than two.
+  let lastKey = '';
+  new ResizeObserver(() => {
+    const key = `${Math.round(out.clientWidth)}x${Math.round(hostHeight(out))}`;
+    if (key === lastKey) return; // the re-render itself must not trigger another
+    lastKey = key;
+    onHeatChanged?.();
+  }).observe(out);
+
+  const drag = (
+    cls: string,
+    onDelta: (dx: number, dy: number, startW: number, startH: number) => void,
+  ) => {
+    const h = document.createElement('div');
+    h.className = cls;
+    h.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const sx = e.clientX, sy = e.clientY;
+      const sw = el.offsetWidth, sh = parseFloat(out.style.height) || out.clientHeight;
+      h.setPointerCapture(e.pointerId);
+      const onMove = (ev: PointerEvent) => onDelta(ev.clientX - sx, ev.clientY - sy, sw, sh);
+      const onUp = () => {
+        h.removeEventListener('pointermove', onMove);
+        h.removeEventListener('pointerup', onUp);
+      };
+      h.addEventListener('pointermove', onMove);
+      h.addEventListener('pointerup', onUp);
+    });
+    el.appendChild(h);
+  };
+
+  const snap = (v: number, min: number) => Math.max(min, Math.round(v / GRID_SIZE) * GRID_SIZE);
+
+  drag('heat-resize-handle', (dx, _dy, sw) => {
+    const w = snap(sw + dx, GRID_SIZE * 8);
+    el.style.width = `${w}px`;
+    block.w = w;
   });
-  el.appendChild(handle);
+  drag('heat-bottom-handle', (_dx, dy, _sw, sh) => {
+    const hh = snap(sh + dy, GRID_SIZE * 5);
+    out.style.height = `${hh}px`;
+    block.h = hh;
+  });
 }
 
 /** Same cycle-avoiding seam as the table block — see `table.ts`. */

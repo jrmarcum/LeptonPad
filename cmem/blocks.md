@@ -486,6 +486,29 @@ Wiring mirrors the table exactly: `state.onRenderHeat` and `heatmap.onHeatChange
 `main.ts`, because `heatmap.ts` needs `fmtNum` from `formula.ts` and `formula.ts` must call the
 renderer.
 
+### v2.8.4 — the same entry layout as the table, and it fills the block
+
+**The same five fields in the same order with the same labels** (Jon, 2026-10-02), so moving
+between a table and a map needs no re-learning and a table's fields copy straight across. Two read
+differently here, which is the cost of the shared layout and worth paying: `cols`/`rows` are the
+numeric **key vectors** that scale the axes rather than text headings, and `corner` is split on
+its last `/` into the vertical and horizontal **axis labels** — matching how a table's corner
+already names both axes.
+
+**Resizes both ways and the field fills it.** ⚠️ Done by recomputing the cell size and redrawing,
+**not** by stretching the SVG: `preserveAspectRatio="none"` would scale the axis ticks and contour
+labels along with the field, and distorted type on a stamped sheet is worse than a map that is
+slightly the wrong shape.
+
+The height lives on `block.h`, so a resized map comes back the size it was left. One
+`ResizeObserver` on the output container drives the redraw for both handles and anything else that
+changes the size — one path, not two. It compares a rounded size key first, because the redraw it
+triggers must not trigger another.
+
+⚠️ `hostHeight()` reads the **inline** height the handle sets, never `clientHeight`: the container
+is sized by its content until it has been resized, so measuring it would feed the last drawing's
+height back in and let the map creep larger on every render.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

@@ -146,7 +146,10 @@ const MODULES: {
   { id: 'plot', name: 'Plot', icon: '\u{1F4C8}', type: 'plot' },
   { id: 'figure', name: 'Figure', icon: '\u{1F5BC}', type: 'figure' },
   { id: 'table', name: 'Table', icon: '\u{1F4CA}', type: 'table' },
-  { id: 'heatmap', name: 'Heat Map', icon: '\u{1F321}', type: 'heatmap' },
+  // An arrow whose TIP marks a data position — which is how the block is read: put the point on
+  // the field and the value there appears (Jon, 2026-10-02). ↖ with a dot at its tip is the
+  // closest single glyph; say if you would rather have a different one.
+  { id: 'heatmap', name: 'Heat Map', icon: '↖', type: 'heatmap' },
   { id: 'text', name: 'Text Block', icon: '\u{1F4DD}', type: 'text' },
 ];
 
