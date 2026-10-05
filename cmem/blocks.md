@@ -585,6 +585,34 @@ of the author — unlike a typed pair, which is reported in the legend after the
 A right-click in the **margins is not intercepted**, so the block's own menu still opens over the
 axis labels.
 
+### v2.8.8 — the legend had nowhere to go
+
+⚠️ **The points legend was rendering and being clipped away.** Since v2.8.4 the field is laid out
+to fill the block's whole height, and `.heat-out` has `overflow: hidden` — so every element
+appended _after_ the SVG was cut off. The range legend had been disappearing the same way since
+v2.8.4 and nobody noticed, because its line is incidental; the points legend is **data**, and Jon
+spotted it immediately.
+
+🔑 **The field fills the block MINUS its chrome, and the chrome is measured rather than
+estimated.** The title and both legends go into the DOM first, their `offsetHeight` is read, and
+the SVG is `insertBefore`'d above them. A per-line estimate is the fallback for a host that
+measures 0 (detached or hidden), so the field still leaves room instead of going back to drawing
+over the legend. Estimating by default would drift the moment the stylesheet changed.
+
+This forced a split that is worth keeping: **marks are LOCATED before the geometry and DRAWN
+after**. Locating needs only the keys and the grid; drawing needs `gx`/`gy`. The legend text is a
+product of locating, and the geometry depends on the legend's height — so the old single pass
+could not have worked.
+
+`availH` is floored at 80px so a long legend shrinks the field rather than squeezing it away. Past
+that floor the chrome genuinely does not fit and the tail of the legend clips; the block wants
+dragging taller, and the handle is right there.
+
+⚠️ **Neither clipping bug was visible to a test** — the suite is pure functions and this is
+layout. The lesson is cheap to apply though: a fixed-height container with `overflow: hidden` and
+a child sized to fill it has **no room for siblings**, so anything appended after is invisible by
+construction. Check the render order against the clip whenever either changes.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

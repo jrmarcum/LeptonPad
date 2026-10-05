@@ -434,11 +434,14 @@ export function renderHeatInto(
     host.appendChild(e);
   };
 
+  // Kept, because the field is laid out in the height left over after the title and the legends.
+  let titleEl: HTMLElement | null = null;
   if (src.title.trim()) {
     const t = document.createElement('div');
     t.className = 'tbl-title';
     t.textContent = src.title;
     host.appendChild(t);
+    titleEl = t;
   }
   if (!src.values.trim()) return fail('No values yet — give this map a matrix');
 
@@ -473,9 +476,82 @@ export function renderHeatInto(
   };
   const rowKeys = keyVals(src.rows, rowsN);
   const colKeys = keyVals(src.cols, colsN);
+  const labels = axisLabels(src.corner);
+  const levels = contourLevels(min, max, 20);
+
+  // ── Marked points: where they are ────────────────────────────────────────
+  // Located BEFORE the geometry and drawn after it, because the legend they produce is part of
+  // the chrome the field has to be laid out around. ⚠️ v2.8.6/2.8.7 did all of this after the
+  // geometry, so the legend was appended below a field already sized to fill the whole block and
+  // `.heat-out`'s `overflow: hidden` ate it (Jon, 2026-10-05).
+  //
+  // Numbered, so the mark on the field stays short and its location is spelled out below:
+  // "(1) 2 in" at the point, "(1) @ b/a = 1.6, x/b = 0.25" underneath (Jon, 2026-10-02). A full
+  // coordinate beside every dot would bury the field it is drawn on.
+  const noted: string[] = [];
+  // Where each mark landed, so a right-click can tell "on this point" from "on empty field" —
+  // the same distinction the plot draws before deciding which menu to open.
+  const marks: { n: number; ux: number; uy: number; v: number }[] = [];
+  if (src.points.trim()) {
+    let pq: Quantity | null = null;
+    try {
+      pq = evalExpr(src.points, scope, fnScope);
+    } catch (e) {
+      noted.push(`Points — ${(e as Error).message}`);
+    }
+    const pm = pq?.m;
+    if (pq && !pm) noted.push('Points must be a matrix of (row, column) pairs');
+    else if (pm && pm[0].length !== 2) {
+      noted.push(`Points needs 2 columns — a row and a column key — not ${pm[0].length}`);
+    } else if (pm) {
+      pm.forEach((pr, n) => {
+        const ky = pr[0].v, kx = pr[1].v;
+        const uy = indexOfKey(rowKeys, ky, rowsN);
+        const ux = indexOfKey(colKeys, kx, colsN);
+        const where = `${labels.y || 'y'} = ${fmtNum(ky, 4)}, ${labels.x || 'x'} = ${
+          fmtNum(kx, 4)
+        }`;
+        // Outside the table is SAID, not clamped — a mark silently slid to the nearest edge
+        // would read as a value at a place the table does not cover.
+        if (uy === null || ux === null) {
+          noted.push(`(${n + 1}) @ ${where} — outside the table`);
+          return;
+        }
+        noted.push(`(${n + 1}) @ ${where}`);
+        marks.push({ n, ux, uy, v: valueAt(grid, uy, ux) });
+      });
+    }
+  }
+
+  // ── The legends, in the DOM before the field is sized ────────────────────
+  const mkLegend = (cls: string, lines: string[]) => {
+    const d = document.createElement('div');
+    d.className = cls;
+    for (const line of lines) {
+      const r = document.createElement('div');
+      r.textContent = line;
+      d.appendChild(r);
+    }
+    host.appendChild(d);
+    return d;
+  };
+  const pointsEl = noted.length ? mkLegend('heat-points-legend', noted) : null;
+  const rangeEl = mkLegend('heat-legend', [
+    `${fmtNum(min, 4)} … ${fmtNum(max, 4)}${unit ? ' ' + unit : ''} · ${levels.length} contours`,
+  ]);
 
   // ── Geometry ─────────────────────────────────────────────────────────────
-  const labels = axisLabels(src.corner);
+  // The field fills the block MINUS its chrome. Measured off the real elements rather than
+  // estimated, because a legend line's height comes from the stylesheet and an estimate here
+  // would drift the moment that changed.
+  const chromeOf = (el: HTMLElement | null, lines: number) => {
+    if (!el) return 0;
+    const h = el.offsetHeight;
+    // A host that is detached or hidden measures 0. Fall back to a per-line estimate so the field
+    // still leaves room, rather than going back to drawing over the legend.
+    return h > 0 ? h : lines * 13 + 3;
+  };
+  const chromeH = chromeOf(titleEl, 1) + chromeOf(pointsEl, noted.length) + chromeOf(rangeEl, 1);
   const PAD_L = 54 + (labels.y ? 12 : 0);
   const PAD_R = 14;
   const PAD_T = 8;
@@ -488,7 +564,10 @@ export function renderHeatInto(
   // on a stamped sheet is worse than a map that is slightly the wrong shape. So the drawing is
   // laid out at the size it will be shown at and the type stays upright and uniform.
   const availW = Math.max(160, host.clientWidth || 320);
-  const availH = Math.max(120, hostHeight(host));
+  // ⚠️ Floored, so a long legend shrinks the field rather than squeezing it to nothing. Past that
+  // floor the chrome no longer fits and `.heat-out` clips the tail of the legend — at which point
+  // the block wants dragging taller, and the handle to do it with is right there.
+  const availH = Math.max(80, hostHeight(host) - chromeH);
   const cellW = Math.max(8, (availW - PAD_L - PAD_R) / (colsN - 1));
   const cellH = Math.max(8, (availH - PAD_T - PAD_B) / (rowsN - 1));
   const W = (colsN - 1) * cellW + PAD_L + PAD_R;
@@ -523,7 +602,7 @@ export function renderHeatInto(
   // Contours are the PRIMARY representation and their labels carry the values — the colour is
   // secondary and may not survive printing (Jon, 2026-10-02: labelled contours are what matters).
   // So the label is not decoration; without it a printed field has no numbers on it at all.
-  const levels = contourLevels(min, max, 20);
+  // (`levels` is computed up with the legends — the count is part of the legend text.)
   for (const lev of levels) {
     const segs = marchingSquares(grid, lev);
     let longest = -1, best = null as null | { mx: number; my: number };
@@ -649,65 +728,29 @@ export function renderHeatInto(
     svg.classList.remove('heat-tracking');
   });
 
-  // ── Marked points ────────────────────────────────────────────────────────
-  // Numbered, so the mark on the field stays short and its location is spelled out below:
-  // "(1) 2 in" at the point, "(1) @ x = 24 ft, y = 10 ft" underneath (Jon, 2026-10-02). A full
-  // coordinate beside every dot would bury the field it is drawn on.
-  const noted: string[] = [];
-  // Where each mark landed, so a right-click can tell "on this point" from "on empty field" —
-  // the same distinction the plot draws before deciding which menu to open.
-  const marks: { n: number; ux: number; uy: number }[] = [];
-  if (src.points.trim()) {
-    let pq: Quantity | null = null;
-    try {
-      pq = evalExpr(src.points, scope, fnScope);
-    } catch (e) {
-      noted.push(`Points — ${(e as Error).message}`);
-    }
-    const pm = pq?.m;
-    if (pq && !pm) noted.push('Points must be a matrix of (row, column) pairs');
-    else if (pm && pm[0].length !== 2) {
-      noted.push(`Points needs 2 columns — a row and a column key — not ${pm[0].length}`);
-    } else if (pm) {
-      pm.forEach((pr, n) => {
-        const ky = pr[0].v, kx = pr[1].v;
-        const uy = indexOfKey(rowKeys, ky, rowsN);
-        const ux = indexOfKey(colKeys, kx, colsN);
-        const where = `${labels.y || 'y'} = ${fmtNum(ky, 4)}, ${labels.x || 'x'} = ${
-          fmtNum(kx, 4)
-        }`;
-        // Outside the table is SAID, not clamped — a mark silently slid to the nearest edge
-        // would read as a value at a place the table does not cover.
-        if (uy === null || ux === null) {
-          noted.push(`(${n + 1}) @ ${where} — outside the table`);
-          return;
-        }
-        const v = valueAt(grid, uy, ux);
-        noted.push(`(${n + 1}) @ ${where}`);
-        marks.push({ n, ux, uy });
+  // ── Marked points: drawing them ──────────────────────────────────────────
+  // The locating happened before the geometry; this only needs gx/gy.
+  for (const { n, ux, uy, v } of marks) {
+    const mk = svgEl('circle');
+    mk.setAttribute('cx', gx(ux).toFixed(1));
+    mk.setAttribute('cy', gy(uy).toFixed(1));
+    mk.setAttribute('r', '3.2');
+    mk.setAttribute('class', 'heat-point');
+    svg.appendChild(mk);
 
-        const mk = svgEl('circle');
-        mk.setAttribute('cx', gx(ux).toFixed(1));
-        mk.setAttribute('cy', gy(uy).toFixed(1));
-        mk.setAttribute('r', '3.2');
-        mk.setAttribute('class', 'heat-point');
-        svg.appendChild(mk);
-
-        const lbl = svgEl('text');
-        const text = `(${n + 1}) ${fmtNum(v, SIG_DEFAULT)}${unit ? ' ' + unit : ''}`;
-        // Flipped to the left near the right edge, as the hover readout already does. The last
-        // column is a place marks genuinely land — x/b = 1.0 is the edge of the Cdx table — so a
-        // label that only runs rightwards would be clipped exactly where it is most wanted.
-        // 4.6px/char approximates the 8px label; it decides which side, not the position.
-        const flip = gx(ux) + 6 + text.length * 4.6 > W;
-        lbl.setAttribute('x', (gx(ux) + (flip ? -6 : 6)).toFixed(1));
-        lbl.setAttribute('y', (gy(uy) - 5).toFixed(1));
-        if (flip) lbl.setAttribute('text-anchor', 'end');
-        lbl.setAttribute('class', 'heat-point-label');
-        lbl.textContent = text;
-        svg.appendChild(lbl);
-      });
-    }
+    const lbl = svgEl('text');
+    const text = `(${n + 1}) ${fmtNum(v, SIG_DEFAULT)}${unit ? ' ' + unit : ''}`;
+    // Flipped to the left near the right edge, as the hover readout already does. The last
+    // column is a place marks genuinely land — x/b = 1.0 is the edge of the Cdx table — so a
+    // label that only runs rightwards would be clipped exactly where it is most wanted.
+    // 4.6px/char approximates the 8px label; it decides which side, not the position.
+    const flip = gx(ux) + 6 + text.length * 4.6 > W;
+    lbl.setAttribute('x', (gx(ux) + (flip ? -6 : 6)).toFixed(1));
+    lbl.setAttribute('y', (gy(uy) - 5).toFixed(1));
+    if (flip) lbl.setAttribute('text-anchor', 'end');
+    lbl.setAttribute('class', 'heat-point-label');
+    lbl.textContent = text;
+    svg.appendChild(lbl);
   }
 
   // ── Placing a point ──────────────────────────────────────────────────────
@@ -750,25 +793,8 @@ export function renderHeatInto(
     });
   }
 
-  host.appendChild(svg);
-
-  if (noted.length) {
-    const pl = document.createElement('div');
-    pl.className = 'heat-points-legend';
-    for (const line of noted) {
-      const d = document.createElement('div');
-      d.textContent = line;
-      pl.appendChild(d);
-    }
-    host.appendChild(pl);
-  }
-
-  const legend = document.createElement('div');
-  legend.className = 'heat-legend';
-  legend.textContent = `${fmtNum(min, 4)} … ${fmtNum(max, 4)}${
-    unit ? ' ' + unit : ''
-  } · ${levels.length} contours`;
-  host.appendChild(legend);
+  // Above the legends, which are already in the DOM — they had to be, to be measured.
+  host.insertBefore(svg, pointsEl ?? rangeEl);
 }
 
 export function buildHeatMapBlock(el: HTMLElement, block: Block) {
