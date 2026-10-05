@@ -42,6 +42,66 @@ const AUTOSAVE_MS = 15_000;
  */
 let lastAutosaved = '';
 
+/**
+ * The recovery hatch: `leptonpad.com/?safe=1` starts without the library, the autosave or the
+ * restore banner.
+ *
+ * ⚠️ **Every feature that runs during boot needs a way to be switched off from outside the app.**
+ * When a browser closes on launch there is no settings screen to reach and no console to read —
+ * a URL the user can type is the only lever left. Norton Secure Browser began closing on launch
+ * with v2.9.0 (Jon, 2026-10-05), and nothing in the app could be used to find out why.
+ *
+ * Sticky once used, so the recovered session survives a reload without retyping it; the Projects
+ * section offers a way back to normal.
+ */
+const LS_SAFE = 'leptonpad-safe-mode';
+
+export function safeMode(): boolean {
+  try {
+    if (new URLSearchParams(location.search).has('safe')) {
+      localStorage.setItem(LS_SAFE, '1');
+      return true;
+    }
+    return localStorage.getItem(LS_SAFE) === '1';
+  } catch {
+    // A URL or storage read that throws is itself a sign of a restricted browser, but it is not
+    // on its own a reason to disable anything.
+    return false;
+  }
+}
+
+export function clearSafeMode(): void {
+  try {
+    localStorage.removeItem(LS_SAFE);
+  } catch { /* nothing to clear */ }
+}
+
+/**
+ * Start the background half, after first paint and wrapped so it cannot take the app down.
+ *
+ * 🔑 **Nothing here is on the critical path.** `start()` used to `await` the restore prompt, so
+ * anything that hung or threw inside it delayed or broke the whole boot. These are conveniences:
+ * they run once the sheet is already usable, and each failure is contained to itself.
+ */
+export function startLibraryServices(): void {
+  if (safeMode()) {
+    console.warn('LeptonPad: safe mode — library, autosave and restore are off.');
+    return;
+  }
+  const run = () => {
+    try {
+      void offerAutosaveRestore().catch(() => {});
+    } catch { /* the banner is a convenience, never a boot blocker */ }
+    try {
+      startAutosave();
+    } catch { /* ditto */ }
+  };
+  // After paint, so a slow or wedged storage layer cannot delay the first usable frame.
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => run(), { timeout: 3000 });
+  } else setTimeout(run, 1200);
+}
+
 export function startAutosave(): void {
   if (!storeAvailable()) return;
   // Asked for once, at the point the store first matters. Refusal is normal and ignored.
@@ -71,23 +131,52 @@ export async function offerAutosaveRestore(): Promise<void> {
   if (!slot || !slot.json) return;
   if (state.blocks.length > 0) return;
 
-  const when = new Date(slot.updatedAt).toLocaleString();
-  const ok = confirm(
-    `LeptonPad has unsaved work from ${when}:\n\n    ${slot.name}\n\n` +
-      `Restore it?\n\nChoosing Cancel discards it.`,
-  );
-  if (!ok) {
-    await clearAutosave();
-    return;
-  }
-  try {
-    loadProject(parseProjectJson(slot.json));
-    markProjectSaved();
-    lastAutosaved = slot.json;
-    showToast(`Restored ${slot.name}`);
-  } catch {
-    alert('That autosaved work could not be read, so it has been left in place untouched.');
-  }
+  // ⚠️ A BANNER, never `confirm()`. This runs while the app is still starting, and a blocking
+  // modal during boot is one of the few things a WebView-based browser can die on rather than
+  // merely refuse — Norton Secure Browser began closing on launch with the v2.9.0 build that
+  // used `confirm()` here (Jon, 2026-10-05). A banner also cannot wedge a browser that declines
+  // to show dialogs at all, where `confirm()` returns false and would have silently discarded
+  // the user's recovered work.
+  const bar = document.createElement('div');
+  bar.className = 'restore-bar';
+
+  const text = document.createElement('span');
+  text.className = 'restore-text';
+  text.textContent = `Unsaved work from ${new Date(slot.updatedAt).toLocaleString()}: ${
+    slot.name || 'Untitled Project'
+  }`;
+
+  const restore = document.createElement('button');
+  restore.className = 'restore-btn restore-primary';
+  restore.textContent = 'Restore';
+  restore.addEventListener('click', () => {
+    try {
+      loadProject(parseProjectJson(slot.json));
+      markProjectSaved();
+      lastAutosaved = slot.json;
+      showToast(`Restored ${slot.name}`);
+    } catch {
+      showToast('That autosaved work could not be read — it has been left in place', 4200);
+    }
+    bar.remove();
+  });
+
+  const discard = document.createElement('button');
+  discard.className = 'restore-btn';
+  discard.textContent = 'Discard';
+  discard.addEventListener('click', () => {
+    void clearAutosave();
+    bar.remove();
+  });
+
+  const later = document.createElement('button');
+  later.className = 'restore-btn';
+  later.textContent = 'Later';
+  later.title = 'Leave it alone and decide next time';
+  later.addEventListener('click', () => bar.remove());
+
+  bar.append(text, restore, discard, later);
+  document.body.appendChild(bar);
 }
 
 /**
@@ -143,6 +232,23 @@ let listEl: HTMLElement | null = null;
 
 /** Build the library section. Returns null when the browser has no storage to list. */
 export function buildLibrarySection(container: HTMLElement): void {
+  if (safeMode()) {
+    const heading = document.createElement('h2');
+    heading.textContent = 'Safe mode';
+    const note = document.createElement('div');
+    note.className = 'library-note';
+    note.textContent =
+      'The browser library and autosave are off. Your sheets and files work normally.';
+    const back = document.createElement('button');
+    back.className = 'view-toggle';
+    back.textContent = 'Turn safe mode off';
+    back.addEventListener('click', () => {
+      clearSafeMode();
+      location.href = location.pathname;
+    });
+    container.append(heading, note, back);
+    return;
+  }
   if (!storeAvailable()) return;
 
   const heading = document.createElement('h2');

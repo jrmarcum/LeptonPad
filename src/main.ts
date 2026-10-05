@@ -33,12 +33,7 @@ import { parseTableSource, renderTableInto, setOnTableChanged } from './blocks/t
 import { parseHeatSource, renderHeatInto, setOnHeatChanged } from './blocks/heatmap.ts';
 import { initTouchCellBar } from './touch-bar.ts';
 import { syncWatermark } from './watermark.ts';
-import {
-  buildLibrarySection,
-  detachFromLibrary,
-  offerAutosaveRestore,
-  startAutosave,
-} from './library.ts';
+import { buildLibrarySection, detachFromLibrary, startLibraryServices } from './library.ts';
 import {
   refreshAllSectionHeights,
   refreshSectionHeight,
@@ -2283,11 +2278,10 @@ async function start() {
     // Render any pre-loaded blocks
     state.blocks.forEach(renderBlock);
 
-    // Last, and in this order: the restore prompt has to see the sheet that actually ended up
-    // open (it declines to offer when one is), and the autosave timer must not start before it,
-    // or a 15 s tick could overwrite the slot being offered.
-    await offerAutosaveRestore();
-    startAutosave();
+    // ⚠️ NOT awaited, and deferred past first paint. These are conveniences; `start()` awaiting
+    // them put storage access and a dialog on the critical boot path, which is how v2.9.0 could
+    // stop a restricted browser from opening at all.
+    startLibraryServices();
   } catch (e) {
     // This catch covers the WHOLE of start(), not just the WASM load — `await init()` and
     // `await initAuth()` both run before any UI exists, so anything that throws here leaves a

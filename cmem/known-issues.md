@@ -574,6 +574,33 @@ rather than to the thing it was about.** `touch-action: none` belonged on the dr
 putting it on the surface disabled every other gesture on the surface. The same question is worth
 asking of any `user-select`, `pointer-events` or `overflow` rule sitting on a container.
 
+## 28. Norton Secure Browser closed on launch after v2.9.0 — MITIGATED 2026-10-05 (v2.9.1)
+
+Reported by Jon. v2.9.0 put two new things on the **critical boot path**, inside `start()`'s
+single `try`: an IndexedDB read, and a **`confirm()` dialog** for the autosave restore. A blocking
+modal during boot is one of the few things a WebView-based browser can die on rather than merely
+refuse, and Norton had already shown it restricts file APIs that other Chromium builds allow.
+
+⚠️ Not reproduced here — no Norton Secure Browser to test on. The fix is to make the suspect code
+**incapable of mattering**, not to guess which line it was:
+
+- The restore prompt is a **banner, never `confirm()`**. It also fixes a quieter bug: in a browser
+  that declines dialogs, `confirm()` returns `false` immediately, and the old code read that as
+  "discard" and **deleted the user's recovered work** without asking.
+- Library services are **deferred past first paint** (`requestIdleCallback`, 3 s timeout) and no
+  longer awaited by `start()`. Each is individually wrapped, so a failure is contained to itself.
+- `?safe=1` turns the library, autosave and restore off, sticky in `localStorage`, with a "Turn
+  safe mode off" button in the sidebar.
+
+🔑 **Every feature that runs during boot needs an off switch reachable from outside the app.**
+When a browser closes on launch there is no settings screen and no console — a URL the user can
+type is the only lever left. v2.9.0 had none, so there was no way to even establish whether
+LeptonPad was the cause.
+
+🔑 **And the second rule it broke: a convenience must not sit on the critical path.** Autosave and
+the library are conveniences. `await`ing them in `start()` gave each the power to stop a sheet
+from opening, which is a trade nobody would have agreed to if it had been put that way.
+
 ## 25. Every project was named "Untitled Project" — FIXED 2026-10-05 (v2.8.11)
 
 Found while chasing the iPad filename. **`serializeProject()` wrote `project_metadata.name`
