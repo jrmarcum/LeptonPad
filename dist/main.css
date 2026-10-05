@@ -223,6 +223,18 @@ main {
   touch-action: manipulation;
 }
 
+/* The free-version mark. First child of #canvas and z-index 0, the same layer as #margin-guide —
+   DOM order then puts the grid above it, which matters while editing. Blocks are opaque at
+   z-index 1, so the mark shows in the gaps around them rather than through the work. */
+#page-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .engineering-grid {
   background-image:
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),

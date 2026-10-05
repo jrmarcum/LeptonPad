@@ -41,6 +41,12 @@ const BUTTONS: BarButton[] = [
   { label: '⌄', title: 'Hide the keyboard', key: '', blur: true },
 ];
 
+/** The formula cell an event target or the focused element sits in, if any. */
+function cellOf(node: EventTarget | Element | null): HTMLElement | null {
+  if (!(node instanceof Element)) return null;
+  return node.closest(CELL_SEL) as HTMLElement | null;
+}
+
 export function initTouchCellBar(): void {
   if (!globalThis.matchMedia?.('(hover: none) and (pointer: coarse)').matches) return;
 
@@ -108,7 +114,7 @@ export function initTouchCellBar(): void {
   globalThis.visualViewport?.addEventListener('scroll', place);
 
   document.addEventListener('focusin', (e) => {
-    const cell = (e.target as HTMLElement)?.closest<HTMLElement>?.(CELL_SEL) ?? null;
+    const cell = cellOf(e.target);
     if (!cell) return;
     activeCell = cell;
     bar.classList.remove('hidden');
@@ -118,10 +124,10 @@ export function initTouchCellBar(): void {
   document.addEventListener('focusout', (e) => {
     // Deferred by a tick: moving between cells fires focusout before the next focusin, and
     // hiding immediately would flash the bar off and on with every arrow press.
-    const from = (e.target as HTMLElement)?.closest<HTMLElement>?.(CELL_SEL) ?? null;
+    const from = cellOf(e.target);
     if (!from) return;
     setTimeout(() => {
-      const still = document.activeElement?.closest<HTMLElement>?.(CELL_SEL) ?? null;
+      const still = cellOf(document.activeElement);
       if (still) {
         activeCell = still;
         place();

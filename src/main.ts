@@ -32,6 +32,7 @@ import { reEvalAllFormulas } from './blocks/formula.ts';
 import { parseTableSource, renderTableInto, setOnTableChanged } from './blocks/table.ts';
 import { parseHeatSource, renderHeatInto, setOnHeatChanged } from './blocks/heatmap.ts';
 import { initTouchCellBar } from './touch-bar.ts';
+import { syncWatermark } from './watermark.ts';
 import {
   refreshAllSectionHeights,
   refreshSectionHeight,
@@ -1096,6 +1097,7 @@ async function start() {
     initSidebarToggle();
     initTouchCellBar();
     setCanvas(new Canvas('canvas'));
+    syncWatermark();
 
     // Re-render auth panel whenever login state changes
     onAuthChange(() => {
@@ -1104,6 +1106,9 @@ async function start() {
         renderAuthPanel(container);
         _refreshProBadges(container);
       }
+      // Signing in clears the mark, signing out and an expired trial restore it — the role is
+      // the only thing that decides, so this is the one place it has to be re-read.
+      syncWatermark();
     });
     // (The identical closure was also registered through setOnAuthStateChange here. That slot was
     //  never invoked by anything, so it was dead weight duplicating the onAuthChange call above.)

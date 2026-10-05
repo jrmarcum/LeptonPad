@@ -235,10 +235,11 @@ mind only if a Clerk instance is ever moved again.
 a pure renderer taking a matrix of values with row and column headings, and `'heatmap'` was added to
 the union beside it the same week. — [`blocks.md`](blocks.md)
 
-**6. Pricing is decided; the launch build is not.** [`pricing.md`](pricing.md) settles the tiers.
-What it needs in the tree is small and **independent of the pack blocker above**: a discreet print
-footer for the `free` role, Paddle hosted checkout, and one webhook landing on `redeem_license_code`.
-Commercial-use rights are a change to `LICENSE`, not to code.
+**6. Pricing is decided; the launch build is nearly done.** [`pricing.md`](pricing.md) settles the
+tiers. What it needs in the tree is small and **independent of the pack blocker above**. The
+free-tier watermark **shipped in v2.8.12** (`src/watermark.ts`); what remains is Paddle hosted
+checkout and one webhook landing on `redeem_license_code`. Commercial-use rights are a change to
+`LICENSE`, not to code.
 
 ⚠️ **Do the Paddle application first.** Vetting is days, it is free to start, and it gates every
 other commerce task. The storefront-or-Paddle question that used to sit here is answered: Paddle
