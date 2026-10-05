@@ -548,3 +548,28 @@ before the blob was read.
 for months on a desktop; the fallback beneath it had effectively never run, and it was wrong in
 three independent ways at once. **A fallback that only executes on a platform nobody develops on
 is untested code** — when one exists, say which platforms take it and test there deliberately.
+
+## 24. A finger could not move the page — FIXED 2026-10-05 (v2.8.10)
+
+Reported by Jon from a phone. `#canvas` carried **`touch-action: none`**, which tells the browser
+to perform no default touch behaviour on the element. Since the canvas is what a finger lands on,
+every touch beginning on the sheet was refused both the scroll of `main` and pinch zoom. The sheet
+was 816px wide in a 390px viewport with no way to reach the rest of it.
+
+It was there for block dragging — but **`.block` carries its own `touch-action: none`**, so
+dragging never depended on the canvas rule. Now `manipulation`: pan and pinch, minus
+double-tap-to-zoom, which on a calculation sheet mostly fires by accident while tapping cells.
+
+**Rubber-band selection was never the obstacle**, which is worth recording because it looked like
+the reason the rule existed. On touch it already waits out a 500 ms hold and cancels on >10px of
+movement, so a drag pans and a hold selects, with no change needed.
+
+⚠️ **Two near neighbours were wrong for the same reason** and went in with it: `#app` had
+`height: 100vh` (on iOS that is the height _without_ Safari's toolbars, so the bottom of the app
+is unreachable — now `100dvh` with a `vh` fallback) and `width: 100vw` (includes the scrollbar,
+forcing a horizontal scrollbar on desktop — now `100%`).
+
+🔑 **The shape to remember: a property set to make one interaction work, applied to a container
+rather than to the thing it was about.** `touch-action: none` belonged on the draggable, and
+putting it on the surface disabled every other gesture on the surface. The same question is worth
+asking of any `user-select`, `pointer-events` or `overflow` rule sitting on a container.

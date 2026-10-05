@@ -1010,6 +1010,54 @@ function renderSidebar() {
   customModules.forEach((mod) => customList.appendChild(renderCustomModuleItem(mod)));
 }
 
+/**
+ * The sidebar collapse control.
+ *
+ * At 16rem the sidebar takes two thirds of a phone screen, so on a narrow viewport the sheet is
+ * unreachable until it folds away. The toggle is useful at every width though (Jon, 2026-10-05),
+ * so it is not hidden behind a breakpoint — the breakpoint only picks the **initial** state.
+ *
+ * ⚠️ The stored preference wins over the width check, and is only consulted when it exists: a
+ * width rule that overrode an explicit choice would re-collapse the sidebar on every reload for
+ * anyone working in a narrow window on purpose.
+ */
+const LS_SIDEBAR = 'leptonpad-sidebar-collapsed';
+const SIDEBAR_AUTO_COLLAPSE_PX = 900;
+
+function initSidebarToggle() {
+  let collapsed: boolean;
+  let stored: string | null = null;
+  // localStorage THROWS where site data is blocked, not just returns null — the same trap
+  // `_restoreFromCache()` documents in auth.ts.
+  try {
+    stored = localStorage.getItem(LS_SIDEBAR);
+  } catch { /* blocked storage — fall through to the width rule */ }
+  collapsed = stored !== null ? stored === '1' : globalThis.innerWidth < SIDEBAR_AUTO_COLLAPSE_PX;
+
+  const btn = document.createElement('button');
+  btn.id = 'sidebar-toggle';
+  btn.type = 'button';
+
+  const apply = () => {
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    btn.textContent = collapsed ? '›' : '‹';
+    btn.title = collapsed ? 'Show the sidebar' : 'Hide the sidebar';
+    btn.setAttribute('aria-label', btn.title);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+  };
+
+  btn.addEventListener('click', () => {
+    collapsed = !collapsed;
+    apply();
+    try {
+      localStorage.setItem(LS_SIDEBAR, collapsed ? '1' : '0');
+    } catch { /* the toggle still works for this session */ }
+  });
+
+  apply();
+  document.body.appendChild(btn);
+}
+
 async function start() {
   try {
     await init();
@@ -1019,6 +1067,7 @@ async function start() {
     await initAuth();
 
     renderSidebar();
+    initSidebarToggle();
     setCanvas(new Canvas('canvas'));
 
     // Re-render auth panel whenever login state changes

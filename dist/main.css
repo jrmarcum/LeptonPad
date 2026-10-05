@@ -13,18 +13,75 @@ body {
 
 #app {
   display: flex;
+  /* dvh, because 100vh on iOS is the height WITHOUT Safari's toolbars — the bottom of the app
+     sits under them and the last inch of the sheet cannot be reached. vh first as the fallback
+     for anything that does not know dvh. 100% rather than 100vw: vw includes the scrollbar
+     width and pushes a horizontal scrollbar onto every desktop page. */
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
 }
 
 /* Sidebar */
 #sidebar-left {
   width: 16rem;
+  flex: 0 0 auto;
   border-right: 1px solid #e4e4e7;
   background: #ffffff;
   padding: 1rem;
   overflow-y: auto;
   overscroll-behavior: contain;
+  transition: width 0.18s ease, padding 0.18s ease;
+}
+
+/* Collapsed to nothing rather than translated off-canvas, so `main` reclaims the width and the
+   sheet re-centres — the point of collapsing it on a narrow screen. */
+body.sidebar-collapsed #sidebar-left {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
+/* Rides just outside the sidebar's edge in both states, so it is never covered and never covers
+   anything. Fixed, because `main` scrolls and an absolutely positioned child would scroll away
+   with the sheet. */
+#sidebar-toggle {
+  position: fixed;
+  top: 0.5rem;
+  left: calc(16rem + 0.5rem);
+  z-index: 60;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: #52525b;
+  background: #ffffff;
+  border: 1px solid #d4d4d8;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  cursor: pointer;
+  transition: left 0.18s ease;
+}
+body.sidebar-collapsed #sidebar-toggle {
+  left: 0.5rem;
+}
+#sidebar-toggle:hover {
+  background: #f4f4f5;
+}
+#sidebar-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+@media print {
+  #sidebar-toggle {
+    display: none;
+  }
 }
 
 .sidebar-logo {
@@ -59,7 +116,17 @@ main {
   background-color: #ffffff;
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --grid-line: rgba(55, 65, 81, 0.45);
-  touch-action: none;
+  /* ⚠️ This was `none`, which is why a finger could not move the page (Jon, 2026-10-05).
+     `none` tells the browser to perform NO default touch behaviour on the element — and since
+     the canvas is what a finger lands on, every touch that began on the sheet was refused both
+     the scroll of `main` and pinch zoom. It was there for block dragging, but `.block` carries
+     its own `touch-action: none`, so dragging never needed it here.
+
+     `manipulation` is pan plus pinch-zoom, minus double-tap-to-zoom — the double tap is worth
+     dropping on a calculation sheet, where it mostly fires by accident while tapping cells.
+     Rubber-band selection still works: on touch it waits out a 500 ms hold and cancels on
+     movement, so a drag pans and a hold selects. */
+  touch-action: manipulation;
 }
 
 .engineering-grid {

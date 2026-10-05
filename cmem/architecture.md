@@ -97,6 +97,33 @@ sheets.
   settled. `titleBlockH()` returns 112 or 0 depending on `titleBlockEnabled`.
 - The title block is an **overlay**, deliberately not a member of `state.blocks`.
 
+### The app shell, and what it does on a small screen
+
+`#app` is a flex row of `#sidebar-left` (16rem) and `main` (`overflow: auto` — **`main` is the
+scroll container**, not the body, which is `overflow: hidden`). `#canvas` sits inside `main` at a
+fixed pixel size: letter is `8.5 × 96 = 816px` wide, and that is the point of the product rather
+than an accident. A phone cannot show it 1:1, so the mobile story is **pan and pinch over a
+full-size sheet**, never a reflowed one.
+
+🔑 **`touch-action` on `#canvas` is what decides whether a finger can move the page.** It was
+`none` until 2026-10-05, which refused the browser both the scroll of `main` and pinch zoom — see
+[`known-issues.md`](known-issues.md) § 24. It is now `manipulation`. `.block` keeps its own
+`touch-action: none` for dragging, which is where that rule always belonged.
+
+⚠️ **`#app` uses `100dvh` with a `100vh` fallback.** Plain `100vh` on iOS is the height _without_
+Safari's toolbars, so the bottom of the app sits underneath them and the last inch of the sheet
+cannot be reached.
+
+**The sidebar collapses** (`initSidebarToggle()` in `main.ts`), to `width: 0` rather than
+translated off-canvas, so `main` reclaims the width and the sheet re-centres. The preference lives
+in `localStorage` and **wins over** the `< 900px` auto-collapse, which only chooses the initial
+state — a width rule that overrode an explicit choice would re-collapse on every reload for
+someone working in a narrow window deliberately.
+
+⚠️ **There are still no width breakpoints anywhere in `main.css`.** The media queries are eight
+`@media print` and one `(hover: none) and (pointer: coarse)` for touch grips. A phone is usable
+through pan, pinch and the collapsed sidebar — nothing is laid out for it.
+
 ## Drag, drop, and selection (`dnd.ts`)
 
 Block placement on a snapped grid, single selection (`selectedEl`), multi-selection (`selectedEls`
