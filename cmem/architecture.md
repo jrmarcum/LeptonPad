@@ -124,6 +124,44 @@ someone working in a narrow window deliberately.
 `@media print` and one `(hover: none) and (pointer: coarse)` for touch grips. A phone is usable
 through pan, pinch and the collapsed sidebar — nothing is laid out for it.
 
+### Two places a project can live (v2.9.0)
+
+|                             | File (`persistence.ts`)                                          | Library (`project-store.ts` + `library.ts`)                       |
+| --------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Where                       | The user's disk, via File System Access, Web Share or a download | **The browser's private storage for this origin, on this device** |
+| Overwrite                   | Yes on desktop (`fileHandle`), **never on Android**              | Yes, keyed by `libraryId`                                         |
+| Survives clearing site data | Yes                                                              | **No**                                                            |
+| Moves between devices       | Yes                                                              | No — per browser as well as per device                            |
+
+🔑 **The library exists because no Android browser implements the File System Access API.** There
+is no file handle on that platform, so every save is a new copy, and locked-down browsers (Norton,
+DuckDuckGo) may refuse the picker and the share sheet outright, leaving no way to save or reopen
+at all. Storage inside the origin needs none of those.
+
+⚠️ **It is a working store and a crash net, never an archive, and the UI must keep saying so.**
+Clearing browsing data takes it, DuckDuckGo's fire button is exactly that, and iOS evicts storage
+for sites unvisited for 7 days unless the PWA is installed. The browsers that most need this store
+are the ones most likely to burn it. `.library-note` is permanent text, not a tooltip, for that
+reason. `requestPersistence()` is asked once and its refusal ignored — it only covers eviction
+under storage pressure, not a user clearing data.
+
+**IndexedDB, not OPFS.** A project is JSON text of modest size; IDB is supported in the older
+WebViews these browsers are built on, and OPFS buys nothing at this size. ⚠️ Accessing
+`indexedDB` can **throw**, not merely be absent — the same trap `auth.ts` documents for
+`localStorage` — so every entry point is guarded and every failure degrades to "no store".
+
+**`libraryId` is module state in `state.ts`, deliberately not in the project file.** It is what
+makes a second keep replace the first, exactly as `fileHandle` does for a file — and it names a
+row in one browser's storage, so carrying it in an exported file would let two machines fight over
+one entry. `detachFromLibrary()` clears it on New Project, for the same reason `newProject()`
+clears `fileHandle`.
+
+**Autosave is one rolling slot**, separate from the library, written every 15 s only when
+`serializeProject()` differs from what was last written — derived rather than flagged, the same
+reasoning as `projectFingerprint()`. ⚠️ The restore prompt is offered **only when the open sheet
+is empty**: restoring over a project the user has already opened would destroy the thing they came
+back for.
+
 ## Drag, drop, and selection (`dnd.ts`)
 
 Block placement on a snapped grid, single selection (`selectedEl`), multi-selection (`selectedEls`

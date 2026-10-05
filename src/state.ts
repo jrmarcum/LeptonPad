@@ -355,6 +355,19 @@ export function setFileHandle(v: any) {
   fileHandle = v;
 }
 
+/**
+ * The library entry the open project came from, or null if it is not in the library.
+ *
+ * 🔑 **This id is what makes "save" replace rather than duplicate**, exactly as `fileHandle` does
+ * for the file system. It is module state and deliberately NOT written into the project file: it
+ * names a row in this browser's own storage, which means nothing on another device, and carrying
+ * it in an exported file would let two machines fight over one entry.
+ */
+export let libraryId: string | null = null;
+export function setLibraryId(v: string | null) {
+  libraryId = v;
+}
+
 // ---------------------------------------------------------------------------
 // Canvas instance — structural type avoids a circular import with canvas.ts
 // ---------------------------------------------------------------------------

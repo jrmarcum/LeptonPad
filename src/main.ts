@@ -34,6 +34,12 @@ import { parseHeatSource, renderHeatInto, setOnHeatChanged } from './blocks/heat
 import { initTouchCellBar } from './touch-bar.ts';
 import { syncWatermark } from './watermark.ts';
 import {
+  buildLibrarySection,
+  detachFromLibrary,
+  offerAutosaveRestore,
+  startAutosave,
+} from './library.ts';
+import {
   refreshAllSectionHeights,
   refreshSectionHeight,
   reparentToSection,
@@ -676,7 +682,12 @@ function renderSidebar() {
   const newBtn = document.createElement('button');
   newBtn.className = 'view-toggle';
   newBtn.textContent = '✦ New Project';
-  newBtn.addEventListener('click', () => newProject());
+  newBtn.addEventListener('click', async () => {
+    await newProject();
+    // The new sheet must stop claiming the closed project's library entry, or the next
+    // "Keep in browser" would overwrite it — the same reason `newProject` clears `fileHandle`.
+    detachFromLibrary();
+  });
   container.appendChild(newBtn);
 
   const templateBtn = document.createElement('button');
@@ -740,6 +751,10 @@ function renderSidebar() {
   saveAsBtn.textContent = '↓ Save As';
   saveAsBtn.addEventListener('click', () => saveProject(true));
   container.appendChild(saveAsBtn);
+
+  // The in-browser library, directly under the file buttons so the two ways of keeping a project
+  // sit together — and so the note about what browser storage is not stays next to both.
+  buildLibrarySection(container);
 
   const gridBtn = document.createElement('button');
   gridBtn.id = 'grid-toggle';
@@ -2267,6 +2282,12 @@ async function start() {
 
     // Render any pre-loaded blocks
     state.blocks.forEach(renderBlock);
+
+    // Last, and in this order: the restore prompt has to see the sheet that actually ended up
+    // open (it declines to offer when one is), and the autosave timer must not start before it,
+    // or a 15 s tick could overwrite the slot being offered.
+    await offerAutosaveRestore();
+    startAutosave();
   } catch (e) {
     // This catch covers the WHOLE of start(), not just the WASM load — `await init()` and
     // `await initAuth()` both run before any UI exists, so anything that throws here leaves a
