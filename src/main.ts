@@ -31,6 +31,7 @@ import { isDark } from './utils/theme.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
 import { parseTableSource, renderTableInto, setOnTableChanged } from './blocks/table.ts';
 import { parseHeatSource, renderHeatInto, setOnHeatChanged } from './blocks/heatmap.ts';
+import { initTouchCellBar } from './touch-bar.ts';
 import {
   refreshAllSectionHeights,
   refreshSectionHeight,
@@ -103,6 +104,7 @@ import {
   setOnAddToSelection,
   setOnAppendCustomModuleToSidebar,
   setOnMoveGridCursor,
+  setOnProjectNameChanged,
   setOnRefreshAllSectionHeights,
   setOnRefreshCustomModulesList,
   setOnRenderHeat,
@@ -614,6 +616,30 @@ function renderSidebar() {
   // Auth panel (login status, redeem code, sign-out)
   renderAuthPanel(container);
 
+  // ── Project name ─────────────────────────────────────────────────────────
+  // The name the file is saved under. It had no UI at all before 2026-10-05, and `loadProject`
+  // discarded the one in the file, so every project was "Untitled Project" and every saved file
+  // was named after it. Placed above Cursor at Jon's request.
+  const nameHeading = document.createElement('h2');
+  nameHeading.textContent = 'Project';
+  container.appendChild(nameHeading);
+  const nameInput = document.createElement('input');
+  nameInput.id = 'project-name';
+  nameInput.type = 'text';
+  nameInput.placeholder = 'Untitled Project';
+  nameInput.value = state.projectName;
+  nameInput.addEventListener('input', () => {
+    // Trimmed only on save — trimming here would eat the space the moment it was typed.
+    state.projectName = nameInput.value || 'Untitled Project';
+  });
+  // No explicit dirty flag: `projectFingerprint()` serializes the name, so renaming already
+  // counts as an unsaved change. See the note on that function in persistence.ts.
+  container.appendChild(nameInput);
+  setOnProjectNameChanged(() => {
+    const el = document.getElementById('project-name') as HTMLInputElement | null;
+    if (el) el.value = state.projectName;
+  });
+
   const posHeading = document.createElement('h2');
   posHeading.textContent = 'Cursor';
   container.appendChild(posHeading);
@@ -1068,6 +1094,7 @@ async function start() {
 
     renderSidebar();
     initSidebarToggle();
+    initTouchCellBar();
     setCanvas(new Canvas('canvas'));
 
     // Re-render auth panel whenever login state changes
@@ -1626,6 +1653,7 @@ async function start() {
     const ctxInputBtn = document.createElement('button');
     const ctxLockRowBtn = document.createElement('button');
     const ctxDelBranchBtn = document.createElement('button');
+    const ctxUndoRowBtn = document.createElement('button');
     const ctxDelRowBtn = document.createElement('button');
 
     ctxAddRowBtn.className = 'ctx-neutral-btn';
@@ -1650,6 +1678,8 @@ async function start() {
     ctxInputBtn.textContent = '⌨ make input row';
     ctxLockRowBtn.className = 'ctx-neutral-btn';
     ctxLockRowBtn.textContent = '🔒 lock row';
+    ctxUndoRowBtn.className = 'ctx-neutral-btn';
+    ctxUndoRowBtn.textContent = '↶ undo delete';
     ctxDelBranchBtn.textContent = '× branch';
     ctxDelRowBtn.textContent = '× delete row';
 
@@ -1679,6 +1709,7 @@ async function start() {
       ctxExpandIfBtn,
       ctxInputBtn,
       ctxLockRowBtn,
+      ctxUndoRowBtn,
       ctxDelBranchBtn,
       ctxDelRowBtn,
     ].forEach((b) => ctxFormulaGroup.appendChild(b));
@@ -2039,6 +2070,10 @@ async function start() {
       if (ctxFormulaRowEl) ctxFormulaActions?.smartDeleteRow(ctxFormulaRowEl);
       hideCtxMenu();
     });
+    ctxUndoRowBtn.addEventListener('click', () => {
+      ctxFormulaActions?.undoRow();
+      hideCtxMenu();
+    });
 
     document.addEventListener('mousedown', (e) => {
       if (!ctxMenu.contains(e.target as Node)) hideCtxMenu();
@@ -2109,6 +2144,12 @@ async function start() {
         // Label the delete row button with what it will do
         const typeLabel = rowType ? ` (${rowType})` : '';
         ctxDelRowBtn.title = `Delete this row${typeLabel} (Ctrl+-)`;
+
+        // Undo: the only route back from a deleted row on a device with no Ctrl. Hidden rather
+        // than disabled when the stack is empty — a dead entry in a short menu is just noise.
+        const canUndoRow = actions.canUndoRow?.() ?? false;
+        ctxUndoRowBtn.style.display = canUndoRow ? '' : 'none';
+        ctxUndoRowBtn.title = 'Put back the row that was deleted last (Ctrl+Shift+Z)';
 
         // Shown only when the row really is `x = if(c, a, b)` and the call is the WHOLE
         // right-hand side — expanding `M = if(c, M_p, M_r) * phi` would silently drop the `* phi`.

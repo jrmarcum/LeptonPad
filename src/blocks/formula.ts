@@ -1450,6 +1450,29 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       return { rowType, hasIf, hasElse, canDelBranch };
     },
 
+    /**
+     * Whether a deleted row can be brought back, and bringing it back.
+     *
+     * Ctrl+Shift+Z does this from the keyboard, which is no use on a phone — and an accidental
+     * delete with no way back is the worst gap touch had (2026-10-05).
+     */
+    canUndoRow: (): boolean => {
+      // deno-lint-ignore no-explicit-any
+      return (((rowsEl as any)._rowUndoStack ?? []) as unknown[]).length > 0;
+    },
+
+    undoRow: () => {
+      // deno-lint-ignore no-explicit-any
+      const undo: Array<FormulaRow & { idx?: number }> = (rowsEl as any)._rowUndoStack ?? [];
+      const entry = undo.pop();
+      if (!entry) return;
+      const arr = parseFormulaRows(block.content);
+      const restoreIdx = Math.max(0, Math.min(entry.idx ?? arr.length, arr.length));
+      arr.splice(restoreIdx, 0, { e: entry.e, d: entry.d ?? '', type: entry.type });
+      block.content = JSON.stringify(arr);
+      ctxRefocus(restoreIdx);
+    },
+
     /** This row's line spacing; 1 (single) when it has never been set. */
     getRowSpacing: (rowEl: HTMLElement | null): number => {
       if (!rowEl) return 1;

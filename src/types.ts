@@ -175,8 +175,20 @@ export const PROJECT_PICKER_TYPES = [
   { description: 'LeptonPad Project', accept: { 'application/json': PROJECT_OPEN_EXTS } },
 ];
 
-/** `accept` string for the <input type="file"> fallback used where the picker is unavailable. */
-export const PROJECT_ACCEPT_ATTR = PROJECT_OPEN_EXTS.join(',');
+/**
+ * `accept` string for the <input type="file"> fallback used where the picker is unavailable.
+ *
+ * ⚠️ **MIME types as well as extensions, for Android.** Android's document providers filter by
+ * MIME type, and they have no mapping for an invented extension like `.leptonpad` — so an
+ * extension-only `accept` greys the project out and it cannot be opened at all (Jon, 2026-10-05).
+ * `application/octet-stream` is what an unknown extension resolves to there, and including it
+ * costs a noisier picker on Android in exchange for files that can actually be selected.
+ */
+export const PROJECT_ACCEPT_ATTR = [
+  ...PROJECT_OPEN_EXTS,
+  'application/json',
+  'application/octet-stream',
+].join(',');
 
 // Canvas layout constants
 export const GRID_SIZE = 20;

@@ -22,6 +22,7 @@ import {
   globalScope,
   margins,
   onAppendCustomModuleToSidebar,
+  onProjectNameChanged,
   onRefreshCustomModulesList,
   PAGE_H,
   pageNumberingEnabled,
@@ -46,6 +47,7 @@ import {
 } from './dnd.ts';
 import { refreshSectionHeight } from './blocks/pro/section.ts';
 import { reEvalAllFormulas } from './blocks/formula.ts';
+import { showToast } from './utils/toast.ts';
 
 // ---------------------------------------------------------------------------
 // Import tools dialog
@@ -310,6 +312,7 @@ export function clearProjectState() {
   const tbToggle = document.getElementById('title-block-toggle') as HTMLInputElement | null;
   if (tbToggle) tbToggle.checked = false;
   state.projectName = 'Untitled Project';
+  onProjectNameChanged?.();
   state.constants = {}; // no implicit E — see state.ts
   for (const k in globalScope) delete globalScope[k];
   for (const k in globalFnScope) delete globalFnScope[k];
@@ -386,6 +389,15 @@ export async function newFromTemplate() {
 }
 
 export function loadProject(proj: Record<string, unknown>) {
+  // ⚠️ The name used to be DISCARDED here while `serializeProject()` faithfully wrote it, so
+  // every project round-tripped to "Untitled Project" and every saved file was named after it
+  // (Jon, 2026-10-05). The field in the sidebar is the other half of the fix: a name nothing can
+  // set is a name that is always the default.
+  const meta = proj.project_metadata as Record<string, unknown> | undefined;
+  const loadedName = typeof meta?.name === 'string' ? meta.name.trim() : '';
+  state.projectName = loadedName || 'Untitled Project';
+  onProjectNameChanged?.();
+
   canvas.domElement.querySelectorAll('.block').forEach((el) => el.remove());
   canvas.domElement.querySelectorAll('.title-block-overlay').forEach((e) => e.remove());
   state.blocks = [];
@@ -683,6 +695,7 @@ export async function saveProject(saveAs = false) {
       await writable.write(serializeProject());
       await writable.close();
       markProjectSaved();
+      showToast(`Saved ${fileHandle.name ?? state.projectName}`);
       return;
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
@@ -718,6 +731,7 @@ export async function saveProject(saveAs = false) {
     try {
       await nav.share({ files: [file], title: state.projectName });
       markProjectSaved();
+      showToast(`Saved ${name}`);
       return;
     } catch (e) {
       // Cancelling the share sheet means "do not save" — the same reading the picker's
@@ -743,4 +757,8 @@ export async function saveProject(saveAs = false) {
   // anything, and a user can still cancel a download prompt. Counted as saved anyway, because the
   // alternative is prompting forever about a project the user has told us twice to save.
   markProjectSaved();
+  // ⚠️ Say where it went. On Android this path is completely silent otherwise — the file lands in
+  // Downloads with no shelf, no picker and no dialog, which is why it was impossible to tell
+  // whether a save had happened at all.
+  showToast(`Downloaded ${name}`);
 }

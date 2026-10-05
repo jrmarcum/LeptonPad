@@ -573,3 +573,62 @@ forcing a horizontal scrollbar on desktop — now `100%`).
 rather than to the thing it was about.** `touch-action: none` belonged on the draggable, and
 putting it on the surface disabled every other gesture on the surface. The same question is worth
 asking of any `user-select`, `pointer-events` or `overflow` rule sitting on a container.
+
+## 25. Every project was named "Untitled Project" — FIXED 2026-10-05 (v2.8.11)
+
+Found while chasing the iPad filename. **`serializeProject()` wrote `project_metadata.name`
+faithfully, `loadProject()` discarded it, and nothing in the app could set it.** So the name was
+`'Untitled Project'` from `state.ts` for the life of every project, and the saved file was named
+after it. On iOS Safari's renaming (§ 23) stacked on top, giving `Untitled.json`.
+
+⚠️ **Three separate holes, each harmless-looking on its own.** A write with no read, a read that
+was never written, and no UI — and the symptom was a filename, which is the last place anyone
+looks for a persistence bug. The round-trip test added in § 21 covers `Block` fields, which is
+where the previous instance of this was; `project_metadata` was outside its reach.
+
+Fixed by restoring the name in `loadProject`, adding a **Project** field in the sidebar above
+Cursor (Jon's placement), and a `setOnProjectNameChanged` slot so a load or a reset refreshes the
+box. **No dirty flag was needed**: `projectFingerprint()` serializes the name, so renaming already
+counts as an unsaved change — the derive-don't-reconcile rule paying off again.
+
+## 26. Saving on Android was silent, and opening could be impossible — FIXED 2026-10-05 (v2.8.11)
+
+Jon: _"I can't tell if it is actually doing either."_ Two independent causes.
+
+**Save.** Android Chrome has no `showSaveFilePicker`, so it takes the download fallback — where
+the file lands in Downloads with no shelf, no picker and no dialog. Unlike iOS it _does_ honour
+`a.download`, so the name was right; there was simply no evidence anything had happened. Fixed
+with `showToast()` (`src/utils/toast.ts`), now reporting on all three save routes. ⚠️ **A silent
+success is a bug on a platform with no ambient feedback** — the desktop's download shelf had been
+doing that job invisibly.
+
+**Open.** `PROJECT_ACCEPT_ATTR` was extensions only (`.leptonpad,.json`). Android's document
+providers filter by **MIME type** and have no mapping for an invented extension, so a `.leptonpad`
+file is greyed out and cannot be selected at all. Now carries `application/json` and
+`application/octet-stream` as well — a noisier picker on Android, in exchange for files that can
+be opened.
+
+## 27. No way to reach any Ctrl or Alt command from a phone — FIXED 2026-10-05 (v2.8.11)
+
+Jon: _"The phone keyboard does not have a 'ctrl' or 'alt' button."_ The inventory turned out
+better than expected — **the long-press → `contextmenu` bridge in `canvas.ts` already covered
+every `Ctrl` shortcut** (`+ row after`, `+ row before`, `+ if`, `+ for`, `× delete row`, `Copy`,
+`Paste`), and there is no Ctrl+S at all because Save is a sidebar button. Two real gaps remained:
+
+- **Undo was unreachable.** Ctrl+Shift+Z had no menu entry, so an accidental delete on a phone was
+  permanent. Now `↶ undo delete`, via `canUndoRow()` / `undoRow()` on the row action registry,
+  hidden when the stack is empty.
+- **Moving between cells with the keyboard up.** Soft keyboards send no arrows and no Tab, and the
+  keyboard covers most of the sheet. Now the **cell accessory bar** (`src/touch-bar.ts`).
+
+🔑 **The bar dispatches keystrokes rather than calling actions.** `+ row` sends Ctrl+Enter to the
+focused cell and the existing handler does the work, so the bar knows nothing about rows and
+cannot drift from the keyboard. It follows the synthetic-event precedent `canvas.ts` already set
+for long-press.
+
+⚠️ **Two details the pattern lives or dies on.** Buttons `preventDefault()` on `pointerdown`,
+because taking focus would blur the cell, close the keyboard and send the keystroke to nothing.
+And the bar is positioned from `visualViewport`: the keyboard shrinks the **visual** viewport
+without changing the layout viewport, so the gap between them is the keyboard's height — a bar
+pinned to the layout viewport's bottom sits underneath the keyboard, which is the usual way this
+is got wrong.

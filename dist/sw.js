@@ -1,4 +1,4 @@
-const CACHE = 'leptonpad-v2.8.10';
+const CACHE = 'leptonpad-v2.8.11';
 const PRECACHE = [
   '/',
   '/main.js',

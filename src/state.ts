@@ -275,6 +275,15 @@ export function setOnRenderHeat(fn: RenderTableFn) {
 }
 
 /**
+ * Redraw the sidebar's project-name field after something other than typing has changed the name
+ * — a load or a reset. Without it the file says one name and the box shows another.
+ */
+export let onProjectNameChanged: (() => void) | null = null;
+export function setOnProjectNameChanged(fn: () => void) {
+  onProjectNameChanged = fn;
+}
+
+/**
  * The purchased-pack section this block sits INSIDE, or undefined.
  *
  * A pack section is not its own child: the buyer places it on their sheet and may move, resize and
