@@ -312,6 +312,26 @@ The **contour labels carry the values**, which is what makes the map usable on p
 not survive printing, so the labels and the range in the legend are the data. A label is placed
 only where its contour has room for it, leaving crowded areas clear rather than overprinted.
 
+**Marked points.** The **Points** field takes a matrix of `(row, column)` pairs — the same order
+the values are entered in — and marks each one on the field, anywhere, not just on a sample:
+
+```
+pts = {{1.6, 0.25}, {2.0, 0.4}}
+```
+
+Each mark is numbered, showing the value at that point on the field — `(1) 1.59` — with its
+location spelled out in a legend below the map:
+
+```
+(1) @ b/a = 1.6, x/b = 0.25
+(2) @ b/a = 2.0, x/b = 0.4
+```
+
+The value comes from the same interpolation as the hover readout, so a mark and the cursor at the
+same place cannot disagree. **A point outside the table is reported, not moved** — it says
+`outside the table` in the legend rather than sliding to the nearest edge and showing a value for
+somewhere else.
+
 ### Reading a published table
 
 `interp(x, X, Y)` reads down a one-way table, interpolating between the two bracketing rows.

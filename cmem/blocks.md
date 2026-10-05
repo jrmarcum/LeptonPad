@@ -509,6 +509,41 @@ triggers must not trigger another.
 is sized by its content until it has been resized, so measuring it would feed the last drawing's
 height back in and let the map creep larger on every render.
 
+### v2.8.6 — marked data points
+
+A sixth source field, `points`: an **m×2 matrix of (row key, column key) pairs**, free position
+anywhere on the field, not snapped to a sample. Jon's three calls (2026-10-05): a **field** rather
+than hidden config, **free** position, and the value **at the point** with the location **below**
+— `(1) 2 in` on the field, `(1) @ b/a = 1.6, x/b = 0.25` in a legend under it. A full coordinate
+beside every dot would bury the field it is drawn on.
+
+🔑 **Marks are stored in KEY units, never pixels** — the discipline the plot's `xMarkers` already
+follow. A pixel mark is wrong the moment the block is resized or the data changes.
+
+🔑 **`valueAt()` is shared by the hover readout and the marks**, factored out of the hover handler
+rather than copied. A mark and the hover at the same place must show the same number, and two
+copies of that arithmetic is exactly how they stop doing so.
+
+**`indexOfKey()` locates a key on an axis running either way** — the Cdx rows descend while its
+columns ascend — returning a fractional index. ⚠️ Out of range returns `null` and the caller
+**says so in the legend**; a mark quietly clamped to the nearest edge would read as a value at a
+place the table does not cover.
+
+⚠️ **The legend prints row key first, matching the entry order**, not the `x`-first shape of Jon's
+example, so the label doubles as a guide to how the pair is typed. Both axes often span
+overlapping numeric ranges, so a flipped pair lands on a real but wrong point with nothing to show
+for it.
+
+**`axisLabels` splits the corner on the slash with SPACE around it**, not the last slash — fixed
+here, found by a test. The real Cdx corner is `b/a / x/b`: splitting on the first gives `y = "b"`
+and on the last gives `x = "b"`, both wrong in opposite directions. A bare slash is part of a
+label; only a spaced one is the separator the author typed. Last-slash remains the fallback when
+there is no spaced slash.
+
+The point label **flips to the left near the right edge**, as the hover readout already does —
+`x/b = 1.0` is the edge of the Cdx table, so marks genuinely land where a rightward-only label
+would be clipped.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

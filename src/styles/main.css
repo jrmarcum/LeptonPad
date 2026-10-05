@@ -2463,6 +2463,28 @@ h2.custom-tools-heading {
   fill: #111827;
   dominant-baseline: middle;
 }
+/* A marked point. Filled and ringed so it stays visible against any fill colour and in
+   greyscale — like the contour labels, it has to survive printing. */
+.heat-point {
+  fill: #111827;
+  stroke: #ffffff;
+  stroke-width: 1.2;
+}
+.heat-point-label {
+  font-size: 8px;
+  fill: #111827;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+/* The numbered locations, spelled out under the field so the marks themselves stay short. */
+.heat-points-legend {
+  font-size: 0.7rem;
+  color: #374151;
+  padding-top: 0.2rem;
+  line-height: 1.35;
+}
 .heat-legend {
   font-size: 0.7rem;
   color: #6b7280;

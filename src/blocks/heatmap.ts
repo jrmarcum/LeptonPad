@@ -32,9 +32,28 @@ export interface HeatSource {
   cols: string;
   rows: string;
   values: string;
+  /**
+   * Marked points, as an m×2 matrix of (row key, column key) pairs.
+   *
+   * A FIELD rather than hidden block state (Jon's call, 2026-10-02). A number that appears only
+   * on a picture, put there by a click with no visible provenance, is hard to review — whereas
+   * `{{b/a, x_f}}` shows at a glance that the mark is *the design location the calculation uses*,
+   * and it moves when the inputs move.
+   *
+   * Coordinates are in KEY units, never pixels — the same discipline the plot's `xMarkers` uses,
+   * so a mark survives a resize and a change of axis.
+   */
+  points: string;
 }
 
-const EMPTY: HeatSource = { title: '', corner: '', cols: '', rows: '', values: '' };
+const EMPTY: HeatSource = {
+  title: '',
+  corner: '',
+  cols: '',
+  rows: '',
+  values: '',
+  points: '',
+};
 
 export function parseHeatSource(content: string): HeatSource {
   try {
@@ -46,6 +65,7 @@ export function parseHeatSource(content: string): HeatSource {
         cols: String(p.cols ?? ''),
         rows: String(p.rows ?? ''),
         values: String(p.values ?? ''),
+        points: String(p.points ?? ''),
       };
     }
   } catch {
@@ -54,8 +74,53 @@ export function parseHeatSource(content: string): HeatSource {
   return { ...EMPTY };
 }
 
-/** Split a table-style corner label into the vertical and horizontal axis names. */
+/**
+ * Where a key value sits on an axis, as a fractional grid index — the inverse of the tick
+ * labelling. Null when it falls outside the table, which a mark reports rather than clamping.
+ *
+ * Handles either direction, because an axis may run down the page as the Cdx rows do.
+ * With no keys the axis IS the index, so the value passes through.
+ */
+export function indexOfKey(keys: number[] | null, v: number, n: number): number | null {
+  if (!keys) return v >= 0 && v <= n - 1 ? v : null;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i], b = keys[i + 1];
+    if (v >= Math.min(a, b) && v <= Math.max(a, b)) {
+      return b === a ? i : i + (v - a) / (b - a);
+    }
+  }
+  return null;
+}
+
+/**
+ * Bilinear read at a fractional grid position.
+ *
+ * Shared by the hover readout and the marked points so the two cannot disagree — a mark and the
+ * hover at the same place must show the same number, and two copies of this arithmetic is exactly
+ * how they would stop doing so.
+ */
+export function valueAt(grid: number[][], uy: number, ux: number): number {
+  const rows = grid.length, cols = grid[0].length;
+  const i = Math.min(rows - 2, Math.max(0, Math.floor(uy)));
+  const j = Math.min(cols - 2, Math.max(0, Math.floor(ux)));
+  const tr = uy - i, tc = ux - j;
+  const top = grid[i][j] + tc * (grid[i][j + 1] - grid[i][j]);
+  const bot = grid[i + 1][j] + tc * (grid[i + 1][j + 1] - grid[i + 1][j]);
+  return top + tr * (bot - top);
+}
+
+/**
+ * Split a table-style corner label into the vertical and horizontal axis names.
+ *
+ * Either half may contain a slash of its own — the Cdx corner is literally `b/a / x/b` — so the
+ * separator is the slash written with SPACE around it, which is how it is typed to be read as one.
+ * A first-slash rule gives `y = "b"` there and a last-slash rule gives `x = "b"`; both are wrong,
+ * in opposite directions. A bare slash with nothing around it is part of a label, not a separator,
+ * so it only splits when there is no spaced slash to split on.
+ */
 export function axisLabels(corner: string): { y: string; x: string } {
+  const spaced = corner.match(/^(.*?)\s+\/\s+(.*)$/);
+  if (spaced) return { y: spaced[1].trim(), x: spaced[2].trim() };
   const i = corner.lastIndexOf('/');
   if (i < 0) return { y: '', x: corner.trim() };
   return { y: corner.slice(0, i).trim(), x: corner.slice(i + 1).trim() };
@@ -293,12 +358,9 @@ export function renderHeatInto(
       svg.classList.remove('heat-tracking');
       return;
     }
+    const v = valueAt(grid, uy, ux);
     const i = Math.min(rowsN - 2, Math.floor(uy)), j = Math.min(colsN - 2, Math.floor(ux));
     const tr = uy - i, tc = ux - j;
-    const top = grid[i][j] + tc * (grid[i][j + 1] - grid[i][j]);
-    const bot = grid[i + 1][j] + tc * (grid[i + 1][j + 1] - grid[i + 1][j]);
-    const v = top + tr * (bot - top);
-
     const kx = colKeys ? colKeys[j] + tc * (colKeys[j + 1] - colKeys[j]) : ux;
     const ky = rowKeys ? rowKeys[i] + tr * (rowKeys[i + 1] - rowKeys[i]) : uy;
     const label = `${fmtNum(v, SIG_DEFAULT)}${unit ? ' ' + unit : ''}  @ ${fmtNum(kx, 4)}, ${
@@ -329,7 +391,75 @@ export function renderHeatInto(
     svg.classList.remove('heat-tracking');
   });
 
+  // ── Marked points ────────────────────────────────────────────────────────
+  // Numbered, so the mark on the field stays short and its location is spelled out below:
+  // "(1) 2 in" at the point, "(1) @ x = 24 ft, y = 10 ft" underneath (Jon, 2026-10-02). A full
+  // coordinate beside every dot would bury the field it is drawn on.
+  const noted: string[] = [];
+  if (src.points.trim()) {
+    let pq: Quantity | null = null;
+    try {
+      pq = evalExpr(src.points, scope, fnScope);
+    } catch (e) {
+      noted.push(`Points — ${(e as Error).message}`);
+    }
+    const pm = pq?.m;
+    if (pq && !pm) noted.push('Points must be a matrix of (row, column) pairs');
+    else if (pm && pm[0].length !== 2) {
+      noted.push(`Points needs 2 columns — a row and a column key — not ${pm[0].length}`);
+    } else if (pm) {
+      pm.forEach((pr, n) => {
+        const ky = pr[0].v, kx = pr[1].v;
+        const uy = indexOfKey(rowKeys, ky, rowsN);
+        const ux = indexOfKey(colKeys, kx, colsN);
+        const where = `${labels.y || 'y'} = ${fmtNum(ky, 4)}, ${labels.x || 'x'} = ${
+          fmtNum(kx, 4)
+        }`;
+        // Outside the table is SAID, not clamped — a mark silently slid to the nearest edge
+        // would read as a value at a place the table does not cover.
+        if (uy === null || ux === null) {
+          noted.push(`(${n + 1}) @ ${where} — outside the table`);
+          return;
+        }
+        const v = valueAt(grid, uy, ux);
+        noted.push(`(${n + 1}) @ ${where}`);
+
+        const mk = svgEl('circle');
+        mk.setAttribute('cx', gx(ux).toFixed(1));
+        mk.setAttribute('cy', gy(uy).toFixed(1));
+        mk.setAttribute('r', '3.2');
+        mk.setAttribute('class', 'heat-point');
+        svg.appendChild(mk);
+
+        const lbl = svgEl('text');
+        const text = `(${n + 1}) ${fmtNum(v, SIG_DEFAULT)}${unit ? ' ' + unit : ''}`;
+        // Flipped to the left near the right edge, as the hover readout already does. The last
+        // column is a place marks genuinely land — x/b = 1.0 is the edge of the Cdx table — so a
+        // label that only runs rightwards would be clipped exactly where it is most wanted.
+        // 4.6px/char approximates the 8px label; it decides which side, not the position.
+        const flip = gx(ux) + 6 + text.length * 4.6 > W;
+        lbl.setAttribute('x', (gx(ux) + (flip ? -6 : 6)).toFixed(1));
+        lbl.setAttribute('y', (gy(uy) - 5).toFixed(1));
+        if (flip) lbl.setAttribute('text-anchor', 'end');
+        lbl.setAttribute('class', 'heat-point-label');
+        lbl.textContent = text;
+        svg.appendChild(lbl);
+      });
+    }
+  }
+
   host.appendChild(svg);
+
+  if (noted.length) {
+    const pl = document.createElement('div');
+    pl.className = 'heat-points-legend';
+    for (const line of noted) {
+      const d = document.createElement('div');
+      d.textContent = line;
+      pl.appendChild(d);
+    }
+    host.appendChild(pl);
+  }
 
   const legend = document.createElement('div');
   legend.className = 'heat-legend';
@@ -381,6 +511,7 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
   field('cols', 'Columns', 'vector scaling the horizontal axis, e.g. xb');
   field('rows', 'Rows', 'vector scaling the vertical axis, e.g. ba');
   field('values', 'Values', 'a matrix: Cdx, mirror(Cdx), tabulate(…)');
+  field('points', 'Points', '(row, col) pairs to mark, e.g. {{b/a, x_f}}');
   // Same rule at build time, so a block restored from a file opens in the right state.
   el.classList.toggle('tbl-needs-src', !src.values.trim());
   el.appendChild(srcWrap);
