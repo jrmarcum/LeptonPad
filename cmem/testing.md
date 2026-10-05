@@ -2,8 +2,12 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**123 steps across 9 files** at v2.6.2 (2026-10-02), all against the real engine (pure functions in,
-`Quantity` out, no DOM).
+**212 steps in 43 cases across 17 files** at v2.8.8 (2026-10-05), all against the real engine (pure
+functions in, `Quantity` out, no DOM).
+
+⚠️ **Count cases and files separately when quoting this.** `deno test` prints "43 passed (212
+steps)" — that 43 is `Deno.test` **cases**, not files, and it was misread as a file count during the
+2026-10-05 session. `ls tests/*.ts | wc -l` is the file count.
 
 Three files were added after the original six, and all three test **decisions rather than
 arithmetic** — the class of thing that is wrong silently:
@@ -16,6 +20,29 @@ arithmetic** — the class of thing that is wrong silently:
 
 The pattern worth copying: for each of these, measuring needed a DOM but **deciding** did not, so
 the decision was extracted into a pure function and the DOM half left as thin as possible.
+
+The 2026-10-02 → 10-05 block work added seven more on the same principle:
+
+| File                               | Covers                                                                                                                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/snap_single_source_test.ts` | One snap lattice, derived from the work area rather than reconciled with it — the bug that took six releases.                                                                            |
+| `tests/text_values_test.ts`        | Text as a value kind: assigns, compares with `==`/`!=`, refuses ordering and arithmetic, cannot carry a unit.                                                                            |
+| `tests/expand_if_test.ts`          | Expanding a one-line `if()` into rows, and where that is refused.                                                                                                                        |
+| `tests/interp2_test.ts`            | Four-point interpolation of a published table, keys ascending **or** descending, out of range an error.                                                                                  |
+| `tests/table_block_test.ts`        | Source parsing and heading evaluation, including vectors spliced into a heading row.                                                                                                     |
+| `tests/contours_test.ts`           | `contourLevels`, `marchingSquares` saddle resolution and the divide-by-zero guard — marching squares is wrong **invisibly**, so every case is one whose contours can be worked by hand.  |
+| `tests/mirror_test.ts`             | `mirror()` / `mirrorkeys()` unfolding a folded half-table.                                                                                                                               |
+| `tests/heat_points_test.ts`        | Locating a mark on an axis running either way, the `keyAtIndex` ↔ `indexOfKey` round trip, and editing the Points field as **text** so an expression is refused rather than overwritten. |
+
+⚠️ **Twice in the 2026-10-05 session the failing assertion was the test's own arithmetic, not the
+code** — `interp2` asserted 16 where 18 was right, and `valueAt` was given the row fraction 0.4 when
+a descending axis makes it 0.6. Both times the suspicion fell on the code first. **When a new test
+fails against code that was reasoned through, check the expectation before the implementation** —
+and for anything directional, write down which way the index runs before computing the fraction.
+
+Once, the expectation was right to fail: `axisLabels('b/a / x/b')` exposed that splitting a corner
+on the **last** slash is wrong, and the rule became "the slash with space around it". A failing new
+test is evidence about one of the two sides, and which side is the first thing to establish.
 
 | File                         | Covers                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

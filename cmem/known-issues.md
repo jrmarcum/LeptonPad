@@ -522,3 +522,29 @@ flip went unnoticed.
 `persistence.ts`, and _both copies were wrong in the same way_. That is the second time in one day
 — see the `'section1'`/`'section'` prefix split in § 19. Duplicated logic does not drift apart
 gradually; it is usually copied wrong once and then maintained in both places.
+
+## 23. On iPad every save produced another `Untitled.json` — FIXED 2026-10-05 (v2.8.9)
+
+Reported by Jon from a real iPad. Two symptoms, **one branch**: Safari on iOS has no
+`showSaveFilePicker`, so `saveProject()` fell through to the blob-download path.
+
+- ⚠️ **iOS Safari ignores `a.download` for a blob URL** and names the file from the blob's MIME
+  type. `application/json` gave `.json`, and `Untitled` is Safari's own default — so
+  `PROJECT_EXT` and the project name never reached the file at all.
+- **No file handle means no overwrite.** Every save was a fresh download, and iOS numbers
+  duplicates rather than replacing them.
+
+**Fixed with Web Share, tried before the download.** A `File` carries its own name, which the
+share sheet honours, and "Save to Files" there offers **Replace** — the only route to overwrite
+semantics on iPad. Cancelling the sheet is an `AbortError` and leaves the project **dirty**, the
+same reading the picker's own cancel already had; anything else falls through to the download.
+
+Two latent faults in the download path were fixed alongside, both Safari behaviours: the anchor is
+now **in the document** before `click()` (a detached anchor's click is ignored there) and the
+object URL is revoked **on a timer** rather than in the same tick, which could cancel the download
+before the blob was read.
+
+🔑 **The lesson is about branch coverage, not about Safari.** The picker path had been exercised
+for months on a desktop; the fallback beneath it had effectively never run, and it was wrong in
+three independent ways at once. **A fallback that only executes on a platform nobody develops on
+is untested code** — when one exists, say which platforms take it and test there deliberately.

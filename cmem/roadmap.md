@@ -1,19 +1,40 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.5.0 (2026-09-23)
+## Where the project stands — v2.8.8 (2026-10-05)
 
-**Shipping and working.** LeptonPad is a functioning product, not a prototype: nine block types, a
-unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG plotting with unit-propagating
-sweep variables, markdown text, figures, collapsible sections with scoped namespaces, custom
-multi-block user tools, author-declared input rows and per-row accident locks, page-sized canvas
-with title block and page numbering, PWA install and offline operation, Clerk auth with four roles
-and two-factor sign-in against a production instance, one-time license codes, and AES-256-GCM
-encrypted purchasable template packs.
+**Shipping and working.** LeptonPad is a functioning product, not a prototype: **ten** block types,
+a unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG
+plotting with unit-propagating sweep variables, markdown text, figures, collapsible sections with
+scoped namespaces, custom multi-block user tools, author-declared input rows and per-row accident
+locks, page-sized canvas with title block and page numbering, PWA install and offline operation,
+Clerk auth with four roles and two-factor sign-in against a production instance, one-time license
+codes, and AES-256-GCM encrypted purchasable template packs.
 
-~16k lines across `src/` (13.9k TS + 2.5k CSS), `api/`, `db/`, `solver/`, and the build scripts.
-`dist/main.js` is **450 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
+~19k lines across `src/` (16.3k TS + 2.8k CSS), `api/`, `db/`, `solver/`, and the build scripts.
+`dist/main.js` is **481 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
 one Deno Deploy project serving both the site and the API at `/api`, and **a push to `main` is the
-deploy**. v2.5.0 (`a1030c7`) was pushed 2026-09-23 and is therefore in production.
+deploy**. v2.8.8 (`be57b22`) was pushed 2026-10-05 and is therefore in production.
+
+💰 **Pricing and tiers are decided** as of 2026-10-05 — see [`pricing.md`](pricing.md). Free / Pro
+$149-yr / Firm / Student, packs sold separately at $29–99, and **Paddle is applied for before the
+pack storefront is built**, because Pro subscriptions do not depend on the pack path.
+
+### The 2026-10-02 → 10-05 sessions — notation, page geometry, and three new block types
+
+- **`=` assigns, `==` compares** (v2.6.x). A lone `=` in an expression is now an error that says so.
+- **Text as a value kind.** `Quantity.s` carries a string; `if(x==1,"OK","NG")` works, text compares
+  with `==`/`!=`, and `scalarOnly()` — one guard, widened from `noMatrix`, used at 21 call sites —
+  refuses it everywhere arithmetic would have silently accepted it.
+- **The page-geometry series**, six failed attempts before the root cause. One `clearTitleBlock()`,
+  `snapToPageGrid()` derived from `pageWorkArea()`, blocks that split at a page break and shift
+  their neighbours. The lesson is in [`conventions.md`](conventions.md): two quantities that must
+  agree should be **derived from one another, never reconciled**.
+- **Table block** (v2.8.1) — a pure renderer for a matrix with row and column headings.
+- **Heat map block** (v2.8.2 → 2.8.8) — discrete cells, 20 contour bands with labels, interpolated
+  hover, `mirror()`/`mirrorkeys()` to unfold a folded table, both-axis resize, and marked data
+  points placed by **right-clicking the field**. See [`blocks.md`](blocks.md).
+- **`interp2()`** reads a published two-way coefficient table, interpolating between four values,
+  with descending keys allowed and out-of-range an error rather than an extrapolation.
 
 ### The 2026-09-22 session — the math and notation layer, in 14 releases
 
@@ -210,8 +231,18 @@ have become permanently undecryptable. The production instance `clerk.leptonpad.
 before any sale and while the database was still clean, so nothing was stranded. Keep the rule in
 mind only if a Clerk instance is ever moved again.
 
-**5. `'table'` block type** — declared in the `Block['type']` union with no implementation. Either
-build it or remove it from the union.
+**5. ~~`'table'` block type declared with no implementation.~~ DONE 2026-10-04 (v2.8.1)** — built as
+a pure renderer taking a matrix of values with row and column headings, and `'heatmap'` was added to
+the union beside it the same week. — [`blocks.md`](blocks.md)
+
+**6. Pricing is decided; the launch build is not.** [`pricing.md`](pricing.md) settles the tiers.
+What it needs in the tree is small and **independent of the pack blocker above**: a discreet print
+footer for the `free` role, Paddle hosted checkout, and one webhook landing on `redeem_license_code`.
+Commercial-use rights are a change to `LICENSE`, not to code.
+
+⚠️ **Do the Paddle application first.** Vetting is days, it is free to start, and it gates every
+other commerce task. The storefront-or-Paddle question that used to sit here is answered: Paddle
+first, because Pro subscriptions never touch `packId`.
 
 ## Explicitly not being built
 

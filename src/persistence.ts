@@ -699,13 +699,46 @@ export async function saveProject(saveAs = false) {
       );
     }
   }
-  const blob = new Blob([serializeProject()], { type: 'application/json' });
+  // ── No File System Access API: iPad Safari, Firefox ──────────────────────
+  const name = state.projectName.replace(/[^\w-]/g, '_') + PROJECT_EXT;
+  const text = serializeProject();
+
+  // Web Share FIRST, because on iOS it is the only route that keeps the filename and the only
+  // one that can replace an existing file (Jon, 2026-10-05).
+  //
+  // ⚠️ iOS Safari **ignores `a.download` for a blob URL** and names the file from the blob's MIME
+  // type instead, so the download path below lands as `Untitled.json` no matter what we ask for —
+  // and with no file handle, every save is a fresh download that iOS numbers rather than
+  // overwrites. Both reported symptoms are that one branch. A `File` carries its own name, which
+  // the share sheet honours, and "Save to Files" there offers Replace.
+  // deno-lint-ignore no-explicit-any
+  const nav = navigator as any;
+  const file = new File([text], name, { type: 'application/json' });
+  if (typeof nav.canShare === 'function' && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: state.projectName });
+      markProjectSaved();
+      return;
+    } catch (e) {
+      // Cancelling the share sheet means "do not save" — the same reading the picker's
+      // AbortError gets above, and the project stays dirty rather than being marked clean.
+      if ((e as Error).name === 'AbortError') return;
+      // Anything else (no share target, a permissions policy) falls through to the download.
+    }
+  }
+
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = state.projectName.replace(/[^\w-]/g, '_') + PROJECT_EXT;
+  a.download = name;
+  a.rel = 'noopener';
+  // ⚠️ In the document and revoked LATE, both for Safari: a detached anchor's click is ignored
+  // there, and revoking in the same tick can cancel the download before the blob is read.
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
   // The download path has no completion signal — a.click() returns before the browser has written
   // anything, and a user can still cancel a download prompt. Counted as saved anyway, because the
   // alternative is prompting forever about a project the user has told us twice to save.

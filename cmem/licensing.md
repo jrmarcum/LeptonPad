@@ -6,6 +6,10 @@
 Reserved.** This is a commercial product with paid roles and purchasable section-template packs, not
 an open-source project.
 
+💰 **What the tiers cost and what each one grants is in [`pricing.md`](pricing.md).** ⚠️ One item
+there lands on this file rather than on code: **Pro grants commercial use, Free and Student do
+not** — a change to `LICENSE`, to be made before the first sale.
+
 Practical consequences:
 
 - **No copyleft dependencies.** Anything vendored or bundled must be permissive (MIT / BSD /

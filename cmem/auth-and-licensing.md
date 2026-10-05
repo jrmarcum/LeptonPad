@@ -18,6 +18,11 @@ carries a Clerk session JWT as a bearer token, and the API derives the user id f
 `canCreateSection()` (`auth.ts`) returns true for `super`/`pro`/`demo`. `hasPack(packId)` returns true
 for `super` or when `packId ∈ ownedPackIds`.
 
+💰 **These four roles already carry the sold tiers** — see [`pricing.md`](pricing.md). `free` → Free,
+`demo` → the trial, `pro` → Pro **and** Firm (Firm is N Pro seats, not a new role). 🔑 **A `free`
+user can own packs**, which is why the Free tier can make a purchase without a subscription — the
+cheapest possible first transaction, and it falls out of the existing model rather than needing one.
+
 **Expiry degrades server-side.** `get_my_role()` downgrades a `demo` **or** a `pro` row to `free` when
 `trial_expires_at` is in the past. The client never computes expiry — a client clock is not a trust
 boundary.

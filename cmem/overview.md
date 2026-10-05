@@ -8,7 +8,8 @@ blocks group related work under a scoped variable namespace.
 The product model is a **calculation sheet an engineer can hand to a reviewer** — page-sized canvas,
 title block, page numbering, print-fidelity layout. It is not a notebook or a REPL.
 
-**Current version: 2.5.0** (`deno.json`, 2026-09-23). Proprietary — see [`licensing.md`](licensing.md).
+**Current version: 2.8.8** (`deno.json`, 2026-10-05). Proprietary — see
+[`licensing.md`](licensing.md); priced and tiered in [`pricing.md`](pricing.md).
 
 ## Repo layout
 
@@ -37,7 +38,7 @@ LeptonPad/
 │   ├── main.ts             # Entry point — sidebar, modals, event wiring, keyboard, start()
 │   ├── state.ts            # ALL shared mutable state + the callback-slot registry
 │   ├── types.ts            # Shared interfaces + canvas/page constants
-│   ├── expr.ts             # The math engine — lexer, parser, units, matrices, control flow (2368 lines)
+│   ├── expr.ts             # The math engine — lexer, parser, units, matrices, control flow (2642 lines)
 │   ├── canvas.ts           # Canvas class — DOM element, snap grid, margin guide, page separators
 │   ├── dnd.ts              # Drag-and-drop, block placement, marquee selection, multi-drag
 │   ├── backend.ts          # The provider-agnostic backend contract — the ONLY vendor seam
@@ -53,6 +54,9 @@ LeptonPad/
 │   │   ├── plot.ts         # Plot block — SVG built as a string in TypeScript (1463 lines)
 │   │   ├── figure.ts       # Figure/image block — paste or click-to-upload
 │   │   ├── text.ts         # Markdown text block
+│   │   ├── table.ts        # Table block — pure renderer: matrix + row/column headings
+│   │   ├── heatmap.ts      # Heat map block — field, contours, hover, right-click marked points
+│   │   ├── contours.ts     # Pure contour geometry — contourLevels, marchingSquares, gridRange
 │   │   ├── beam-def.ts     # Beam deflection math block (calls WASM)
 │   │   ├── sect-prop.ts    # Section properties math block (calls WASM)
 │   │   ├── _math-block-helpers.ts
@@ -62,7 +66,7 @@ LeptonPad/
 │   │   ├── units.ts        # convert() and friends
 │   │   ├── markdown.ts     # Markdown + math-expression rendering
 │   │   └── theme.ts
-│   └── styles/main.css     # ALL application styles (2477 lines)
+│   └── styles/main.css     # ALL application styles (2793 lines)
 ├── public/                 # Static shell — index.html, sw.js, manifest, logo, sample project
 │   └── config.js           # ⚠️ shape reference only — NEVER shipped; dist/config.js is generated
 ├── .env.example            # Browser config template (publishable values) — committed
