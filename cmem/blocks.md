@@ -544,6 +544,47 @@ The point label **flips to the left near the right edge**, as the hover readout 
 `x/b = 1.0` is the edge of the Cdx table, so marks genuinely land where a rightward-only label
 would be clipped.
 
+### v2.8.7 — a way to PLACE the point
+
+⚠️ **v2.8.6 shipped the field and called the feature done.** Jon: _"The user need a way to place
+the point. I do not see it yet."_ A field the author can type a pair into is how a mark is
+**stored**; it is not how one is **placed**, because placing starts from a spot on the picture and
+the author would have had to read the coordinate off the map by eye first. **"Field" answered where
+the mark lives, not how it gets there** — the lesson is that a storage decision is not an
+affordance decision, and answering one does not discharge the other.
+
+**Right-click the map**, deliberately the plot's gesture and the plot's popup — same layout, same
+validate-and-stay-open, so a refused value is corrected rather than retyped and the two blocks are
+learned once. The CSS is the plot's rules with `.heat-ctx-*` added to each selector list, not a
+second copy that could drift. The menu opens **pre-filled with the keys under the cursor**: the
+gesture chooses roughly, the entries make it exact. On an existing mark it offers removal only —
+adding a point on top of one is never the intent.
+
+🔑 **The menu writes the FIELD TEXT and keeps no parallel list.** What it places is exactly what
+the author could have typed, so a placed mark stays reviewable and editable; `commit()` also
+refreshes the strip's input (found by `data-field="points"`), because the field and the marks are
+one state shown two ways.
+
+⚠️ **An expression field is refused, never overwritten** (`addPointToSource` /
+`removePointFromSource` return `null`). `{{b/a, x_f}}` — a mark that moves when the design moves —
+is the version worth having on a real sheet, and rebuilding the field from evaluated numbers would
+silently trade that provenance for a frozen literal. Removal splits the literal into **verbatim
+top-level groups** for the same reason: deleting one mark must not freeze its neighbour.
+
+Removing the last pair gives an **empty string, not `{{}}`** — a matrix with no rows, which would
+render as an error exactly where the author expects to be back where they started.
+
+`keyAtIndex()` is the inverse of `indexOfKey()`, and the round trip is tested both ways on an
+ascending and a descending axis: a mark placed by the mouse lands where the cursor was only if the
+two agree. Keys are written with `toPrecision(6)` through `String()`, never exponent form, which
+the parser rejects.
+
+Out of range is refused **in the menu**, where the ranges are known and the entry is still in front
+of the author — unlike a typed pair, which is reported in the legend after the fact.
+
+A right-click in the **margins is not intercepted**, so the block's own menu still opens over the
+axis labels.
+
 ## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:

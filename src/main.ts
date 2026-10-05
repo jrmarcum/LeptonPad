@@ -1043,8 +1043,10 @@ async function start() {
       renderTableInto(host, parseTableSource(blk.content), scope, fnScope)
     );
     setOnTableChanged(() => reEvalAllFormulas());
+    // `blk` goes through as well, so the map's right-click menu can write a placed point back
+    // into the block's Points field — the field stays the one place a mark is stored.
     setOnRenderHeat((host, blk, scope, fnScope) =>
-      renderHeatInto(host, parseHeatSource(blk.content), scope, fnScope)
+      renderHeatInto(host, parseHeatSource(blk.content), scope, fnScope, blk)
     );
     setOnHeatChanged(() => reEvalAllFormulas());
     setOnRefreshAllSectionHeights(refreshAllSectionHeights);

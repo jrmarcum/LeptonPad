@@ -110,6 +110,87 @@ export function valueAt(grid: number[][], uy: number, ux: number): number {
 }
 
 /**
+ * The key value at a fractional grid index — the inverse of `indexOfKey`.
+ *
+ * What turns a right-click into something that can go in the Points field: the gesture lands at a
+ * pixel, the field holds key units, and this is the step between them.
+ */
+export function keyAtIndex(keys: number[] | null, u: number): number {
+  if (!keys) return u;
+  const i = Math.min(keys.length - 2, Math.max(0, Math.floor(u)));
+  return keys[i] + (u - i) * (keys[i + 1] - keys[i]);
+}
+
+/** Six significant figures, written plainly — never in exponent form, which the parser rejects. */
+function keyText(v: number): string {
+  return String(+v.toPrecision(6));
+}
+
+/**
+ * Append a `(row, column)` pair to the text of the Points field.
+ *
+ * ⚠️ Returns **null when the field is not a plain matrix literal**, rather than overwriting it.
+ * The field may hold an expression — `{{b/a, x_f}}` is the case worth having, a mark that moves
+ * when the design moves — and rebuilding it from evaluated numbers would silently trade that
+ * provenance for a frozen literal. The caller says so instead and leaves the text alone.
+ */
+export function addPointToSource(points: string, ky: number, kx: number): string | null {
+  const pair = `{${keyText(ky)}, ${keyText(kx)}}`;
+  const t = points.trim();
+  if (!t) return `{${pair}}`;
+  if (!t.startsWith('{{') || !t.endsWith('}}')) return null;
+  return `${t.slice(0, -1)}, ${pair}}`;
+}
+
+/**
+ * Split the inside of a `{{…}}` literal into its top-level `{…}` groups, verbatim.
+ *
+ * Kept as TEXT rather than re-serialised from values, so a group that is an expression survives
+ * being a neighbour of one that gets deleted.
+ */
+function pointGroups(points: string): string[] | null {
+  const t = points.trim();
+  if (!t.startsWith('{{') || !t.endsWith('}}')) return null;
+  const inner = t.slice(1, -1); // the outer braces off, leaving "{…},{…}"
+  const out: string[] = [];
+  let depth = 0, start = -1;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (c === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        out.push(inner.slice(start, i + 1));
+        start = -1;
+      }
+      if (depth < 0) return null;
+    }
+  }
+  return depth === 0 ? out : null;
+}
+
+/** How many pairs the Points field lists, or null if it is not a literal. */
+export function countPointsInSource(points: string): number | null {
+  return pointGroups(points)?.length ?? null;
+}
+
+/**
+ * Drop the nth `(row, column)` pair from the text of the Points field, 0-based.
+ *
+ * Null when the field is not a literal or `n` is out of range — same reason as
+ * `addPointToSource`. Removing the last pair gives an empty string, not `{{}}`, which would be a
+ * matrix with no rows and read as an error.
+ */
+export function removePointFromSource(points: string, n: number): string | null {
+  const groups = pointGroups(points);
+  if (!groups || n < 0 || n >= groups.length) return null;
+  const kept = groups.filter((_, i) => i !== n);
+  return kept.length ? `{${kept.join(', ')}}` : '';
+}
+
+/**
  * Split a table-style corner label into the vertical and horizontal axis names.
  *
  * Either half may contain a slash of its own — the Cdx corner is literally `b/a / x/b` — so the
@@ -161,12 +242,189 @@ function hostHeight(host: HTMLElement): number {
 const NS = 'http://www.w3.org/2000/svg';
 const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K) => document.createElementNS(NS, tag);
 
-/** Render the field into `host` using the scope as of this point in the sheet. */
+/** The span of an axis, lowest first, whichever way its keys run. */
+function axisSpan(keys: number[] | null, n: number): [number, number] {
+  if (!keys) return [0, n - 1];
+  const a = keys[0], b = keys[keys.length - 1];
+  return a <= b ? [a, b] : [b, a];
+}
+
+interface HeatMenuOpts {
+  clientX: number;
+  clientY: number;
+  block: Block;
+  yLabel: string;
+  xLabel: string;
+  /** The keys under the cursor — what the menu opens pre-filled with. */
+  ky: number;
+  kx: number;
+  /** The mark this gesture landed on, 0-based, or null for empty field. */
+  hit: number | null;
+  locate: (ky: number, kx: number) => boolean;
+  ySpan: [number, number];
+  xSpan: [number, number];
+}
+
+/**
+ * The right-click menu for placing and removing marks.
+ *
+ * Deliberately the plot's popup rather than a new idiom: same gesture, same layout, same
+ * validate-and-stay-open behaviour, so a refused value is corrected instead of retyped.
+ *
+ * 🔑 Everything it does goes through the **text of the Points field** — it never keeps a parallel
+ * list. The field stays the single source of truth, which is what makes a placed mark reviewable
+ * and lets it be edited by hand afterwards.
+ */
+function showHeatPointMenu(o: HeatMenuOpts) {
+  document.querySelector('.heat-ctx-popup')?.remove();
+  const popup = document.createElement('div');
+  popup.className = 'heat-ctx-popup';
+  popup.style.left = `${o.clientX}px`;
+  popup.style.top = `${o.clientY}px`;
+
+  const msg = document.createElement('div');
+  msg.className = 'heat-ctx-msg';
+  msg.style.display = 'none';
+  // A refused value leaves the popup open with the entry intact, so it can be corrected.
+  const say = (t: string) => {
+    msg.textContent = t;
+    msg.style.display = '';
+  };
+
+  const src = parseHeatSource(o.block.content);
+  const commit = (next: string) => {
+    src.points = next;
+    o.block.content = JSON.stringify(src);
+    // The field and the marks are one piece of state shown two ways, so the strip is updated in
+    // the same breath. Leaving it stale would show the author a field that disagrees with the map.
+    const inp = document.getElementById(o.block.id)?.querySelector<HTMLElement>(
+      '.tbl-src-input[data-field="points"]',
+    );
+    if (inp) inp.textContent = next;
+    popup.remove();
+    onHeatChanged?.();
+  };
+
+  const row = () => {
+    const r = document.createElement('div');
+    r.className = 'heat-ctx-row';
+    popup.appendChild(r);
+    return r;
+  };
+
+  if (o.hit !== null) {
+    // On an existing mark the gesture means "do something to THIS one", so adding is not offered.
+    const del = document.createElement('button');
+    del.className = 'heat-ctx-btn heat-ctx-btn-primary';
+    del.textContent = `Remove point (${o.hit + 1})`;
+    del.onclick = () => {
+      const next = removePointFromSource(src.points, o.hit as number);
+      if (next === null) {
+        say('The Points field is an expression — remove the pair there instead.');
+        return;
+      }
+      commit(next);
+    };
+    row().appendChild(del);
+  } else {
+    const mk = (label: string, v: number) => {
+      const r = row();
+      const l = document.createElement('span');
+      l.className = 'heat-ctx-label';
+      l.textContent = label;
+      const i = document.createElement('input');
+      i.type = 'number';
+      i.step = 'any';
+      i.className = 'heat-ctx-input';
+      i.value = String(+v.toPrecision(6));
+      i.addEventListener('input', () => {
+        msg.style.display = 'none';
+      });
+      r.append(l, i);
+      return i;
+    };
+    // Row key first, the order the pair is typed in — see the legend note in renderHeatInto.
+    const yi = mk(`${o.yLabel || 'row'} =`, o.ky);
+    const xi = mk(`${o.xLabel || 'col'} =`, o.kx);
+
+    const add = document.createElement('button');
+    add.className = 'heat-ctx-btn heat-ctx-btn-primary';
+    add.textContent = 'Add point';
+    const doAdd = () => {
+      const ky = parseFloat(yi.value), kx = parseFloat(xi.value);
+      if (!isFinite(ky) || !isFinite(kx)) {
+        say('Enter a number for both axes.');
+        return;
+      }
+      // Refused here rather than added and then reported in the legend: the menu knows the ranges
+      // and the entry is still in front of the author, which is the moment to fix it.
+      if (!o.locate(ky, kx)) {
+        say(
+          `Outside the table — ${o.yLabel || 'rows'} run ${fmtNum(o.ySpan[0], 4)} to ${
+            fmtNum(o.ySpan[1], 4)
+          }, ${o.xLabel || 'columns'} ${fmtNum(o.xSpan[0], 4)} to ${fmtNum(o.xSpan[1], 4)}.`,
+        );
+        return;
+      }
+      const next = addPointToSource(src.points, ky, kx);
+      if (next === null) {
+        say(
+          'The Points field is an expression, which a pair added here would overwrite. Add it in the field instead.',
+        );
+        return;
+      }
+      commit(next);
+    };
+    add.onclick = doAdd;
+    for (const i of [yi, xi]) {
+      i.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doAdd();
+        }
+        if (e.key === 'Escape') popup.remove();
+      });
+    }
+    row().appendChild(add);
+    setTimeout(() => {
+      yi.focus();
+      yi.select();
+    }, 0);
+  }
+
+  if (countPointsInSource(src.points)) {
+    const clr = document.createElement('button');
+    clr.className = 'heat-ctx-btn';
+    clr.textContent = 'Clear all points';
+    clr.onclick = () => commit('');
+    row().appendChild(clr);
+  }
+
+  popup.appendChild(msg);
+  document.body.appendChild(popup);
+
+  // Detached when the popup goes by ANY route — a button inside it, or being superseded — not
+  // only on a click outside. The plot's menu had to fix exactly this leak.
+  const closeOutside = (e: MouseEvent) => {
+    if (popup.isConnected && popup.contains(e.target as Node)) return;
+    popup.remove();
+    document.removeEventListener('mousedown', closeOutside);
+  };
+  setTimeout(() => document.addEventListener('mousedown', closeOutside), 0);
+}
+
+/**
+ * Render the field into `host` using the scope as of this point in the sheet.
+ *
+ * `block` is optional and only enables the right-click placement menu: it is what the menu writes
+ * the new pair back into. The renderer works without it, which is what keeps it testable.
+ */
 export function renderHeatInto(
   host: HTMLElement,
   src: HeatSource,
   scope: Scope,
   fnScope: FnScope,
+  block?: Block,
 ) {
   host.innerHTML = '';
   const fail = (msg: string) => {
@@ -396,6 +654,9 @@ export function renderHeatInto(
   // "(1) 2 in" at the point, "(1) @ x = 24 ft, y = 10 ft" underneath (Jon, 2026-10-02). A full
   // coordinate beside every dot would bury the field it is drawn on.
   const noted: string[] = [];
+  // Where each mark landed, so a right-click can tell "on this point" from "on empty field" —
+  // the same distinction the plot draws before deciding which menu to open.
+  const marks: { n: number; ux: number; uy: number }[] = [];
   if (src.points.trim()) {
     let pq: Quantity | null = null;
     try {
@@ -423,6 +684,7 @@ export function renderHeatInto(
         }
         const v = valueAt(grid, uy, ux);
         noted.push(`(${n + 1}) @ ${where}`);
+        marks.push({ n, ux, uy });
 
         const mk = svgEl('circle');
         mk.setAttribute('cx', gx(ux).toFixed(1));
@@ -446,6 +708,46 @@ export function renderHeatInto(
         svg.appendChild(lbl);
       });
     }
+  }
+
+  // ── Placing a point ──────────────────────────────────────────────────────
+  // Typing a pair into the Points field is exact, but it is not a way to PLACE one (Jon,
+  // 2026-10-05) — the author has to read a coordinate off the map first and the field is the only
+  // affordance there is. Right-click is that affordance, and it is the gesture the plot already
+  // uses for its markers, so the two blocks are learned once. The menu opens pre-filled with the
+  // keys under the cursor: the gesture chooses roughly, the entries make it exact before it lands.
+  if (block) {
+    svg.addEventListener('contextmenu', (e) => {
+      const me = e as MouseEvent;
+      const r = svg.getBoundingClientRect();
+      const ux = (((me.clientX - r.left) / r.width) * W - PAD_L) / cellW;
+      const uy = (((me.clientY - r.top) / r.height) * H - PAD_T) / cellH;
+      // In the margins the gesture is not about a point at all, so it is left to the block's own
+      // menu rather than intercepted — a right-click on the axis labels should still work.
+      if (ux < 0 || uy < 0 || ux > colsN - 1 || uy > rowsN - 1) return;
+      me.preventDefault();
+      me.stopPropagation();
+
+      // About 7px either way, in index units — the dot's own size. Generous enough to hit without
+      // being so wide that a point cannot be added near an existing one.
+      const hit = marks.find((mk) =>
+        Math.abs(mk.ux - ux) <= 7 / cellW && Math.abs(mk.uy - uy) <= 7 / cellH
+      );
+      showHeatPointMenu({
+        clientX: me.clientX,
+        clientY: me.clientY,
+        block,
+        yLabel: labels.y,
+        xLabel: labels.x,
+        ky: keyAtIndex(rowKeys, uy),
+        kx: keyAtIndex(colKeys, ux),
+        hit: hit ? hit.n : null,
+        locate: (ky, kx) =>
+          indexOfKey(rowKeys, ky, rowsN) !== null && indexOfKey(colKeys, kx, colsN) !== null,
+        ySpan: axisSpan(rowKeys, rowsN),
+        xSpan: axisSpan(colKeys, colsN),
+      });
+    });
   }
 
   host.appendChild(svg);
@@ -486,6 +788,8 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
     inp.className = 'tbl-src-input';
     inp.contentEditable = 'true';
     inp.dataset.placeholder = placeholder;
+    // Named so the right-click menu can put a placed point back into the field it belongs to.
+    inp.dataset.field = key;
     inp.textContent = src[key];
     const commit = () => {
       src[key] = inp.textContent ?? '';
@@ -511,7 +815,7 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
   field('cols', 'Columns', 'vector scaling the horizontal axis, e.g. xb');
   field('rows', 'Rows', 'vector scaling the vertical axis, e.g. ba');
   field('values', 'Values', 'a matrix: Cdx, mirror(Cdx), tabulate(…)');
-  field('points', 'Points', '(row, col) pairs to mark, e.g. {{b/a, x_f}}');
+  field('points', 'Points', 'right-click the map to place, or {{b/a, x_f}}');
   // Same rule at build time, so a block restored from a file opens in the right state.
   el.classList.toggle('tbl-needs-src', !src.values.trim());
   el.appendChild(srcWrap);

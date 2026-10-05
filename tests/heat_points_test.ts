@@ -10,7 +10,15 @@
 // would stop doing so.
 
 import { assertAlmostEquals, assertEquals } from '@std/assert';
-import { axisLabels, indexOfKey, valueAt } from '../src/blocks/heatmap.ts';
+import {
+  addPointToSource,
+  axisLabels,
+  countPointsInSource,
+  indexOfKey,
+  keyAtIndex,
+  removePointFromSource,
+  valueAt,
+} from '../src/blocks/heatmap.ts';
 
 Deno.test('indexOfKey', async (t) => {
   await t.step('an ascending axis', () => {
@@ -65,6 +73,81 @@ Deno.test('valueAt', async (t) => {
     // measures upward from 1.5. That inversion is precisely what indexOfKey exists to get right —
     // and it caught this expectation being written the wrong way round.
     assertAlmostEquals(valueAt(rows, 0.6, 0.5), 1.59, 1e-9);
+  });
+});
+
+Deno.test('keyAtIndex inverts indexOfKey', async (t) => {
+  // Right-click gives a pixel, the Points field holds key units. These two are the round trip
+  // between them, and a mark placed by the mouse lands where the cursor was only if they agree.
+  const asc = [0, 0.1, 0.2, 0.3, 0.4, 0.5];
+  const desc = [4.0, 3.0, 2.5, 2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5];
+
+  await t.step('ascending, both ways round', () => {
+    assertAlmostEquals(keyAtIndex(asc, 2.5), 0.25, 1e-9);
+    assertAlmostEquals(indexOfKey(asc, keyAtIndex(asc, 3.7), 6)!, 3.7, 1e-9);
+  });
+
+  await t.step('descending, both ways round', () => {
+    assertAlmostEquals(keyAtIndex(desc, 4.6), 1.6, 1e-9);
+    assertAlmostEquals(indexOfKey(desc, keyAtIndex(desc, 6.25), 10)!, 6.25, 1e-9);
+  });
+
+  await t.step('with no keys the index IS the key', () => {
+    assertAlmostEquals(keyAtIndex(null, 3.25), 3.25, 1e-9);
+  });
+});
+
+Deno.test('editing the Points field as text', async (t) => {
+  // Add and remove both work on the FIELD TEXT rather than a parallel list, so what the menu
+  // places is the same thing the author could have typed — and can still edit afterwards.
+
+  await t.step('the first point creates the literal', () => {
+    assertEquals(addPointToSource('', 1.6, 0.25), '{{1.6, 0.25}}');
+  });
+
+  await t.step('a later point is spliced in, leaving the others alone', () => {
+    assertEquals(addPointToSource('{{1.6, 0.25}}', 2, 0.4), '{{1.6, 0.25}, {2, 0.4}}');
+  });
+
+  await t.step('an EXPRESSION is refused, not overwritten', () => {
+    // The case worth protecting: a mark that moves when the design moves. Rebuilding the field
+    // from evaluated numbers would quietly trade that for a frozen literal.
+    assertEquals(addPointToSource('pts', 1, 1), null);
+    assertEquals(addPointToSource('mirror(pts)', 1, 1), null);
+    assertEquals(removePointFromSource('pts', 0), null);
+  });
+
+  await t.step('removing keeps the neighbours VERBATIM, expressions included', () => {
+    // Re-serialising from values would turn the surviving `{b/a, x_f}` into numbers — deleting
+    // one mark must not silently freeze another.
+    assertEquals(removePointFromSource('{{b/a, x_f}, {2, 0.4}}', 1), '{{b/a, x_f}}');
+    assertEquals(removePointFromSource('{{b/a, x_f}, {2, 0.4}}', 0), '{{2, 0.4}}');
+  });
+
+  await t.step('removing the last one empties the field, not {{}}', () => {
+    // `{{}}` is a matrix with no rows, which would render as an error where the author expects
+    // to be back where they started.
+    assertEquals(removePointFromSource('{{1.6, 0.25}}', 0), '');
+  });
+
+  await t.step('out of range removes nothing', () => {
+    assertEquals(removePointFromSource('{{1.6, 0.25}}', 1), null);
+    assertEquals(removePointFromSource('{{1.6, 0.25}}', -1), null);
+  });
+
+  await t.step('counting, which decides whether Clear All is offered', () => {
+    assertEquals(countPointsInSource(''), null);
+    assertEquals(countPointsInSource('{{1, 2}}'), 1);
+    assertEquals(countPointsInSource('{{1, 2}, {3, 4}, {5, 6}}'), 3);
+    assertEquals(countPointsInSource('pts'), null);
+  });
+
+  await t.step('a placed key never comes back in exponent form', () => {
+    // The parser rejects `1e-5`, so a point placed on a fine axis has to be written plainly or
+    // it lands in the field as text that will not evaluate.
+    const s = addPointToSource('', 0.000012, 1234567)!;
+    assertEquals(s.includes('e'), false);
+    assertEquals(s, '{{0.000012, 1234570}}');
   });
 });
 

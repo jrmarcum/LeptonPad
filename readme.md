@@ -312,12 +312,26 @@ The **contour labels carry the values**, which is what makes the map usable on p
 not survive printing, so the labels and the range in the legend are the data. A label is placed
 only where its contour has room for it, leaving crowded areas clear rather than overprinted.
 
-**Marked points.** The **Points** field takes a matrix of `(row, column)` pairs — the same order
-the values are entered in — and marks each one on the field, anywhere, not just on a sample:
+**Marked points.** **Right-click the map where you want a point.** The menu opens with the
+coordinates under the cursor already filled in, so the click chooses the spot and the two entries
+make it exact before it lands. Right-click an existing point to remove it, or clear them all.
+
+A placed point is written into the **Points** field as a `(row, column)` pair — the same order the
+values are entered in — so it can be read, checked and edited by hand afterwards:
 
 ```
-pts = {{1.6, 0.25}, {2.0, 0.4}}
+{{1.6, 0.25}, {2, 0.4}}
 ```
+
+The field takes an expression just as readily, which is the version worth having on a real sheet —
+the mark then moves when the design moves:
+
+```
+{{b/a, x_f}}
+```
+
+⚠️ Right-clicking will not add to a field that holds an expression; it says so rather than
+overwriting it with numbers. Add the pair in the field itself.
 
 Each mark is numbered, showing the value at that point on the field — `(1) 1.59` — with its
 location spelled out in a legend below the map:

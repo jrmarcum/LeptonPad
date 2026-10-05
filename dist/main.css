@@ -1560,8 +1560,11 @@ main {
   opacity: 1;
 }
 
-/* Plot right-click marker popup */
-.plot-ctx-popup {
+/* Right-click marker popup — shared by the plot and the heat map.
+   The heat map places points with the same gesture and the same popup, so it uses the same rules
+   under its own class names rather than a second copy of them that could drift. */
+.plot-ctx-popup,
+.heat-ctx-popup {
   position: fixed;
   z-index: 9999;
   background: #ffffff;
@@ -1576,23 +1579,27 @@ main {
   flex-direction: column;
   gap: 5px;
 }
-.plot-ctx-row {
+.plot-ctx-row,
+.heat-ctx-row {
   display: flex;
   align-items: center;
   gap: 5px;
 }
 /* Out-of-bounds / invalid-entry message. Wraps rather than widening the popup. */
-.plot-ctx-msg {
+.plot-ctx-msg,
+.heat-ctx-msg {
   color: #b91c1c;
   font-size: 0.72rem;
   line-height: 1.35;
   max-width: 220px;
 }
-.plot-ctx-label {
+.plot-ctx-label,
+.heat-ctx-label {
   color: #6b7280;
   flex-shrink: 0;
 }
-.plot-ctx-input {
+.plot-ctx-input,
+.heat-ctx-input {
   width: 6rem;
   font-size: 0.78rem;
   border: 1px solid #d1d5db;
@@ -1600,10 +1607,12 @@ main {
   padding: 2px 5px;
   outline: none;
 }
-.plot-ctx-input:focus {
+.plot-ctx-input:focus,
+.heat-ctx-input:focus {
   border-color: #2563eb;
 }
-.plot-ctx-btn {
+.plot-ctx-btn,
+.heat-ctx-btn {
   font-size: 0.72rem;
   padding: 2px 7px;
   border: 1px solid #d1d5db;
@@ -1612,15 +1621,18 @@ main {
   cursor: pointer;
   white-space: nowrap;
 }
-.plot-ctx-btn:hover {
+.plot-ctx-btn:hover,
+.heat-ctx-btn:hover {
   background: #f3f4f6;
 }
-.plot-ctx-btn-primary {
+.plot-ctx-btn-primary,
+.heat-ctx-btn-primary {
   background: #2563eb;
   border-color: #2563eb;
   color: #fff;
 }
-.plot-ctx-btn-primary:hover {
+.plot-ctx-btn-primary:hover,
+.heat-ctx-btn-primary:hover {
   background: #1d4ed8;
 }
 

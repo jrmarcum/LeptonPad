@@ -24,6 +24,15 @@ The rhythm that worked, 14 releases in a day:
 3. **Bump, build, push, wait for the live cache name**, then Jon tests in the browser and says
    "proceed" or reports what he saw. Nothing moves to the next step before that.
 
+⚠️ **A storage decision is not an affordance decision** (learned 2026-10-05, the heat map's marked
+points). Asked "field or hidden config?", Jon answered _"field"_ — and that answer was taken as
+settling the whole feature, which shipped with no way to put a mark anywhere. _"The user need a way
+to place the point. I do not see it yet."_ Where the data **lives** and how the user **puts it
+there** are two questions; answering one does not discharge the other. When a feature acts on a
+picture, ask what the **gesture** is as well as what the state is — and look first for the gesture
+an existing block already uses (the plot's right-click menu was the answer, and reusing it cost
+less than inventing one).
+
 **Every test table must be self-contained.** This is the lesson of the session, paid for three times:
 a table that reused `A` from an earlier table (2×3 where the reader still had a 2×2) sent Jon chasing
 an error that was in the instructions, not the code. **Define every variable in the block you hand
