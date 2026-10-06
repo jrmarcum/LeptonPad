@@ -3,7 +3,7 @@
 ## Where the project stands — v2.8.8 (2026-10-05)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: **ten** block types,
-a unit-aware math engine with an automated test suite, a 23-category / 158-unit catalog, SVG
+a unit-aware math engine with an automated test suite, a 24-category / 163-unit catalog, SVG
 plotting with unit-propagating sweep variables, markdown text, figures, collapsible sections with
 scoped namespaces, custom multi-block user tools, author-declared input rows and per-row accident
 locks, page-sized canvas with title block and page numbering, PWA install and offline operation,

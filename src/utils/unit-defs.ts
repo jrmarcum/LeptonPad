@@ -825,6 +825,63 @@ export const UNIT_CATEGORIES: Record<string, UnitCategory> = {
     ],
   },
 
+  // ---- Unit Weight / Specific Weight (base: N/m³) -------------------------
+  // ⚠️ NOT density, however alike they look on a sheet. Density is MASS per volume
+  // (lbm/ft³, M·L⁻³); unit weight is FORCE per volume (lbf/ft³, M·L⁻²·T⁻²). They differ by g,
+  // and keeping them apart is what lets γ·V come back as a force the rest of the sheet can add
+  // to a load. `pcf` meaning lbf/ft³ is the structural reading and the one built here (Jon,
+  // 2026-10-06); the mass reading stays in `density` as `lb/ft³`.
+  unit_weight: {
+    id: 'unit_weight',
+    label: 'Unit Weight (Specific Weight)',
+    siBase: 'N/m³',
+    units: [
+      {
+        id: 'N_m3',
+        label: 'Newtons/m³',
+        symbol: 'N/m³',
+        factor: 1,
+        system: 'metric',
+        baseUnits: { N: 1, m: -3 },
+      },
+      {
+        id: 'kN_m3',
+        label: 'Kilonewtons/m³',
+        symbol: 'kN/m³',
+        factor: 1e3,
+        system: 'metric',
+        baseUnits: { kN: 1, m: -3 },
+      },
+      {
+        // 1 lbf / 1 ft³ = 4.4482216152605 N / 0.028316846592 m³. Written out rather than rounded
+        // because every other English unit here is derived from it.
+        id: 'pcf',
+        label: 'Pounds per cu. ft.',
+        symbol: 'pcf',
+        factor: 157.087463475,
+        system: 'english',
+        baseUnits: { lbf: 1, ft: -3 },
+      },
+      {
+        id: 'kcf',
+        label: 'Kips per cu. ft.',
+        symbol: 'kcf',
+        factor: 157087.463475,
+        system: 'english',
+        baseUnits: { kip: 1, ft: -3 },
+      },
+      {
+        // 1728 in³ to the ft³.
+        id: 'pci',
+        label: 'Pounds per cu. in.',
+        symbol: 'pci',
+        factor: 271447.136885,
+        system: 'english',
+        baseUnits: { lbf: 1, in: -3 },
+      },
+    ],
+  },
+
   // ---- Area Moment of Inertia / Second Moment of Area (base: m⁴) ----------
   area_moi: {
     id: 'area_moi',
@@ -1051,6 +1108,9 @@ export const CATEGORY_DIMENSION: Readonly<Record<string, Readonly<Record<string,
   angular_acceleration: { A: 1, T: -2 },
   torque: { M: 1, L: 2, T: -2 },
   density: { M: 1, L: -3 },
+  // Force per volume: force (M·L·T⁻²) over L³. One dimension apart from density, which is the
+  // whole reason it is its own category rather than an alias into it.
+  unit_weight: { M: 1, L: -2, T: -2 },
   area_moi: { L: 4 },
   mass_moi: { M: 1, L: 2 },
   section_modulus: { L: 3 },

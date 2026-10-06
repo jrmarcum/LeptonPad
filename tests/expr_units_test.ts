@@ -42,6 +42,33 @@ Deno.test('display marks are notation, not part of the name', async (t) => {
   });
 });
 
+Deno.test('unit weight is force per volume, not density', async (t) => {
+  // Added 2026-10-06. `pcf` is on nearly every foundation sheet, and the catalog had only
+  // `lb/ft³` — MASS density, one dimension away. Keeping them apart is what lets γ·V come back
+  // as a force the rest of the sheet can add to a load.
+
+  await t.step('🔑 γ·V is a FORCE', () => {
+    assertValue('g = 150 [pcf]; V = 2 [ft^3]; g*V', 300, 'lbf');
+    assertValue('g = 0.15 [kcf]; V = 2 [ft^3]; g*V', 0.3, 'kip');
+  });
+
+  await t.step('γ·h is a pressure — the hydrostatic case', () => {
+    assertValue('p = 62.4 [pcf] * 10 [ft]', 624, 'lbf/ft^2');
+  });
+
+  await t.step('converting within the kind', () => {
+    assertValue('150 [pcf] [[pci]]', 150 / 1728, 'lbf/in^3');
+    assertValue('150 [pcf] [[kN/m^3]]', 23.5631195712, 'kN/m^3', 1e-6);
+  });
+
+  await t.step('⚠️ a density is NOT the same kind, and converting is refused', () => {
+    // The distinction the category exists for. Silently allowing this would hand back a number
+    // that is wrong by a factor of g.
+    assertError('150 [pcf] [[kg_m3]]', /different kinds/);
+    assertError('150 [pcf] + 1 [psf]', /Unit mismatch/);
+  });
+});
+
 Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => {
   await t.step('a trailing tag declares the unit of a bare number', () => {
     assertValue('b = 150 [mm]', 150, 'mm');

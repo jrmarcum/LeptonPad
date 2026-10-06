@@ -96,7 +96,7 @@ Sign-up confirmation and the MFA step share one code field in the dialog.
 | `src/blocks/figure.ts`       | Figure/image block                                             |
 | `src/blocks/text.ts`         | Markdown text block                                            |
 | `src/blocks/pro/section.ts`  | Section block — gated to pro+                                  |
-| `src/utils/unit-defs.ts`     | Unit catalog — 23 categories, English + metric, SI factors     |
+| `src/utils/unit-defs.ts`     | Unit catalog — 24 categories, English + metric, SI factors     |
 | `src/utils/units.ts`         | Unit conversion helpers and `convert()` function               |
 | `src/utils/markdown.ts`      | Markdown and math-expression rendering                         |
 | `src/styles/main.css`        | All application styles                                         |
@@ -460,7 +460,22 @@ is Cambria.
 
 The plot block automatically propagates the unit of the range bound to the sweep variable, so `delta(x)` plotted from `0` to `l [ft]` evaluates with `x` in `{ft}` — keeping polynomials like `l^3 - 2·l·x² + x³` dimensionally consistent.
 
-Compound units (pressure, energy, power, torque, etc.) are automatically expanded into their primitive components for dimensional analysis. For example, `E = 29000 [ksi]` is tracked internally as `kip/in²` so that `E * I [in^4]` correctly cancels to `kip·in²` rather than accumulating `ksi·in⁴`. Units that expand: `psi`, `ksi`, `psf`, `ksf`, `Pa`, `kPa`, `MPa`, `GPa`, and the torque/velocity/acceleration/density/momentum compound ids. Note: intermediate results display the expanded form (e.g. `kip/in²` instead of `ksi`).
+Compound units (pressure, energy, power, torque, etc.) are automatically expanded into their primitive components for dimensional analysis. For example, `E = 29000 [ksi]` is tracked internally as `kip/in²` so that `E * I [in^4]` correctly cancels to `kip·in²` rather than accumulating `ksi·in⁴`. Units that expand: `psi`, `ksi`, `psf`, `ksf`, `Pa`, `kPa`, `MPa`, `GPa`, `pcf`, `kcf`, `pci`, and the torque/velocity/acceleration/density/momentum compound ids. Note: intermediate results display the expanded form (e.g. `kip/in²` instead of `ksi`).
+
+**Unit weight** — `pcf`, `kcf`, `pci`, `kN/m³` — is **force** per volume, and is deliberately a
+different kind from density (`lb/ft³`, which is _mass_ per volume). That is what makes a unit
+weight behave the way a calculation needs:
+
+```
+\gamma_c = 150 [pcf]
+V = 27 [ft^3]
+W = \gamma_c * V [[kip]]                        4.05 kip
+
+p = 62.4 [pcf] * 10 [ft]                        624 lbf/ft²
+```
+
+Converting between the two is refused, because they differ by g and a silent conversion would be
+wrong by that factor.
 
 **`J`, `kJ`, `MJ`, `W`, `kW` and `MW` are named units and display as themselves** — `5 [J]` reads `5 J`, never `5 m·N`. They still convert freely (`[J]` ↔ `[N-m]` ↔ `[BTU]`, `[W]` ↔ `[hp]`), because compatibility comes from the dimensional model rather than from expansion.
 

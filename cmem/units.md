@@ -30,7 +30,7 @@ interface UnitDef {
 the dimensional bookkeeping. `parseUnitExpr()` in `expr.ts` reads it. Adding `baseUnits` to a unit
 where the identity does not hold exactly would silently corrupt every calculation using that unit.
 
-## The 23 categories
+## The 24 categories
 
 `UNIT_CATEGORIES: Record<string, UnitCategory>`, each with an `siBase` symbol and a `units` array:
 
@@ -48,14 +48,26 @@ where the identity does not hold exactly would silently corrupt every calculatio
 | 10 | `power`       | 21 | `section_modulus`                   |
 | 11 | `velocity`    | 22 | `warping_constant`                  |
 |    |               | 23 | `forcePerUnitLength` (plf, klf)     |
+|    |               | 24 | `unit_weight` (pcf, kcf, pci)       |
 
 The last four exist because this is a **structural engineering** tool: `area_moi`, `section_modulus`,
 and `warping_constant` are not general-purpose unit categories, they are section-property units.
 
+⚠️ **`unit_weight` is NOT `density`, however alike they look on a sheet** (added 2026-10-06,
+v2.9.4). Density is mass per volume — `lb/ft³`, `M·L⁻³`. Unit weight is **force** per volume —
+`pcf` = lbf/ft³, `M·L⁻²·T⁻²`. They differ by g, and the catalog had only the first, so `pcf` was
+unavailable and `lb/ft³` would not multiply into a force.
+
+🔑 **Keeping them apart is what makes γ·V come back as a force** the rest of the sheet can add to
+a load, and what makes `150 [pcf] [[kg_m3]]` an error instead of a number wrong by a factor of g.
+`pcf` carries `baseUnits: { lbf: 1, ft: -3 }`, so it expands and cancels exactly like `ksi` and
+`psf` — and, like them, displays in the expanded form rather than as `pcf`. That is the documented
+`baseUnits` trade-off, not a bug.
+
 Every category carries **both English and metric** members; `system: 'both'` marks the units common
 to each (e.g. dimensionless-ish or SI-adopted units). `unitsBySystem(category, system)` filters for
 the UI pickers, and `UNIT_LOOKUP` is a flattened `ReadonlyMap<string, UnitDef>` built once at module
-load for O(1) id resolution. **158 units** across the 23 categories as of 2026-09-23 (`kN-mm` was
+load for O(1) id resolution. **163 units** across the 24 categories as of 2026-10-06 (`kN-mm` was
 the most recent addition; `J`, `lbm` and `kg` were already present when asked for).
 
 ## `CATEGORY_DIMENSION` — what makes "same kind?" answerable (2026-09-23)
