@@ -2258,10 +2258,21 @@ h2.custom-tools-heading {
   flex-shrink: 0;
   min-height: 1.2rem;
   white-space: pre-wrap;
+  cursor: text;
+  /* ⚠️ Above the resize handles, or it cannot be clicked at all (Jon, 2026-10-06).
+     `.figure-bottom-handle` is 44px tall at `bottom: -22px`, so it straddles the block edge and
+     covers 22px INSIDE the block at z-index 3 — almost exactly this element's height. Every
+     click meant for the caption started a resize instead, and the caption looked read-only.
+     The handle keeps its outer half, below the block edge, which is where an edge gets grabbed
+     anyway; the grip line still shows through, since nothing here paints a background. */
+  position: relative;
+  z-index: 4;
 }
 .figure-caption:empty::before {
   content: attr(data-placeholder);
-  color: #d1d5db;
+  /* Was #d1d5db, which on white is nearly invisible — an editable field nobody can see is not
+     obviously different from one that does not exist. */
+  color: #9ca3af;
   pointer-events: none;
 }
 

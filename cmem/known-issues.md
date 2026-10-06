@@ -601,6 +601,29 @@ LeptonPad was the cause.
 the library are conveniences. `await`ing them in `start()` gave each the power to stop a sheet
 from opening, which is a trade nobody would have agreed to if it had been put that way.
 
+## 29. A figure's caption could not be clicked — FIXED 2026-10-06 (v2.9.8)
+
+Jon: _"It doesn't seem to have a way to actually edit the caption part."_ It was `contentEditable`
+the whole time, with a `mousedown` guard and a blur handler that saved correctly. Nothing was
+wrong with the caption.
+
+🔑 **`.figure-bottom-handle` is 44px tall at `bottom: -22px`** — it straddles the block's bottom
+edge, so **22px of it sit INSIDE the block** at `z-index: 3`. The caption is the last element in
+the block and about 26px tall, so the handle covered nearly all of it. Every click meant for the
+caption started a resize.
+
+⚠️ **A handle centred on an edge reaches half its height into the content.** That is the point of
+the pattern — an edge is easier to grab when the target straddles it — and it is invisible in the
+markup, where the handle and the caption are unrelated siblings. Worth checking whenever an edge
+handle grows (this one is 44px for touch) or an interactive element is added at the edge it
+covers.
+
+Fixed by `position: relative; z-index: 4` on the caption. The handle keeps its outer half, below
+the block edge, which is where an edge is grabbed anyway, and its grip line still shows through
+because the caption paints no background. The empty-state placeholder also went from `#d1d5db` to
+`#9ca3af`: an editable field nobody can see is not obviously different from one that does not
+exist, and both were true here at once.
+
 ## 25b. …and restoring the name was not enough — FIXED 2026-10-06 (v2.9.3)
 
 § 25 made `loadProject` read `project_metadata.name` back. Jon loaded a project the next day and
