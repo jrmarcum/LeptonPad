@@ -749,6 +749,24 @@ function renderSidebar() {
 
   // The in-browser library, directly under the file buttons so the two ways of keeping a project
   // sit together — and so the note about what browser storage is not stays next to both.
+  // ⚠️ Say what Save can and cannot do here, rather than letting the user discover it from a
+  // Downloads folder full of numbered copies (Jon, 2026-10-06).
+  //
+  // The test is `showSaveFilePicker`, and the claim is about OVERWRITING — not about saving.
+  // Whether a download actually lands cannot be feature-detected: a hardened browser can refuse
+  // it with no error and nothing to probe. But "no picker" does reliably mean "no file handle",
+  // and therefore a new copy on every save, which is true on Firefox, iPad, Android and the
+  // locked-down browsers alike. Claiming more than that would be wrong somewhere.
+  // deno-lint-ignore no-explicit-any
+  if (typeof (globalThis as any).showSaveFilePicker !== 'function') {
+    const note = document.createElement('div');
+    note.className = 'library-note';
+    note.textContent =
+      'This browser cannot replace a file it opened — Save writes a new copy each time. ' +
+      'Keep in browser overwrites, and Chrome or Edge on a desktop can save over the original.';
+    container.appendChild(note);
+  }
+
   buildLibrarySection(container);
 
   const gridBtn = document.createElement('button');
