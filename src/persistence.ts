@@ -5,6 +5,8 @@
 import {
   type Block,
   DEFAULT_PROJECT_NAME,
+  nameFromFileName,
+  PICKER_ID,
   PROJECT_ACCEPT_ATTR,
   PROJECT_EXT,
   PROJECT_PICKER_TYPES,
@@ -163,6 +165,7 @@ export async function importToolsFromFile() {
         // deno-lint-ignore no-explicit-any
         pickerHandles = await (window as any).showOpenFilePicker({
           types: PROJECT_PICKER_TYPES,
+          id: PICKER_ID,
         });
       } catch (e) {
         if ((e as Error).name !== 'AbortError') throw e;
@@ -356,6 +359,7 @@ export async function newFromTemplate() {
       // deno-lint-ignore no-explicit-any
       pickerHandles = await (window as any).showOpenFilePicker({
         types: PROJECT_PICKER_TYPES,
+        id: PICKER_ID,
       });
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -704,8 +708,22 @@ export async function saveProject(saveAs = false) {
           await (globalThis as any).showSaveFilePicker({
             suggestedName: state.projectName.replace(/[^\w-]/g, '_') + PROJECT_EXT,
             types: PROJECT_PICKER_TYPES,
+            // 🔑 The picker remembers its own directory, per `id`, per origin, across sessions —
+            // so Save As opens where the last one was saved without this app storing a handle or
+            // asking for a permission back. `startIn` steers it to the open file's folder when
+            // there is one, which beats the remembered default for "save a copy beside this".
+            id: PICKER_ID,
+            ...(fileHandle ? { startIn: fileHandle } : {}),
           }),
         );
+        // ⚠️ Adopt the name the user just typed, BEFORE serializing. The name is part of the
+        // file, so setting it afterwards would write the old name while `markProjectSaved()`
+        // fingerprinted the new one — the project would look saved and not be (Jon, 2026-10-06).
+        const chosen = nameFromFileName(String(fileHandle.name ?? ''));
+        if (chosen) {
+          state.projectName = chosen;
+          onProjectNameChanged?.();
+        }
       }
       const writable = await fileHandle.createWritable();
       await writable.write(serializeProject());

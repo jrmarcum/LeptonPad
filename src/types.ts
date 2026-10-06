@@ -177,6 +177,16 @@ export const PROJECT_EXT = '.leptonpad';
  */
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
+/**
+ * The id the file pickers are opened under.
+ *
+ * 🔑 Chromium remembers the last directory **per id, per origin, across sessions**, so passing
+ * the same one to Open and Save As is the whole of "remember where projects live" — no stored
+ * handle, no permission to re-request on the next visit, nothing to go stale. Open and Save
+ * deliberately share it: a project is opened from and saved to the same folder.
+ */
+export const PICKER_ID = 'leptonpad-project';
+
 /** The project name a file implies: its own name, without the extension. */
 export function nameFromFileName(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '').trim();

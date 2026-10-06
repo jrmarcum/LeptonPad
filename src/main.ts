@@ -22,6 +22,7 @@ import {
   GRID_SIZE,
   PAGE_SIZES,
   type PageSizeKey,
+  PICKER_ID,
   PROJECT_ACCEPT_ATTR,
   PROJECT_PICKER_TYPES,
   PX_PER_IN,
@@ -706,6 +707,9 @@ function renderSidebar() {
         // deno-lint-ignore no-explicit-any
         const [handle] = await (window as any).showOpenFilePicker({
           types: PROJECT_PICKER_TYPES,
+          // Shared with Save As, so a project is opened from and saved to the same folder and
+          // the browser remembers it between sessions. See PICKER_ID.
+          id: PICKER_ID,
         });
         setFileHandle(handle);
         const file = await handle.getFile();
