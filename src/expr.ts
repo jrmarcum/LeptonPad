@@ -1373,6 +1373,26 @@ function lex(src: string): Tok[] {
       continue;
     }
 
+    // ⚠️ A literal Greek letter, an ℓ, or a prime in the SOURCE is almost always the rendered
+    // form copied back in — the engine reads what was typed, never its own output. Jon lost an
+    // afternoon to exactly this (2026-10-06): `\prime{\gamma}` was defined on one row and then
+    // referenced as `γ'` inside a function body, where it did not even surface until the
+    // function was first called. "Unknown character: 'γ'" was true and useless.
+    if (/[Ͱ-Ͽ]/.test(ch)) {
+      throw new Error(
+        `Unknown character: '${ch}' — Greek letters are typed with a backslash, like \\gamma. ` +
+          `Pasting the rendered letter back in does not work.`,
+      );
+    }
+    if (ch === 'ℓ') {
+      throw new Error(`Unknown character: '${ch}' — write ℓ as \\ell.`);
+    }
+    if (ch === "'" || ch === '′') {
+      throw new Error(
+        `Unknown character: '${ch}' — write a prime as \\prime{name}, ` +
+          `so γ′ is \\prime{\\gamma}.`,
+      );
+    }
     throw new Error(`Unknown character: '${ch}'`);
   }
   out.push({ t: 'EOF', v: '' });

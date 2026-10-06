@@ -42,6 +42,25 @@ Deno.test('display marks are notation, not part of the name', async (t) => {
   });
 });
 
+Deno.test('a rendered symbol pasted back into the source says what to type', async (t) => {
+  // The engine reads source, never its own rendering, and the two look nothing alike. Pasting
+  // back what the sheet DISPLAYS is the easiest mistake in the notation layer to make and the
+  // hardest to see — "Unknown character: 'γ'" was true and told the author nothing.
+
+  await t.step('a literal Greek letter points at the backslash form', () => {
+    assertError('x = γ * 2', /backslash, like \\gamma/);
+  });
+
+  await t.step('a prime or apostrophe points at \\prime{}', () => {
+    assertError("x = \\gamma' * 2", /\\prime\{name\}/);
+    assertError('x = \u03b3\u2032 * 2', /backslash, like \\gamma/); // the Greek char is hit first
+  });
+
+  await t.step('ℓ points at \\ell', () => {
+    assertError('x = \u2113_b * 2', /write ℓ as \\ell/);
+  });
+});
+
 Deno.test('unit weight is force per volume, not density', async (t) => {
   // Added 2026-10-06. `pcf` is on nearly every foundation sheet, and the catalog had only
   // `lb/ft³` — MASS density, one dimension away. Keeping them apart is what lets γ·V come back

@@ -257,6 +257,22 @@ and `\bar{…}`.
   lookbehind then refuses to start again at `c` because `_` precedes it. The nearest trap for any
   future mark — **ask whether the glyph combines or occupies a cell before assuming `SUB_MARK`
   covers it.**
+  ⚠️ **The rendered form pasted back into the source is the easiest mistake in this layer**, and it
+  cost Jon an afternoon on 2026-10-06: a retaining-wall sheet defined `\prime{\gamma} = 100 [pcf]`
+  and then referenced it as **`γ'`** inside a function body. The engine reads source, never its own
+  output, so `γ` is just an unknown character — and the old message said exactly that and nothing
+  more.
+
+🔑 **It did not surface until the function was CALLED**, ten rows later at the `findroot`, because
+a function body is not evaluated at definition. So the row containing the mistake looked fine and
+a different row reported the error. Worth knowing whenever a notation error points somewhere
+surprising.
+
+The tokenizer now names the fix: a character in the Greek block says "typed with a backslash, like
+`\gamma`", `ℓ` says `\ell`, and `'` or `′` says `\prime{name}`. Deliberately **no reverse
+glyph→name table** — the message shows the author their own character, and duplicating `GREEK_SYM`
+out of `markdown.ts` into the engine would invert the layering and be a second copy to drift.
+
 - `\pm` was considered and **rejected** by Jon — a calculator cannot return two values from one row.
 
 ### Matrices — staged build (started 2026-09-22)
