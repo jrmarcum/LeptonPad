@@ -6,6 +6,7 @@
 import {
   type Block,
   type CustomModule,
+  DEFAULT_PROJECT_NAME,
   GRID_SIZE,
   PAGE_SIZES,
   PX_PER_IN,
@@ -219,7 +220,7 @@ export function setPageNumberingEnabled(v: boolean) {
 // ---------------------------------------------------------------------------
 
 export const state: WorkspaceState = {
-  projectName: 'Untitled Project',
+  projectName: DEFAULT_PROJECT_NAME,
   blocks: [],
   // Empty by design. This used to seed `E: 200000` — Young's modulus for steel, in MPa — into
   // every sheet's scope. Because every other undefined name throws, that one silently supplied a

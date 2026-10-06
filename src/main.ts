@@ -709,7 +709,7 @@ function renderSidebar() {
         });
         setFileHandle(handle);
         const file = await handle.getFile();
-        loadProject(parseProjectJson(await file.text()));
+        loadProject(parseProjectJson(await file.text()), file.name);
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           alert('Failed to load: ' + (e as Error).message);
@@ -726,7 +726,7 @@ function renderSidebar() {
       if (!file) return;
       try {
         setFileHandle(null);
-        loadProject(parseProjectJson(await file.text()));
+        loadProject(parseProjectJson(await file.text()), file.name);
       } catch (e) {
         alert('Failed to load: ' + (e as Error).message);
       }

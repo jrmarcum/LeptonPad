@@ -4,9 +4,11 @@
 
 import {
   type Block,
+  DEFAULT_PROJECT_NAME,
   PROJECT_ACCEPT_ATTR,
   PROJECT_EXT,
   PROJECT_PICKER_TYPES,
+  resolveProjectName,
   type TitleBlockData,
 } from './types.ts';
 import { getPackKey, hasPack } from './auth.ts';
@@ -311,7 +313,7 @@ export function clearProjectState() {
   setTitleBlockEnabled(false);
   const tbToggle = document.getElementById('title-block-toggle') as HTMLInputElement | null;
   if (tbToggle) tbToggle.checked = false;
-  state.projectName = 'Untitled Project';
+  state.projectName = DEFAULT_PROJECT_NAME;
   onProjectNameChanged?.();
   state.constants = {}; // no implicit E — see state.ts
   for (const k in globalScope) delete globalScope[k];
@@ -364,7 +366,8 @@ export async function newFromTemplate() {
     // deno-lint-ignore no-explicit-any
     const handle = pickerHandles[0] as any;
     try {
-      loadProject(parseProjectJson(await (await handle.getFile()).text()));
+      const f = await handle.getFile();
+      loadProject(parseProjectJson(await f.text()), f.name);
     } catch {
       alert('Invalid template file.');
       return;
@@ -378,7 +381,7 @@ export async function newFromTemplate() {
       const file = inp.files?.[0];
       if (!file) return;
       try {
-        loadProject(parseProjectJson(await file.text()));
+        loadProject(parseProjectJson(await file.text()), file.name);
         setFileHandle(null);
       } catch {
         alert('Invalid template file.');
@@ -388,14 +391,27 @@ export async function newFromTemplate() {
   }
 }
 
-export function loadProject(proj: Record<string, unknown>) {
-  // ⚠️ The name used to be DISCARDED here while `serializeProject()` faithfully wrote it, so
-  // every project round-tripped to "Untitled Project" and every saved file was named after it
-  // (Jon, 2026-10-05). The field in the sidebar is the other half of the fix: a name nothing can
-  // set is a name that is always the default.
+/**
+ * Load a project. `fileName`, when the caller has one, is the name of the file it came out of.
+ *
+ * ⚠️ The name used to be DISCARDED here while `serializeProject()` faithfully wrote it, so every
+ * project round-tripped to the placeholder and every saved file was named after it (Jon,
+ * 2026-10-05). Restoring it was only half the fix, because **every file saved before v2.8.11
+ * contains the placeholder as its stored name** — there was no field, so nothing could ever have
+ * set anything else. Reading it back therefore still produced "Untitled Project" (Jon,
+ * 2026-10-06).
+ *
+ * 🔑 **So the stored name is used only when it is a real name, and otherwise the file's own name
+ * is.** That is also the better default on its own terms: the file is what the user picked and
+ * what they know the project by. A stored name still wins when it exists, because it keeps the
+ * spaces and capitals that `saveProject` strips out of the filename.
+ */
+export function loadProject(proj: Record<string, unknown>, fileName?: string) {
   const meta = proj.project_metadata as Record<string, unknown> | undefined;
-  const loadedName = typeof meta?.name === 'string' ? meta.name.trim() : '';
-  state.projectName = loadedName || 'Untitled Project';
+  state.projectName = resolveProjectName(
+    typeof meta?.name === 'string' ? meta.name : '',
+    fileName,
+  );
   onProjectNameChanged?.();
 
   canvas.domElement.querySelectorAll('.block').forEach((el) => el.remove());

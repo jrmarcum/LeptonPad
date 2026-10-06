@@ -164,6 +164,40 @@ export function sectionPrefix(sectionName?: string): string {
 export const PROJECT_EXT = '.leptonpad';
 
 /**
+ * The name a project has before anyone gives it one.
+ *
+ * 🔑 **It is a placeholder, not a name**, and `loadProject` treats it that way: a file carrying
+ * it is a file whose name was never set, so the file's own name is used instead. Every project
+ * saved before v2.8.11 contains exactly this string, because the field did not exist yet and
+ * nothing could change it.
+ *
+ * One definition, because the "is this just the placeholder?" test has to compare against the
+ * same string the placeholder is written from — two copies would drift and the test would
+ * quietly start answering no.
+ */
+export const DEFAULT_PROJECT_NAME = 'Untitled Project';
+
+/** The project name a file implies: its own name, without the extension. */
+export function nameFromFileName(fileName: string): string {
+  return fileName.replace(/\.[^.]+$/, '').trim();
+}
+
+/**
+ * What a loaded project should be called, given the name stored inside it and the name of the
+ * file it came from.
+ *
+ * Pure, and separate from `loadProject`, because the **decision** needs no DOM even though
+ * applying it does — the same split `page_geometry_test.ts` and `block_split_test.ts` use.
+ *
+ * The order is: a real stored name, then the file's name, then the placeholder.
+ */
+export function resolveProjectName(storedName: string, fileName?: string): string {
+  const stored = storedName.trim();
+  if (stored && stored !== DEFAULT_PROJECT_NAME) return stored;
+  return (fileName ? nameFromFileName(fileName) : '') || DEFAULT_PROJECT_NAME;
+}
+
+/**
  * Extensions accepted when OPENING. `.json` stays first-class forever — every project saved
  * before 2026-09-23 has it, and silently refusing to list a user's own files would be the worst
  * possible consequence of a cosmetic rename.

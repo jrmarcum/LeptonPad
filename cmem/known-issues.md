@@ -601,6 +601,33 @@ LeptonPad was the cause.
 the library are conveniences. `await`ing them in `start()` gave each the power to stop a sheet
 from opening, which is a trade nobody would have agreed to if it had been put that way.
 
+## 25b. …and restoring the name was not enough — FIXED 2026-10-06 (v2.9.3)
+
+§ 25 made `loadProject` read `project_metadata.name` back. Jon loaded a project the next day and
+the field was still empty of anything useful.
+
+🔑 **Because every file saved before the fix contains the placeholder AS its stored name.** There
+had never been a way to set anything else, so `serializeProject()` wrote `"Untitled Project"` into
+every file it ever produced — and reading that back faithfully produces "Untitled Project". The
+restore worked perfectly and changed nothing.
+
+⚠️ **The lesson is about fixing a round trip in a world that already has files in it.** Repairing
+the read half assumed the written half had been carrying something worth reading. It had not, and
+every existing file was already poisoned with the default. **When a field starts being persisted,
+ask what the files that predate it actually contain** — the answer is rarely "nothing", it is
+usually "a placeholder that now looks like data".
+
+Fixed by `resolveProjectName(stored, fileName)`: a real stored name wins, otherwise the **file's
+own name** does, otherwise the placeholder. That is also better behaviour on its own terms — the
+file is what the user picked and what they know the project by — and the stored name still wins
+when present, because it keeps the spaces and capitals `saveProject` strips out of a filename
+(`[^\w-]` → `_`).
+
+`DEFAULT_PROJECT_NAME` is now one constant in `types.ts`, because the "is this merely the
+placeholder?" test has to compare against the same string the placeholder is written from; two
+copies would drift and the test would quietly start answering no. The decision is pure and lives
+in `tests/project_name_test.ts` — applying it needs a DOM, deciding it does not.
+
 ## 25. Every project was named "Untitled Project" — FIXED 2026-10-05 (v2.8.11)
 
 Found while chasing the iPad filename. **`serializeProject()` wrote `project_metadata.name`

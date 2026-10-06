@@ -437,6 +437,10 @@ the input rows the template's author marked, and those are the only values saved
 Projects save as **`.leptonpad`**. The contents are still JSON, and the Open dialog accepts both
 `.leptonpad` and `.json`, so projects saved before this change open normally.
 
+**The Project field** in the sidebar sets the name the file is saved under. Opening a project
+fills it in: from the name stored in the file, or — for files saved before the field existed, which
+all carry "Untitled Project" inside them — from the name of the file you opened.
+
 ### Math display options
 
 The sidebar's **Math Display** section sets the **font**, **text size** and **sub/superscript size**
