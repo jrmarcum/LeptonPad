@@ -16,6 +16,32 @@ import {
 } from './_helpers.ts';
 import type { Scope } from '../src/expr.ts';
 
+Deno.test('display marks are notation, not part of the name', async (t) => {
+  // The two halves have to agree: `markdown.ts` draws the mark, `stripGreekMarks` removes it
+  // before the tokenizer sees anything. If they ever disagree the sheet shows one variable and
+  // computes another, which is the worst failure this app has.
+
+  // `ksi` is avoided on purpose: it expands to kip/in^2 on the way out, which is correct and
+  // documented but would make these read as unit tests rather than notation tests.
+  await t.step('a primed name assigns and reads back', () => {
+    assertValue('\\prime{f}_c = 4 [in]; \\prime{f}_c * 2', 8, 'in');
+  });
+
+  await t.step('🔑 primed and unprimed are DIFFERENT variables', () => {
+    // The entire reason the notation exists: in concrete work f'_c and f_c are not the same
+    // quantity, and before this they both had to be spelled `f_c`.
+    assertValue('f_c = 1 [in]; \\prime{f}_c = 4 [in]; f_c', 1, 'in');
+    assertValue('f_c = 1 [in]; \\prime{f}_c = 4 [in]; \\prime{f}_c', 4, 'in');
+  });
+
+  await t.step('it resolves to the documented plain name', () => {
+    // `\prime{f}` → `fprime`, matching `\bar{x}` → `xbar`. Pinned because the two rewrites run
+    // in the same chain and a collision between them would be silent.
+    assertValue('\\prime{f}_c = 4 [in]; fprime_c', 4, 'in');
+    assertValue('\\bar{y}_c = 2 [in]; ybar_c', 2, 'in');
+  });
+});
+
 Deno.test('unit tags — declare, inline, and the multi-tag rule', async (t) => {
   await t.step('a trailing tag declares the unit of a bare number', () => {
     assertValue('b = 150 [mm]', 150, 'mm');

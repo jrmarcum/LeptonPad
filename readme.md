@@ -484,6 +484,8 @@ variable.
 | `\bar{x}`           | x̄              | `xbar`           |
 | `\bar{y}_c`         | ȳ<sub>c</sub>  | `ybar_c`         |
 | `\bar{\sigma}`      | σ̄              | `sigmabar`       |
+| `\prime{f}_c`       | f′<sub>c</sub> | `fprime_c`       |
+| `\prime{\sigma}`    | σ′             | `sigmaprime`     |
 | `\sqrt(A/\pi)`      | √(A/π)         | (calls `sqrt`)   |
 | `phi_ty`, `sqrt(x)` | shown as typed | —                |
 
@@ -497,8 +499,15 @@ rules apply in plot labels and in `$...$` math inside text blocks.
 swapped relative to LaTeX, so `\phi` keeps the curly φ used in AISC resistance factors.
 
 **`\bar{…}`** puts a bar over one name — a letter or letters, or a symbol such as `\bar{\sigma}` — and
-the variable is that name followed by `bar`. Other LaTeX (`\frac`, `\hat`, braces elsewhere) is not
-supported.
+the variable is that name followed by `bar`.
+
+**`\prime{…}`** works the same way and puts a prime after the name, so `\prime{f}_c` shows as
+f′<sub>c</sub> and the variable is `fprime_c`. This matters because **`f'_c` and `f_c` are
+different quantities** — both used to have to be spelled `f_c`, which is ambiguous in exactly the
+document a reviewer checks. The prime is display only: the two are distinct variables and neither
+knows anything about the notation.
+
+Other LaTeX (`\frac`, `\hat`, braces elsewhere) is not supported.
 
 **In hand-written or AI-generated project files**, JSON requires every backslash to be doubled:
 `"\\phi_ty = 0.90"`. LeptonPad repairs single backslashes that JSON rejects (`\p`, `\a`, `\u…`)

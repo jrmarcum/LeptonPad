@@ -1201,6 +1201,10 @@ interface Tok {
 export function stripGreekMarks(src: string): string {
   return src
     .replace(/\\bar\{\s*\\?([A-Za-z][A-Za-z0-9]*)\s*\}/g, '$1bar')
+    // ⚠️ Before the generic backslash strip below, not after. That strip removes the `\` from
+    // anything followed by a letter, so a `\prime{f}` reaching it becomes the nonsense
+    // `prime{f}` — the same ordering `\bar{}` depends on, and the reason both live up here.
+    .replace(/\\prime\{\s*\\?([A-Za-z][A-Za-z0-9]*)\s*\}/g, '$1prime')
     .replace(/\\(?=[A-Za-z])(?!pi(?![A-Za-z0-9_]))/g, '');
 }
 

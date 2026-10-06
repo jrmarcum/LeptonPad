@@ -77,14 +77,27 @@ const GREEK_MARK_RE = new RegExp(
 // combining marks (U+0300–036F), so an overbar from \bar{} does not break `\bar{y}_c`.
 const SUB_LETTER = 'A-Za-z\\u0370-\\u03FF\\u2113';
 const SUB_MARK = '\\u0300-\\u036F';
+// ⚠️ U+2032 PRIME is a SPACING character, not a combining one, so it is not covered by SUB_MARK
+// and has to be listed separately. Without it `\prime{f}_c` renders as f′_c with the subscript
+// left as literal `_c`: the base match stops at `f`, and the lookbehind then refuses to start
+// again at `c` because `_` precedes it. Allowed in the subscript too, for `M_n'`.
+const SUB_PRIME = '\\u2032';
+const SUB_EXTRA = `${SUB_MARK}${SUB_PRIME}`;
 const GREEK_SUB_RE = new RegExp(
-  `(?<![${SUB_LETTER}${SUB_MARK}0-9_])([${SUB_LETTER}][${SUB_LETTER}${SUB_MARK}0-9]*)` +
-    `((?:_[${SUB_LETTER}${SUB_MARK}0-9]+)+)`,
+  `(?<![${SUB_LETTER}${SUB_EXTRA}0-9_])([${SUB_LETTER}][${SUB_LETTER}${SUB_EXTRA}0-9]*)` +
+    `((?:_[${SUB_LETTER}${SUB_EXTRA}0-9]+)+)`,
   'g',
 );
 // \bar{x} → x̄. Braces hold one name, optionally a symbol name: \bar{\sigma} → σ̄. The evaluator
 // rewrites it to the variable `xbar` / `sigmabar` (stripGreekMarks in expr.ts).
 const BAR_RE = /\\bar\{\s*(\\?[A-Za-z][A-Za-z0-9]*)\s*\}/g;
+// \prime{f} → f′, the same two-halves arrangement as \bar{}: this is DISPLAY only, and
+// `stripGreekMarks` rewrites it to the variable `fprime` before the evaluator ever sees it.
+//
+// Earned its place because `f'_c` and `f_c` are different quantities in concrete work, and until
+// now a sheet had to spell both `f_c` and explain the difference in the description column —
+// ambiguous in exactly the document a reviewer checks.
+const PRIME_RE = /\\prime\{\s*(\\?[A-Za-z][A-Za-z0-9]*)\s*\}/g;
 
 /** Reject javascript: URLs to prevent XSS. */
 function sanitizeUrl(url: string): string {
@@ -198,6 +211,12 @@ export function transformPiece(raw: string): string {
     const chars = [...inner.replace(GREEK_MARK_RE, (_g, name) => GREEK_SYM.get(name)!)];
     return chars.length === 1 ? chars[0] + '̄' : chars.map((c) => c + '̅').join('');
   });
+  // Prime: one trailing ′ for the whole group, unlike the bar, which repeats per character so it
+  // runs continuously. f′, and \prime{\sigma} → σ′.
+  s = s.replace(
+    PRIME_RE,
+    (_m, inner: string) => inner.replace(GREEK_MARK_RE, (_g, name) => GREEK_SYM.get(name)!) + '′',
+  );
   s = s.replace(GREEK_MARK_RE, (_m, name) => GREEK_SYM.get(name)!);
   // Multiple underscores become comma-separated subscripts:
   //   \delta_1 → δ<sub>1</sub>,  \delta_1_2 → δ<sub>1,2</sub>

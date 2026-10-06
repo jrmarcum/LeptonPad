@@ -28,6 +28,19 @@ Deno.test('symbols require the backslash', async (t) => {
     assertEquals(text(prettifyExpr('x = \\bar{\\sigma}')), 'x = σ̄');
   });
 
+  await t.step('the prime, and that it does not swallow the subscript', () => {
+    // f'_c is the case this exists for: in concrete work f'_c and f_c are different quantities,
+    // and until this existed both had to be spelled `f_c`.
+    assertEquals(text(prettifyExpr('x = \\prime{f}_c')), 'x = f′c');
+    assertEquals(text(prettifyExpr('x = \\prime{\\sigma}')), 'x = σ′');
+
+    // ⚠️ The part that was nearly wrong. U+2032 PRIME is a SPACING character, not a combining
+    // one, so the subscript matcher had to be told about it separately. Without that the base
+    // match stops at `f` and `_c` renders as literal text beside the prime.
+    assertStringIncludes(prettifyExpr('x = \\prime{f}_c'), '<sub>c</sub>');
+    assertStringIncludes(prettifyExpr('x = \\prime{f}_c_1'), '<sub>c,1</sub>');
+  });
+
   await t.step('sqrt and exp', () => {
     assertStringIncludes(prettifyExpr('r = \\sqrt(A)'), '√(');
     assertEquals(text(prettifyExpr('r = sqrt(A)')), 'r = sqrt(A)'); // bare stays text

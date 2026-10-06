@@ -243,6 +243,20 @@ and `\bar{…}`.
   rejects `{` everywhere else. Display (`BAR_RE` in `transformPiece`): one character gets a combining
   macron U+0304 (x̄), several get U+0305 each (A̅B̅). `GREEK_SUB_RE` now also accepts ℓ and combining
   marks (U+0300–036F) so `\ell_b` and `\bar{y}_c` subscript.
+- **`\prime{name}`** (2026-10-06, v2.9.2) — the same two halves as `\bar{}`, and added for the
+  same class of reason: **`f'_c` and `f_c` are different quantities in concrete work**, and until
+  this existed both had to be spelled `f_c`, which is ambiguous in exactly the document a reviewer
+  checks. `stripGreekMarks` rewrites it to `nameprime`, in the chain **before** the generic
+  backslash strip — after it, `\prime{f}` would become the nonsense `prime{f}`. Display appends
+  one U+2032 to the whole group, unlike the bar, which repeats per character so it runs
+  continuously.
+
+  ⚠️ **U+2032 PRIME is a SPACING character, not a combining one**, so `SUB_MARK` (U+0300–036F)
+  did not cover it and `GREEK_SUB_RE` needed it listed separately as `SUB_PRIME`. Without that,
+  `\prime{f}_c` renders as f′ with a literal `_c` beside it: the base match stops at `f`, and the
+  lookbehind then refuses to start again at `c` because `_` precedes it. The nearest trap for any
+  future mark — **ask whether the glyph combines or occupies a cell before assuming `SUB_MARK`
+  covers it.**
 - `\pm` was considered and **rejected** by Jon — a calculator cannot return two values from one row.
 
 ### Matrices — staged build (started 2026-09-22)
