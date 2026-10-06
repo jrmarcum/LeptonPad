@@ -1782,6 +1782,35 @@ async function start() {
     ctxMenu.appendChild(ctxFormulaGroup);
     ctxMenu.appendChild(ctxFormulaSep);
 
+    // ── Figure image ───────────────────────────────────────────────────────
+    const ctxFigureGroup = document.createElement('div');
+    ctxFigureGroup.className = 'ctx-group';
+    ctxFigureGroup.style.display = 'none';
+    const ctxFigReplaceBtn = document.createElement('button');
+    ctxFigReplaceBtn.className = 'ctx-neutral-btn';
+    ctxFigReplaceBtn.textContent = '⟳ Replace image';
+    ctxFigReplaceBtn.title = 'Choose a different image file for this figure';
+    const ctxFigRemoveBtn = document.createElement('button');
+    ctxFigRemoveBtn.className = 'ctx-neutral-btn';
+    ctxFigRemoveBtn.textContent = '× Remove image';
+    ctxFigRemoveBtn.title = 'Empty the figure, keeping the block and its caption';
+    ctxFigureGroup.append(ctxFigReplaceBtn, ctxFigRemoveBtn);
+    ctxMenu.appendChild(ctxFigureGroup);
+
+    // deno-lint-ignore no-explicit-any
+    let ctxFigureActions: any = null;
+    ctxFigReplaceBtn.addEventListener('click', () => {
+      const act = ctxFigureActions;
+      hideCtxMenu();
+      // After the menu closes: the file picker needs the click's user activation, and opening it
+      // under a menu that is still up leaves the menu stranded behind a modal dialog.
+      act?.replaceImage();
+    });
+    ctxFigRemoveBtn.addEventListener('click', () => {
+      ctxFigureActions?.removeImage();
+      hideCtxMenu();
+    });
+
     const ctxSaveToolBtn = document.createElement('button');
     ctxSaveToolBtn.className = 'ctx-save-btn';
     ctxSaveToolBtn.textContent = '⭐ Save as Tool';
@@ -2248,6 +2277,16 @@ async function start() {
         ctxFormulaGroup.style.display = 'none';
         ctxFormulaSep.style.display = 'none';
       }
+
+      // Figure image actions. Remove is hidden on an empty figure — the placeholder already
+      // invites a click there, and an entry that does nothing is noise in a short menu.
+      // deno-lint-ignore no-explicit-any
+      ctxFigureActions = (target as any)._figureCtxActions ?? null;
+      ctxFigureGroup.style.display = ctxFigureActions ? '' : 'none';
+      ctxFigRemoveBtn.style.display = ctxFigureActions?.hasImage() ? '' : 'none';
+      ctxFigReplaceBtn.textContent = ctxFigureActions?.hasImage()
+        ? '⟳ Replace image'
+        : '⟳ Choose image';
 
       // Line spacing: the row's own setting when a row was clicked, otherwise the block default.
       // A locked row shows neither control: spacing and precision are edits like any other, and

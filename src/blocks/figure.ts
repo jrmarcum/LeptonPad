@@ -99,7 +99,30 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     reader.onload = () => loadSrc(reader.result as string);
     reader.readAsDataURL(file);
   });
-  placeholder.addEventListener('click', () => fileInput.click());
+  /**
+   * Open the file picker.
+   *
+   * ⚠️ `value` is cleared first, or **choosing the same file twice fires no `change` event** and
+   * the reload silently does nothing — which is exactly the "I edited that image, load it again"
+   * case this is for (Jon, 2026-10-06).
+   */
+  function pickImage() {
+    fileInput.value = '';
+    fileInput.click();
+  }
+
+  /** Empty the figure, leaving the block and its caption in place. */
+  function clearSrc() {
+    data.src = '';
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    placeholder.style.display = '';
+    // Same rule as the caption's blur: never write the blank reconstruction over content that
+    // only failed to PARSE, which may still be recoverable by hand.
+    if (!corrupt) block.content = JSON.stringify(data);
+  }
+
+  placeholder.addEventListener('click', pickImage);
 
   imgWrap.appendChild(img);
   imgWrap.appendChild(placeholder);
@@ -122,6 +145,16 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
   });
   el.appendChild(caption);
   el.appendChild(fileInput);
+
+  // Replacing and removing the image live on the right-click menu, which already carries the
+  // per-block actions and which long-press reaches on touch — rather than as buttons floating
+  // over the figure, where they would sit in the same strip the resize handle covers (§ 29).
+  // deno-lint-ignore no-explicit-any
+  (el as any)._figureCtxActions = {
+    hasImage: () => !!data.src,
+    replaceImage: pickImage,
+    removeImage: clearSrc,
+  };
 
   // tabIndex so the block element can receive paste events
   el.tabIndex = 0;
