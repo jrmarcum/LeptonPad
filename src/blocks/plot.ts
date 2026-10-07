@@ -590,9 +590,30 @@ export function evalPlotData(
   let yMin = Infinity, yMax = -Infinity;
   let error: string | undefined = rangeError;
 
+  // ⚠️ A WALL-CLOCK budget across the whole sweep, not just a guard on one sample.
+  //
+  // Each sample is cheap for ordinary expressions and arbitrarily expensive for some: one point
+  // of `integral(M(t), t, 0, y)` over a discontinuous shear took 0.8 s on a real sheet, and 200
+  // of them is nearly three minutes of synchronous work on the main thread — the tab stops
+  // responding and the browser kills it (Jon, 2026-10-07). Evaluation is synchronous, so there
+  // is no way to yield; refusing to start the 201st second is the only protection available.
+  //
+  // The curve drawn so far is KEPT and the reason is shown. A partial curve the sheet admits is
+  // partial beats both a frozen tab and a blank block.
+  const SWEEP_BUDGET_MS = 2500;
+  const sweepStart = performance.now();
+  let ranOut = false;
+
   // No sampling when the span itself is unknown — a curve drawn over a guessed range is exactly
   // the wrong-but-plausible output this refuses to produce.
   for (let i = 0; !rangeError && i <= cfg.nPts; i++) {
+    if (i > 0 && performance.now() - sweepStart > SWEEP_BUDGET_MS) {
+      ranOut = true;
+      error = `This expression is too slow to plot: ${i} of ${cfg.nPts + 1} points took ` +
+        `${Math.round(performance.now() - sweepStart)} ms. Nested integrals are the usual ` +
+        `cause — integrate in closed form, or plot a coarser curve with fewer points.`;
+      break;
+    }
     const xv = resolvedXMin + (resolvedXMax - resolvedXMin) * (i / cfg.nPts);
     const scope: Scope = { ...globalScope, [xVar]: { v: xv, u: xUnit } };
     try {
@@ -607,6 +628,8 @@ export function evalPlotData(
       break;
     }
   }
+  // Only a timeout keeps its partial curve; a thrown error means the samples cannot be trusted.
+  if (!ranOut && error && error !== rangeError) points.length = 0;
 
   if (!isFinite(yMin)) {
     yMin = -1;

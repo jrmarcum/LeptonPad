@@ -601,6 +601,35 @@ LeptonPad was the cause.
 the library are conveniences. `await`ing them in `start()` gave each the power to stop a sheet
 from opening, which is a trade nobody would have agreed to if it had been put that way.
 
+## 30. A nested integral froze the browser — FIXED 2026-10-07 (v2.10.0)
+
+Jon added a deflection row, `Δ(y) = integral(M(t), t, 0[ft], y)`, above a 200-point plot on a
+retaining-wall sheet, and the tab died. Reproduced by running the real sheet through the engine:
+**one** evaluation of Δ took **807 ms**, so the plot's 201 samples are ~2.7 minutes of
+**synchronous** main-thread work. The browser kills the tab long before that finishes.
+
+⚠️ **`MAX_INTEGRAND_EVALS` was counted per `integrate()` call, which does not compose.** A nested
+integral opened a fresh 200,000, so `∫∫` could cost 200,000 × 200,000, and the plot multiplied it
+again. 🔑 **A budget that resets per call is not a budget** — the pool is now claimed by the
+outermost integral and shared by everything beneath it, and a single integral still gets all of
+it. `integrandDepth` unwinds in a `finally`, or one aborted integral would leave every later one
+on the sheet reporting itself as nested.
+
+⚠️ **That alone did not save this sheet**, which is the part worth remembering: Δ stayed inside
+the shared budget and was simply slow. So the plot now carries a **wall-clock budget across the
+whole sweep** (2.5 s), keeps the partial curve, and says why. Evaluation is synchronous and
+cannot yield, so refusing to start the next sample is the only protection available.
+
+🔑 **Two guards, two different failure modes.** The eval cap bounds one pathological expression;
+the time budget bounds the aggregate. Neither substitutes for the other, and the first one looked
+sufficient for years precisely because nothing had ever nested.
+
+The sheet's own bug is separate and worth recording as the shape of a notation trap: `M(t) = 0.6
+V_w h_w + integral(V(t), t, 0, y)` binds `t` for the integral, **shadowing M's own parameter**,
+and takes its upper limit from the free variable `y`. It evaluates at all only because the plot
+defines `y` as its sweep variable — so M ignores its argument and returns a constant, and
+`Δ(y)` was computing `y·M(y)` rather than a double integral, at enormous cost.
+
 ## 29. A figure's caption could not be clicked — FIXED 2026-10-06 (v2.9.8)
 
 Jon: _"It doesn't seem to have a way to actually edit the caption part."_ It was `contentEditable`

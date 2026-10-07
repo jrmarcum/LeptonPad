@@ -1557,6 +1557,21 @@ const BIG_OPS = new Set(['sum', 'prod', 'integral', 'findroot']);
 const MAX_TERMS = 100_000; // sum/prod term cap — evaluation runs on every keystroke
 const MAX_INTEGRAND_EVALS = 200_000;
 
+/**
+ * Evaluations left in the CURRENT top-level integral, shared by every integral nested inside it.
+ *
+ * ⚠️ The cap used to be counted per `integrate()` call, which does not compose: a nested integral
+ * got its own fresh 200,000, so `∫∫` could cost 200,000 × 200,000 and a plot multiplied that by
+ * its sample count. The guard was there and did nothing (Jon, 2026-10-07: a retaining-wall sheet
+ * froze the browser the moment a deflection row `∫M` was added above a 200-point plot).
+ *
+ * 🔑 **A budget that resets per call is not a budget.** One pool, claimed by the outermost
+ * integral and shared by everything beneath it, is what actually bounds the work. A single
+ * integral is unaffected — it still gets the whole pool.
+ */
+let integrandBudget = 0;
+let integrandDepth = 0;
+
 /** Σ / Π over whole-number i = a … b. Empty range → 0 (sum) or 1 (prod). Terms add under the same
  *  strict unit rule as `+`; products multiply units. */
 function sumOrProd(
@@ -1595,10 +1610,17 @@ function sumOrProd(
 function integrate(at: (q: Quantity) => Quantity, lo: Quantity, hi: Quantity): Quantity {
   const xu = addU(lo.u, hi.u); // bounds must share a unit (or one may be a bare 0)
   let fu: UnitMap = {};
-  let evals = 0;
+  // The outermost integral opens the pool; everything nested inside draws from the same one.
+  if (integrandDepth === 0) integrandBudget = MAX_INTEGRAND_EVALS;
+  integrandDepth++;
   const f = (x: number): number => {
-    if (++evals > MAX_INTEGRAND_EVALS) {
-      throw new Error('integral(): did not converge — is the integrand discontinuous or singular?');
+    if (--integrandBudget < 0) {
+      throw new Error(
+        integrandDepth > 1
+          ? 'integral(): an integral inside another integral is too expensive to evaluate here. ' +
+            'Integrate each piece in closed form, or integrate the pieces separately and add them.'
+          : 'integral(): did not converge — is the integrand discontinuous or singular?',
+      );
     }
     const q = at({ v: x, u: xu });
     if (!isFinite(q.v)) throw new Error(`integral(): integrand is not finite at ${x}`);
@@ -1613,42 +1635,53 @@ function integrate(at: (q: Quantity) => Quantity, lo: Quantity, hi: Quantity): Q
     return q.v;
   };
 
-  const a = lo.v, b = hi.v;
-  if (a === b) {
-    f(a); // still resolve the integrand's unit
-    return { v: 0, u: mulU(fu, xu) };
+  // ⚠️ Everything from here to the return runs inside the try, so `integrandDepth` unwinds even
+  // when the budget throws. Without it one aborted integral would leave the depth raised and
+  // every later integral on the sheet would report itself as nested.
+  try {
+    return integrateInner();
+  } finally {
+    integrandDepth--;
   }
-  const simpson = (x0: number, x1: number, f0: number, fm: number, f1: number) =>
-    (x1 - x0) / 6 * (f0 + 4 * fm + f1);
-  const rec = (
-    x0: number,
-    x1: number,
-    f0: number,
-    fm: number,
-    f1: number,
-    whole: number,
-    eps: number,
-    depth: number,
-  ): number => {
-    const m = (x0 + x1) / 2;
-    const flm = f((x0 + m) / 2), frm = f((m + x1) / 2);
-    const left = simpson(x0, m, f0, flm, fm), right = simpson(m, x1, fm, frm, f1);
-    const delta = left + right - whole;
-    if (depth >= 4 && (Math.abs(delta) <= 15 * eps || depth >= 50)) {
-      return left + right + delta / 15;
+
+  function integrateInner(): Quantity {
+    const a = lo.v, b = hi.v;
+    if (a === b) {
+      f(a); // still resolve the integrand's unit
+      return { v: 0, u: mulU(fu, xu) };
     }
-    return rec(x0, m, f0, flm, fm, left, eps / 2, depth + 1) +
-      rec(m, x1, fm, frm, f1, right, eps / 2, depth + 1);
-  };
-  const fa = f(a), fb = f(b), fm = f((a + b) / 2);
-  const whole = simpson(a, b, fa, fm, fb);
-  // Tolerance scale from a spread of samples, not just the ends and middle — sin(x) over 0…2π is 0 at
-  // all three, which made the target tolerance ~0 and the recursion never settle.
-  let peak = Math.max(Math.abs(fa), Math.abs(fm), Math.abs(fb));
-  for (let k = 1; k < 16; k++) peak = Math.max(peak, Math.abs(f(a + (b - a) * k / 16)));
-  const scale = Math.max(peak, 1e-300) * Math.abs(b - a);
-  const v = rec(a, b, fa, fm, fb, whole, 1e-10 * scale, 0);
-  return { v, u: mulU(fu, xu) };
+    const simpson = (x0: number, x1: number, f0: number, fm: number, f1: number) =>
+      (x1 - x0) / 6 * (f0 + 4 * fm + f1);
+    const rec = (
+      x0: number,
+      x1: number,
+      f0: number,
+      fm: number,
+      f1: number,
+      whole: number,
+      eps: number,
+      depth: number,
+    ): number => {
+      const m = (x0 + x1) / 2;
+      const flm = f((x0 + m) / 2), frm = f((m + x1) / 2);
+      const left = simpson(x0, m, f0, flm, fm), right = simpson(m, x1, fm, frm, f1);
+      const delta = left + right - whole;
+      if (depth >= 4 && (Math.abs(delta) <= 15 * eps || depth >= 50)) {
+        return left + right + delta / 15;
+      }
+      return rec(x0, m, f0, flm, fm, left, eps / 2, depth + 1) +
+        rec(m, x1, fm, frm, f1, right, eps / 2, depth + 1);
+    };
+    const fa = f(a), fb = f(b), fm = f((a + b) / 2);
+    const whole = simpson(a, b, fa, fm, fb);
+    // Tolerance scale from a spread of samples, not just the ends and middle — sin(x) over 0…2π is 0 at
+    // all three, which made the target tolerance ~0 and the recursion never settle.
+    let peak = Math.max(Math.abs(fa), Math.abs(fm), Math.abs(fb));
+    for (let k = 1; k < 16; k++) peak = Math.max(peak, Math.abs(f(a + (b - a) * k / 16)));
+    const scale = Math.max(peak, 1e-300) * Math.abs(b - a);
+    const v = rec(a, b, fa, fm, fb, whole, 1e-10 * scale, 0);
+    return { v, u: mulU(fu, xu) };
+  }
 }
 
 // ---------------------------------------------------------------------------
