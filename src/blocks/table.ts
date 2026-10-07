@@ -16,6 +16,7 @@
 // and a column is not always unit-consistent.
 
 import { type Block, GRID_SIZE } from '../types.ts';
+import { blockMaxBox } from '../state.ts';
 import { evalExpr, type FnScope, formatUnit, type Quantity, type Scope } from '../expr.ts';
 import { fmtNum, SIG_DEFAULT } from './formula.ts';
 import { splitTopLevelCommas, transformUnit } from '../utils/markdown.ts';
@@ -254,10 +255,15 @@ export function buildTableBlock(el: HTMLElement, block: Block) {
     const startX = e.clientX;
     const startW = el.offsetWidth;
     handle.setPointerCapture(e.pointerId);
+    // Capped at the right margin. This was the only resizable block with no cap in either
+    // direction, so a table could be dragged straight off the right edge of the paper — the width
+    // half of the same defect found in the figure block (audit 2026-10-07).
+    const minW = GRID_SIZE * 6;
+    const maxW = blockMaxBox(el, block, minW).w;
     const onMove = (ev: PointerEvent) => {
-      const w = Math.max(
-        GRID_SIZE * 6,
-        Math.round((startW + ev.clientX - startX) / GRID_SIZE) * GRID_SIZE,
+      const w = Math.min(
+        Math.max(minW, Math.round((startW + ev.clientX - startX) / GRID_SIZE) * GRID_SIZE),
+        maxW,
       );
       el.style.width = `${w}px`;
       block.w = w;

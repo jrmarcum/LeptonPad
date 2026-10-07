@@ -12,7 +12,14 @@ import {
   type UnitMap,
 } from '../expr.ts';
 import { type Block, DEFAULT_PLOT, type PlotConfig } from '../types.ts';
-import { CANVAS_W, globalFnScope, globalScope, margins } from '../state.ts';
+import {
+  blockMaxBox,
+  CANVAS_W,
+  globalFnScope,
+  globalScope,
+  margins,
+  onUpdatePageCount,
+} from '../state.ts';
 import { isDark } from '../utils/theme.ts';
 import { prettifyExpr } from '../utils/markdown.ts';
 
@@ -1457,8 +1464,12 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     bottomHandle.classList.add('handle-active');
     const startY = e.clientY;
     const startH = block.h ?? PLOT_H;
+    // Capped at the page's bottom margin, the same way the right handle is capped at the right
+    // margin. Without it a plot could be dragged across a page break, and print cuts the canvas at
+    // the sheet boundary — so whatever fell on the far side was simply lost (audit 2026-10-07).
+    const maxH = blockMaxBox(el, block, 120).h;
     const onMove = (mv: PointerEvent) => {
-      const newH = Math.max(120, startH + (mv.clientY - startY));
+      const newH = Math.min(Math.max(120, startH + (mv.clientY - startY)), maxH);
       block.h = newH;
       render();
     };
@@ -1468,6 +1479,8 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
       bottomHandle.removeEventListener('pointercancel', onUp);
       bottomHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
+      // A new height can change which page the bottom edge lands on.
+      onUpdatePageCount?.();
     };
     bottomHandle.addEventListener('pointermove', onMove);
     bottomHandle.addEventListener('pointerup', onUp);

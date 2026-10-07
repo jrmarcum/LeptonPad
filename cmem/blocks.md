@@ -624,8 +624,27 @@ All blocks drag-to-reposition on the 20 px snap grid. Beyond that:
 | Figure            | ✅ `.figure-resize-handle`  | ✅                          |
 | Section           | ✅                          | ✅ (hidden while collapsed) |
 
+Table and Heat map have a right-edge handle, and Heat map a bottom one, built through their own
+`drag()` helper rather than the shared shape above.
+
 Handles use **pointer capture** (`setPointerCapture` + `handle-active` class) and set
 `document.body.style.cursor` to `ew-resize` / `ns-resize` for the duration of the drag.
+
+🔑 **Every handle must clamp against `blockMaxBox(el, block, minW, minH)` (`state.ts`).** A handle
+writes `block.w` / `block.h` directly, which **bypasses** the `maxWidth` that `canvas.ts` puts on an
+ordinary block — so the lower bound every handle had was the only bound four of the seven had.
+Figure, Table and Heat map had no upper bound at all; Plot's and Section's height handles had none.
+Print cuts the canvas at the sheet boundary rather than scaling it, so a block dragged across a page
+break loses whatever falls past it. Audited and fixed in v2.11.1 — see
+[`known-issues.md`](known-issues.md) § 31.
+
+⚠️ **Snap, then cap — in that order.** Rounding a value UP to the grid can re-cross the bound, so
+`snapWithin()` applies the cap after the snap, never before.
+
+🔑 **A handle that changes the HEIGHT must call `onUpdatePageCount?.()` on pointer-up**, because that
+is what adds or removes a page and re-runs `markPageOverflow`. Formula's **width** handle calls it
+too: narrowing re-wraps the description and reference columns, which makes the block taller without
+anything assigning `block.h`.
 
 ⚠️ **CSS hover rule:** reveal handles with `.block:hover .handle`, **never** `.formula-block:hover`.
 Every block element carries the shared `.block` class; the type-specific selectors do not fire

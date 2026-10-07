@@ -40,6 +40,12 @@ Each has a matching `setOnX()`. **When you add cross-module behavior, add a slot
 import that closes a cycle.** `CanvasLike` in `state.ts` exists for the same reason: it is a
 structural interface so `state.ts` never has to import `canvas.ts`.
 
+⚠️ `onSyncPageSeparators`, `onClearSelection` and `onAuthStateChange` above were **deleted**
+2026-09-23 with zero `?.()` call sites. `onUpdatePageCount` was deleted with them and **restored in
+v2.11.1** — a self-resizing block (figure, plot, heat map) has to trigger the page-fit pass, and
+`src/blocks/` may not import `dnd.ts`. Before pruning a slot for being unused, check whether a leaf
+module needs it precisely _because_ it cannot import the owner.
+
 ## Module graph
 
 ```

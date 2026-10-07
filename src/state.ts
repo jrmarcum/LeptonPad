@@ -126,6 +126,45 @@ export function pageWorkArea(pageIdx: number): { top: number; bottom: number; he
 }
 
 /**
+ * The largest box a block may grow to from where it currently sits — the bound every resize handle
+ * has to respect, named here for the same reason `pageWorkArea` is: it was open-coded per site and
+ * three sites forgot half of it.
+ *
+ * Audited 2026-10-07. `formula` and `text` capped the width and nothing else; `plot`'s bottom handle
+ * had `Math.max(120, …)` and no cap at all; `table` had no cap in either direction; `figure` had
+ * none and also stored the overrun in `block.w`/`block.h`, so it survived save and reload. The
+ * symptom that surfaced it: on paper the browser cuts the canvas at the sheet boundary, so anything
+ * dragged across a page break lost whatever fell on the far side, and the orange page-overflow
+ * outline appeared on blocks offering no way to clear it.
+ *
+ * A child of a section is bounded by its section's content box, which is what the child drag
+ * handlers in `main.ts` use. Only its width is capped — a section grows to fit its children and
+ * owns its own page fit. `Infinity` means "unbounded here", so `Math.min` against it is a no-op.
+ *
+ * Reads `el.style.left`/`top` rather than measuring, so it is safe to call from a block builder
+ * before the element is in the DOM — `Canvas.addBlock` sets both before building.
+ */
+export function blockMaxBox(
+  el: HTMLElement,
+  block: Block,
+  minW = 0,
+  minH = 0,
+): { w: number; h: number } {
+  if (block.parentSectionId) {
+    const host = el.offsetParent as HTMLElement | null;
+    return { w: host ? Math.max(minW, host.clientWidth - el.offsetLeft) : Infinity, h: Infinity };
+  }
+  const left = parseInt(el.style.left);
+  const top = parseInt(el.style.top);
+  return {
+    w: Number.isFinite(left) ? Math.max(minW, CANVAS_W - margins.right - left) : Infinity,
+    h: Number.isFinite(top)
+      ? Math.max(minH, pageWorkArea(pageIndexOf(top)).bottom - top)
+      : Infinity,
+  };
+}
+
+/**
  * Where the grid lines fall on a page — the **lined part** the user actually sees.
  *
  * The margin guide is drawn from `margins.top` with a background grid of `GRID_SIZE`, so lines
@@ -436,8 +475,18 @@ export let onMoveGridCursor: ((x: number, y: number) => void) | null = null;
 export let onAddToSelection: ((el: HTMLElement) => void) | null = null;
 export let onRefreshCustomModulesList: (() => void) | null = null;
 export let onAppendCustomModuleToSidebar: ((mod: CustomModule) => void) | null = null;
-// Removed 2026-09-23, all four verified to have ZERO `?.()` call sites anywhere in src/:
-//   onUpdatePageCount, onSyncPageSeparators, onClearSelection, onAuthStateChange
+/**
+ * Restored 2026-10-07 — it DOES have a call site now, so do not prune it again.
+ *
+ * A figure block resizes itself: pasting an image sets `block.h` from the natural aspect ratio, and
+ * both resize handles write `block.w`/`block.h` directly. Any of those can change which page the
+ * block's bottom lands on, and `updatePageCount` is what adds or removes a page and re-runs
+ * `markPageOverflow`. `src/blocks/` may not import `dnd.ts` — that is the layering rule that keeps
+ * block builders leaf modules — so the call has to come back through here.
+ */
+export let onUpdatePageCount: (() => void) | null = null;
+// Removed 2026-09-23, verified to have ZERO `?.()` call sites anywhere in src/:
+//   onSyncPageSeparators, onClearSelection, onAuthStateChange
 // They were declared, given setters and registered in start(), but never invoked — the modules
 // that need those behaviours import and call them directly. onAuthStateChange documented a
 // contract ("fired after login/logout/role change") that was never honoured; the real mechanism
@@ -463,6 +512,9 @@ export function setOnRefreshCustomModulesList(fn: typeof onRefreshCustomModulesL
 }
 export function setOnAppendCustomModuleToSidebar(fn: typeof onAppendCustomModuleToSidebar) {
   onAppendCustomModuleToSidebar = fn;
+}
+export function setOnUpdatePageCount(fn: typeof onUpdatePageCount) {
+  onUpdatePageCount = fn;
 }
 
 // Re-export types so modules only need one import for both state and types

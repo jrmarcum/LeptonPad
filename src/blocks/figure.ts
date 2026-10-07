@@ -3,7 +3,52 @@
 // ---------------------------------------------------------------------------
 
 import { type Block, type FigureData, GRID_SIZE } from '../types.ts';
-import { state } from '../state.ts';
+import { blockMaxBox, onUpdatePageCount, state } from '../state.ts';
+
+/** Floor for a figure's width and height, matching what the two resize handles already enforced. */
+const MIN_W = 80;
+const MIN_H = GRID_SIZE * 3;
+
+/** The work-area box this figure may grow into. Shared with every other resizable block. */
+const figureMaxBox = (el: HTMLElement, block: Block) => blockMaxBox(el, block, MIN_W, MIN_H);
+
+/** Snap to the grid, then hard-cap — rounding UP must never re-cross the bound. */
+export function snapWithin(v: number, min: number, max: number): number {
+  return Math.min(Math.max(min, Math.round(v / GRID_SIZE) * GRID_SIZE), max);
+}
+
+/**
+ * Fit an image's natural aspect ratio into the work-area box, preserving the ratio.
+ *
+ * Pure so it can be tested without a DOM — the bug it exists to prevent (a figure sized past the
+ * right or bottom margin) is a decision about which dimension gives way, not arithmetic nobody
+ * would get wrong.
+ *
+ * The width gives way, not the height: letterboxing inside `object-fit: contain` would leave the
+ * block claiming space it is not using, and a figure whose box no longer matches its image is the
+ * harder thing to notice on a printed sheet.
+ */
+export function fitFigureBox(o: {
+  naturalW: number;
+  naturalH: number;
+  curW: number;
+  chromeH: number;
+  maxW: number;
+  maxH: number;
+}): { w: number; h: number } {
+  const aspect = o.naturalW / o.naturalH;
+  let w = Math.min(o.curW, o.maxW);
+  let imgH = w / aspect;
+  const availImgH = o.maxH - o.chromeH;
+  if (availImgH > GRID_SIZE && imgH > availImgH) {
+    imgH = availImgH;
+    w = imgH * aspect;
+  }
+  return {
+    w: snapWithin(w, MIN_W, o.maxW),
+    h: snapWithin(Math.max(GRID_SIZE * 2, imgH) + o.chromeH, MIN_H, o.maxH),
+  };
+}
 
 /** Return the next "Fig N" number, scanning all existing figure blocks. */
 function nextFigureNum(): number {
@@ -24,8 +69,22 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
 
   const DEFAULT_W = 240;
   const DEFAULT_H = 200;
-  el.style.width = `${block.w ?? DEFAULT_W}px`;
-  el.style.height = `${block.h ?? DEFAULT_H}px`;
+  // Capped on the way in as well as on edit, because a sheet saved before this clamp existed holds
+  // an out-of-bounds `block.w`/`block.h` and would otherwise keep printing off the page forever.
+  //
+  // The RENDERED box is clamped; `block.w`/`block.h` are deliberately left alone. Rewriting them
+  // here would change `projectFingerprint()` during load, so merely opening an old sheet would
+  // report unsaved changes. The stored values are corrected the first time the figure is resized
+  // or its image reloaded, and until then the clamp keeps the block inside the work area — which is
+  // what `markPageOverflow` measures, so the orange outline clears too.
+  //
+  // `figureMaxBox` reads only `el.style.left`/`top` and module constants for a canvas block, both
+  // of which `Canvas.addBlock` sets before calling this builder. A section child returns Infinity
+  // here (its host cannot be measured before the element is in the DOM), so `Math.min` is a no-op
+  // and the child keeps its stored size.
+  const initBox = figureMaxBox(el, block);
+  el.style.width = `${Math.min(block.w ?? DEFAULT_W, initBox.w)}px`;
+  el.style.height = `${Math.min(block.h ?? DEFAULT_H, initBox.h)}px`;
 
   let data: FigureData;
   // Set when block.content could not be parsed — see the catch below.
@@ -69,11 +128,21 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     placeholder.style.display = 'none';
     const applyAspect = () => {
       if (!img.naturalWidth || !img.naturalHeight) return;
-      const w = el.offsetWidth;
-      const chromeH = header.offsetHeight + caption.offsetHeight;
-      const imgH = Math.round((w / (img.naturalWidth / img.naturalHeight)) / GRID_SIZE) * GRID_SIZE;
-      block.h = Math.max(GRID_SIZE * 2, imgH) + chromeH;
+      const box = figureMaxBox(el, block);
+      const fit = fitFigureBox({
+        naturalW: img.naturalWidth,
+        naturalH: img.naturalHeight,
+        curW: block.w ?? el.offsetWidth ?? DEFAULT_W,
+        chromeH: header.offsetHeight + caption.offsetHeight,
+        maxW: box.w,
+        maxH: box.h,
+      });
+      block.w = fit.w;
+      block.h = fit.h;
+      el.style.width = `${block.w}px`;
       el.style.height = `${block.h}px`;
+      // The new height may have changed which page the bottom edge lands on.
+      onUpdatePageCount?.();
     };
     if (img.complete && img.naturalWidth) applyAspect();
     else img.onload = applyAspect;
@@ -187,11 +256,11 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     rightHandle.classList.add('handle-active');
     const startX = e.clientX;
     const startW = el.offsetWidth;
+    // Measured once at pointerdown: the block does not move during a width drag, so the right
+    // margin it must stay inside does not move either. Same clamp the plot block uses.
+    const maxW = figureMaxBox(el, block).w;
     const onMove = (mv: PointerEvent) => {
-      const newW = Math.max(
-        80,
-        Math.round((startW + (mv.clientX - startX)) / GRID_SIZE) * GRID_SIZE,
-      );
+      const newW = snapWithin(startW + (mv.clientX - startX), MIN_W, maxW);
       block.w = newW;
       el.style.width = `${newW}px`;
     };
@@ -201,6 +270,7 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
       rightHandle.removeEventListener('pointercancel', onUp);
       rightHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
+      onUpdatePageCount?.();
     };
     rightHandle.addEventListener('pointermove', onMove);
     rightHandle.addEventListener('pointerup', onUp);
@@ -219,11 +289,11 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
     bottomHandle.classList.add('handle-active');
     const startY = e.clientY;
     const startH = el.offsetHeight;
+    // The bottom margin of the page this figure sits on. Dragging past it is what put figures
+    // across a page break, where print cut them in half.
+    const maxH = figureMaxBox(el, block).h;
     const onMove = (mv: PointerEvent) => {
-      const newH = Math.max(
-        GRID_SIZE * 3,
-        Math.round((startH + (mv.clientY - startY)) / GRID_SIZE) * GRID_SIZE,
-      );
+      const newH = snapWithin(startH + (mv.clientY - startY), MIN_H, maxH);
       block.h = newH;
       el.style.height = `${newH}px`;
     };
@@ -233,6 +303,7 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
       bottomHandle.removeEventListener('pointercancel', onUp);
       bottomHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
+      onUpdatePageCount?.();
     };
     bottomHandle.addEventListener('pointermove', onMove);
     bottomHandle.addEventListener('pointerup', onUp);

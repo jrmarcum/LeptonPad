@@ -5,6 +5,7 @@
 import { formatUnit } from '../../expr.ts';
 import { type Block, GRID_SIZE, sectionPrefix } from '../../types.ts';
 import {
+  blockMaxBox,
   canvas,
   CANVAS_H,
   CANVAS_W,
@@ -427,8 +428,12 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     const startH = el.offsetHeight;
     const startBottom = parseInt(el.style.top || '0') + startH;
     document.body.style.cursor = 'ns-resize';
+    // Capped at the page's bottom margin, like every other resizable block (audit 2026-10-07).
+    // `markPageOverflow` already flags a section that runs past it, so letting the handle create
+    // that state only to mark it as wrong was the worst of both.
+    const maxH = blockMaxBox(el, block, 80).h;
     const onMove = (mv: PointerEvent) => {
-      const newH = Math.max(80, startH + (mv.clientY - startY));
+      const newH = Math.min(Math.max(80, startH + (mv.clientY - startY)), maxH);
       block.h = newH;
       el.style.height = `${newH}px`;
       const headerH =

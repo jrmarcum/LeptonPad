@@ -114,6 +114,7 @@ import {
   setOnRenderTable,
   setOnSectionSummaryUpdate,
   setOnSelectBlock,
+  setOnUpdatePageCount,
   setPAGE_H,
   setPageNumberingEnabled,
   setSelectedEl,
@@ -1146,9 +1147,11 @@ async function start() {
     //  never invoked by anything, so it was dead weight duplicating the onAuthChange call above.)
 
     // Wire callback slots — breaks circular deps between modules.
-    // Only the slots that are actually invoked; setOnUpdatePageCount / setOnSyncPageSeparators /
-    // setOnClearSelection were removed 2026-09-23 with zero `?.()` call sites — those functions
-    // are imported and called directly where they are needed.
+    // Only the slots that are actually invoked; setOnSyncPageSeparators / setOnClearSelection were
+    // removed 2026-09-23 with zero `?.()` call sites — those functions are imported and called
+    // directly where they are needed. setOnUpdatePageCount came BACK on 2026-10-07: the figure
+    // block resizes itself and must trigger the page-fit pass, and `src/blocks/` may not import
+    // `dnd.ts`.
     setOnSectionSummaryUpdate(updateSectionSummary);
     // Both directions of the table's cycle-avoiding seam: formula.ts renders a table at its place
     // in document order, and the table asks for a re-evaluation when one of its fields changes.
@@ -1166,6 +1169,8 @@ async function start() {
     setOnSelectBlock(selectBlock);
     setOnAddToSelection(addToSelection);
     setOnMoveGridCursor(moveGridCursor);
+    // A figure sizes itself from the pasted image, so it can change the page count on its own.
+    setOnUpdatePageCount(updatePageCount);
     setOnRefreshCustomModulesList(() => {
       const list = document.getElementById('custom-modules-list');
       if (!list) return;

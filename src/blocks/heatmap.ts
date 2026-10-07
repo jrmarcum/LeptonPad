@@ -12,6 +12,7 @@
 // smooth fill would imply detail that is not in the data. The contours supply the smoothness.
 
 import { type Block, GRID_SIZE } from '../types.ts';
+import { blockMaxBox, onUpdatePageCount } from '../state.ts';
 import { evalExpr, type FnScope, formatUnit, type Quantity, type Scope } from '../expr.ts';
 import { fmtNum, SIG_DEFAULT } from './formula.ts';
 import { contourLevels, gridRange, marchingSquares } from './contours.ts';
@@ -887,17 +888,26 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
     el.appendChild(h);
   };
 
-  const snap = (v: number, min: number) => Math.max(min, Math.round(v / GRID_SIZE) * GRID_SIZE);
+  // Capped at the right and bottom margins — neither handle had any upper bound, so a heat map
+  // could be dragged off the paper in either direction, and print cuts the canvas at the sheet
+  // boundary rather than scaling it down (audit 2026-10-07).
+  const snap = (v: number, min: number, max: number) =>
+    Math.min(Math.max(min, Math.round(v / GRID_SIZE) * GRID_SIZE), max);
 
   drag('heat-resize-handle', (dx, _dy, sw) => {
-    const w = snap(sw + dx, GRID_SIZE * 8);
+    const w = snap(sw + dx, GRID_SIZE * 8, blockMaxBox(el, block, GRID_SIZE * 8).w);
     el.style.width = `${w}px`;
     block.w = w;
   });
   drag('heat-bottom-handle', (_dx, dy, _sw, sh) => {
-    const hh = snap(sh + dy, GRID_SIZE * 5);
+    // `block.h` sizes the field (`out`), not the whole block, so the label and range rows above it
+    // have to come out of the budget or the cap is short by exactly that chrome.
+    const chromeH = Math.max(0, el.offsetHeight - out.offsetHeight);
+    const maxH = blockMaxBox(el, block, GRID_SIZE * 5).h - chromeH;
+    const hh = snap(sh + dy, GRID_SIZE * 5, Math.max(GRID_SIZE * 5, maxH));
     out.style.height = `${hh}px`;
     block.h = hh;
+    onUpdatePageCount?.();
   });
 }
 

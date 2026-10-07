@@ -2,11 +2,11 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**239 steps in 49 cases across 18 files** at v2.11.0 (2026-10-07), all against the real engine (pure
+**250 steps in 51 cases across 19 files** at v2.11.1 (2026-10-07), all against the real engine (pure
 functions in, `Quantity` out, no DOM).
 
-⚠️ **Count cases and files separately when quoting this.** `deno test` prints "49 passed (239
-steps)" — that 49 is `Deno.test` **cases**, not files, and it was misread as a file count during the
+⚠️ **Count cases and files separately when quoting this.** `deno test` prints "51 passed (250
+steps)" — that 51 is `Deno.test` **cases**, not files, and it was misread as a file count during the
 2026-10-05 session. `ls tests/*_test.ts | wc -l` is the file count.
 
 Three files were added after the original six, and all three test **decisions rather than
@@ -17,6 +17,7 @@ arithmetic** — the class of thing that is wrong silently:
 | `tests/persistence_roundtrip_test.ts` | Every `Block` field appears in **both** the `loadProject` literal and `serializeProject`, with the list read off the interface. Added after `packAuthorId` shipped in neither (§ 21 twice over).                                                                                                                                                                                                      |
 | `tests/page_geometry_test.ts`         | `clearTitleBlock` floors per page, leaves an already-clear position exactly alone, and `pageIndexOf` cannot go negative. A title block exists on every page, so a page-1-only floor was half a fix.                                                                                                                                                                                                   |
 | `tests/block_split_test.ts`           | Where a page-break split may legally fall: never between `if` and `end`, never inside a `for` body or a fenced code block, never orphaning a heading — and **0 means "cannot split", never "move everything"**.                                                                                                                                                                                       |
+| `tests/figure_fit_test.ts`            | `fitFigureBox` and `snapWithin` — which dimension gives way when an image's aspect ratio will not fit the work area (the **width**, so the block never claims space the image is not filling), and that grid-snapping cannot round back across the cap. Added v2.11.1 with the resize-cap audit.                                                                                                      |
 | `tests/unit_collapse_test.ts`         | One kind of quantity spelled two ways collapses to one symbol (`1[kip]/1[lbf]` → `1000`), the surviving dimension keeps its unit, a root no longer invents `kip^0.50/lbf^0.50`, the largest exponent wins the representative, a category spelled **one** way is untouched, and an offset scale (`degF/degC`) is never folded into a ratio. Added v2.11.0 after a 5.77 ft answer displayed as 0.18 ft. |
 
 The pattern worth copying: for each of these, measuring needed a DOM but **deciding** did not, so

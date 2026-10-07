@@ -29,6 +29,7 @@ import {
   onRenderHeat,
   onRenderTable,
   onSectionSummaryUpdate,
+  onUpdatePageCount,
   sectionSummaryComparisons,
   sectionSummaryVarNames,
   state,
@@ -1866,6 +1867,10 @@ export function buildFormulaBlock(el: HTMLElement, block: Block) {
       resizeHandle.removeEventListener('pointercancel', onUp);
       resizeHandle.classList.remove('handle-active');
       document.body.style.cursor = '';
+      // Narrowing re-wraps the description and reference columns, which makes the block TALLER —
+      // so a width drag can change which page the bottom edge lands on, and the overflow marker
+      // has to be re-run even though nothing set `block.h`.
+      onUpdatePageCount?.();
     };
     resizeHandle.addEventListener('pointermove', onMove);
     resizeHandle.addEventListener('pointerup', onUp);

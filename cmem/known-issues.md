@@ -738,3 +738,57 @@ And the bar is positioned from `visualViewport`: the keyboard shrinks the **visu
 without changing the layout viewport, so the gap between them is the keyboard's height — a bar
 pinned to the layout viewport's bottom sits underneath the keyboard, which is the usual way this
 is got wrong.
+
+## 31. Nothing bounded a block's growth from above — FIXED 2026-10-07 (v2.11.1)
+
+Reported as three separate figure bugs: figures ignoring the grid work-area rules, figure graphics
+shifting off the page when printing, and the orange page-overflow outline stuck on two figures. One
+defect.
+
+🔑 **`canvas.ts` caps an ordinary block with `maxWidth`, but a resize handle writes `block.w` /
+`block.h` directly and bypasses it.** Every handle had a lower bound. Four of seven blocks had no
+upper bound on at least one axis:
+
+| block   | width → right margin | height → page bottom |
+| ------- | -------------------- | -------------------- |
+| figure  | ✗ none               | ✗ none               |
+| plot    | ✓                    | ✗ `Math.max(120, …)` |
+| table   | ✗ none               | n/a                  |
+| heatmap | ✗ none               | ✗ none               |
+| section | full-width by design | ✗ `Math.max(80, …)`  |
+| formula | ✓                    | n/a                  |
+| text    | ✓                    | n/a                  |
+
+⚠️ **Print does not scale, it cuts.** The canvas is one tall element sliced at each sheet boundary,
+so anything dragged across a page break loses whatever falls on the far side. That is the whole of
+the "graphics shifted off the page" report — the image was not moved, it was severed.
+
+⚠️ **The figure stored its overrun**, so it survived save and reload: `applyAspect` set `block.h`
+from the image's natural aspect ratio with no bound at all. `overflow: hidden` on the wrapper hid
+the width half on screen, which is why it went unreported for so long.
+
+**The fix.** `blockMaxBox(el, block, minW, minH)` in `state.ts`, beside `pageWorkArea` — whose own
+docstring says it exists because this bound was open-coded per site and each site remembered a
+different subset. Seven call sites now share it. It reads `el.style.left` / `top` rather than
+measuring, so a block builder may call it before the element is in the DOM; a section child returns
+`Infinity` (its host cannot be measured that early) and `Math.min` against that is a no-op.
+
+**Which dimension gives way.** For a figure, the **width** — letterboxing inside `object-fit:
+contain` would leave the block claiming space the image is not using, and a box that no longer
+matches its image is the harder thing to notice on paper. Pure, as `fitFigureBox`, and tested.
+
+**Sheets saved before the cap existed** hold out-of-bounds `block.w` / `block.h`. `buildFigureBlock`
+caps the **rendered** box on load and deliberately leaves the stored values alone: rewriting them
+during load would change `projectFingerprint()`, so merely opening an old sheet would report unsaved
+changes. `markPageOverflow` measures `offsetHeight`, so the orange outline clears anyway, and the
+stored values correct themselves on the next resize.
+
+🔑 **`setOnUpdatePageCount` is back**, after being removed 2026-09-23 for having zero `?.()` call
+sites. A self-resizing block must trigger the page-fit pass, and `src/blocks/` may not import
+`dnd.ts` — that layering rule is what keeps block builders leaf modules. Noted in `state.ts` and
+`main.ts` so it is not pruned a second time.
+
+⚖️ **One judgment call.** The **section** height handle is capped too, on the grounds that
+`markPageOverflow` already flags an over-page section and letting the handle create that state only
+to mark it wrong was the worst of both. If a section needs to outgrow a page while being filled,
+this cap will fight the user — revisit here first.
