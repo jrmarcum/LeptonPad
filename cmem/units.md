@@ -96,6 +96,22 @@ A symbol the catalog does not know becomes **its own dimension**, so an invented
 matches itself instead of converting into something real. That is a containment measure, not a
 validation one: unknown tags are still accepted — see [`known-issues.md`](known-issues.md) § 17.
 
+### A category spelled two ways collapses to one (2026-10-07, v2.11.0)
+
+`CATEGORY_DIMENSION` answers "same kind?", but it never made `kip` and `lbf` **cancel**: arithmetic
+is symbol-by-symbol, so `1[kip]/1[lbf]` stayed `1 kip/lbf` rather than becoming `1000`. Harmless
+until a root turned it into `ft·kip^0.50/lbf^0.50`, where a 5.77 ft answer reads as 0.18 ft.
+
+`collapseQ` in `expr.ts` now folds any category spelled two or more ways onto one representative
+symbol, using `unitMapSiFactor` for the rescale. It skips units carrying a `UnitDef.offset`, because
+a ratio of affine scales is not a scale factor. Full rationale in
+[`math-engine.md`](math-engine.md) § `collapseQ`.
+
+**Consequence for this file:** a category's `factor` values are now load-bearing for _display_, not
+only for conversion. Adding a second spelling of an existing category means the collapse will pick a
+representative by largest exponent — so get the `factor` exactly right, or a correct computation
+will print a wrong-looking number.
+
 ## Adding a unit — the checklist
 
 1. Put it in the right category; `factor` converts **to that category's SI base**.

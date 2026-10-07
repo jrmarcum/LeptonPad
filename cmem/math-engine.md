@@ -33,7 +33,38 @@ Private helpers, all pure, all operating on `UnitMap`:
 | `dimensionOf`   | `UnitMap` → signature in L/M/T/F/K/A. An unknown symbol becomes its own dimension.        |
 | `sameKind`      | Do two unit maps measure the same thing? The test behind every conversion.                |
 | `alignUnits`    | Converts the right operand into the left's unit, or throws. Used by `+`, `−` and compare. |
+| `collapseQ`     | One kind spelled two ways → one symbol, difference folded into the value. See below.      |
 | `formatUnit`    | `UnitMap` → display string.                                                               |
+
+### `collapseQ` — one kind of quantity, spelled two ways (2026-10-07, v2.11.0)
+
+`mulU` and `divU` combine **symbol by symbol**, so `kip` and `lbf` never cancel: `1[kip]/1[lbf]`
+returned `1 kip/lbf` instead of the pure number `1000`. The value stayed self-consistent — the
+symbols still carried the scale factor — so nothing ever errored, and it went unnoticed for months.
+
+**A square root is where it turns dangerous.** An embedded-pier rotation depth coming out of
+`sqrt(2*F/k + …)` displayed as `0.1826 ft·kip^0.50/lbf^0.50`. The real answer was **5.77 ft**
+(0.1826 × √1000). On an engineering sheet that reads as 0.18 ft, and nothing flags it.
+
+`collapseQ(q)` groups the symbols of a `UnitMap` by catalog category, rewrites any category spelled
+two or more ways onto **one representative** — the largest absolute exponent, so `kip*ft/lbf` keeps
+`kip` rather than `lbf` — and folds the difference into the value via `unitMapSiFactor`. Applied at
+`*`, `/`, `^`, `sqrt` and `cbrt`.
+
+Two deliberate exclusions:
+
+- **An unknown symbol is its own kind** and never merges — same discipline as `dimensionOf`.
+- **An offset scale (`degF`, `degC`, anything with `UnitDef.offset`) is skipped.** A ratio of two
+  affine scales is not a scale factor, so `degF/degC` is left uncollapsed for `alignUnits` to reject
+  rather than silently becoming a number.
+
+A category spelled only **one** way is returned untouched, so `kip*ft` stays `kip*ft` and every
+unit that already read well is unaffected — that is what kept the change from churning the suite.
+
+Covered by `tests/unit_collapse_test.ts`. ⚠️ Writing that test produced the session's fifth
+expectation error: `1[kip^2]/1[lbf]` is **1000 kip** (1e6 lbf² / lbf = 1e6 lbf), not 1/1000. The
+code was right. See [testing.md](testing.md) on trusting reasoned-through code over a fresh
+expectation.
 
 ## Unfolding a folded table: `mirror` and `mirrorkeys` (2026-10-02, v2.8.3)
 

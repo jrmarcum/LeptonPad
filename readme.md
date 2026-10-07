@@ -199,6 +199,11 @@ left-hand unit wins, so the result reads in the unit you wrote first:
 - `1 [ft] > 1 [in]` → true; `6 [in] > 0.5 [ft]` → false (they are equal)
 - `20 [C] > 50 [F]` → true (affine conversion applied)
 
+Multiplying or dividing two units of the same kind **cancels** them to a plain number:
+`1 [kip] / 1 [lbf]` → `1000`, and `sqrt(2*F/k)` where `F` is in `kip` and `k` in `pcf` reads in `ft`
+rather than `ft^1.50·kip^0.50/lbf^0.50`. Where only one spelling of a kind appears it is left exactly
+as written, so `2 [kip] * 3 [ft]` stays `6 ft·kip`.
+
 A **different kind** of unit is an error, never a guess: `1 [ft] + 1 [kg]`, `1 [lbf] + 1 [lbm]`
 (force and mass stay distinct), and `5 [kip] [[in]]`. A **comparison against a bare number** is also
 refused, because `b > 8` where `b` is in inches checks nothing; write `b > 8 [in]`. Zero is the

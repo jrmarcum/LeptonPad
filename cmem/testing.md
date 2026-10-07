@@ -2,21 +2,22 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**212 steps in 43 cases across 17 files** at v2.8.8 (2026-10-05), all against the real engine (pure
+**239 steps in 49 cases across 18 files** at v2.11.0 (2026-10-07), all against the real engine (pure
 functions in, `Quantity` out, no DOM).
 
-⚠️ **Count cases and files separately when quoting this.** `deno test` prints "43 passed (212
-steps)" — that 43 is `Deno.test` **cases**, not files, and it was misread as a file count during the
-2026-10-05 session. `ls tests/*.ts | wc -l` is the file count.
+⚠️ **Count cases and files separately when quoting this.** `deno test` prints "49 passed (239
+steps)" — that 49 is `Deno.test` **cases**, not files, and it was misread as a file count during the
+2026-10-05 session. `ls tests/*_test.ts | wc -l` is the file count.
 
 Three files were added after the original six, and all three test **decisions rather than
 arithmetic** — the class of thing that is wrong silently:
 
-| File                                  | Covers                                                                                                                                                                                                          |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/persistence_roundtrip_test.ts` | Every `Block` field appears in **both** the `loadProject` literal and `serializeProject`, with the list read off the interface. Added after `packAuthorId` shipped in neither (§ 21 twice over).                |
-| `tests/page_geometry_test.ts`         | `clearTitleBlock` floors per page, leaves an already-clear position exactly alone, and `pageIndexOf` cannot go negative. A title block exists on every page, so a page-1-only floor was half a fix.             |
-| `tests/block_split_test.ts`           | Where a page-break split may legally fall: never between `if` and `end`, never inside a `for` body or a fenced code block, never orphaning a heading — and **0 means "cannot split", never "move everything"**. |
+| File                                  | Covers                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/persistence_roundtrip_test.ts` | Every `Block` field appears in **both** the `loadProject` literal and `serializeProject`, with the list read off the interface. Added after `packAuthorId` shipped in neither (§ 21 twice over).                                                                                                                                                                                                      |
+| `tests/page_geometry_test.ts`         | `clearTitleBlock` floors per page, leaves an already-clear position exactly alone, and `pageIndexOf` cannot go negative. A title block exists on every page, so a page-1-only floor was half a fix.                                                                                                                                                                                                   |
+| `tests/block_split_test.ts`           | Where a page-break split may legally fall: never between `if` and `end`, never inside a `for` body or a fenced code block, never orphaning a heading — and **0 means "cannot split", never "move everything"**.                                                                                                                                                                                       |
+| `tests/unit_collapse_test.ts`         | One kind of quantity spelled two ways collapses to one symbol (`1[kip]/1[lbf]` → `1000`), the surviving dimension keeps its unit, a root no longer invents `kip^0.50/lbf^0.50`, the largest exponent wins the representative, a category spelled **one** way is untouched, and an offset scale (`degF/degC`) is never folded into a ratio. Added v2.11.0 after a 5.77 ft answer displayed as 0.18 ft. |
 
 The pattern worth copying: for each of these, measuring needed a DOM but **deciding** did not, so
 the decision was extracted into a pure function and the DOM half left as thin as possible.
@@ -43,6 +44,12 @@ and for anything directional, write down which way the index runs before computi
 Once, the expectation was right to fail: `axisLabels('b/a / x/b')` exposed that splitting a corner
 on the **last** slash is wrong, and the rule became "the slash with space around it". A failing new
 test is evidence about one of the two sides, and which side is the first thing to establish.
+
+⚠️ **It happened again on 2026-10-07, in `unit_collapse_test.ts`.** `1[kip^2]/1[lbf]` was asserted
+as `1/1000 kip`; it is **1000 kip**, because kip² is (1000 lbf)², so kip²/lbf = 1e6 lbf = 1000 kip.
+The code was right. That makes **five** expectation errors across the 10-05 and 10-07 sessions
+against **one** genuine code bug found this way — a ratio worth remembering before suspecting the
+engine. Where a unit carries a factor, write the conversion out longhand first.
 
 | File                         | Covers                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -301,6 +301,49 @@ function powU(u: UnitMap, n: number): UnitMap {
   return cleanU(r);
 }
 
+/**
+ * Collapse a unit map that spells one kind of quantity with more than one symbol.
+ *
+ * `1 [kip] / 1 [lbf]` stayed `1 kip/lbf` instead of becoming the pure number 1000, and a square
+ * root then made that unreadable: a rotation depth of 5.77 ft displayed as
+ * `0.1826 ft·kip^0.50/lbf^0.50`. The number was still self-consistent — it carried its own scale
+ * factor — but on an engineering sheet it reads as 0.18 ft, which is the kind of wrong that gets
+ * built.
+ *
+ * Symbols are grouped by catalog category. A category spelled two or more ways is rewritten onto
+ * one representative — the largest exponent, so `kip*ft/lbf` keeps kip rather than lbf — and the
+ * difference folded into the value. A category spelled only one way is left exactly as written,
+ * so `kip*ft` stays `kip*ft` and nothing that already read well changes.
+ */
+function collapseQ(q: Quantity): Quantity {
+  const groups = new Map<string, string[]>();
+  for (const sym of Object.keys(q.u)) {
+    const cat = UNIT_CATEGORY_OF.get(sym);
+    // An unknown symbol is its own kind and never merges. An offset scale (°F, °C) has no
+    // meaningful ratio, so a temperature spelled two ways is left for alignUnits to reject.
+    if (!cat || UNIT_LOOKUP.get(sym)?.offset) continue;
+    const g = groups.get(cat);
+    if (g) g.push(sym);
+    else groups.set(cat, [sym]);
+  }
+  const next: Record<string, number> = { ...q.u };
+  let merged = false;
+  for (const syms of groups.values()) {
+    if (syms.length < 2) continue;
+    merged = true;
+    let rep = syms[0], total = 0;
+    for (const s of syms) {
+      total += q.u[s];
+      if (Math.abs(q.u[s]) > Math.abs(q.u[rep])) rep = s;
+    }
+    for (const s of syms) delete next[s];
+    if (total !== 0) next[rep] = total;
+  }
+  if (!merged) return q;
+  const u = cleanU(next);
+  return { ...q, v: q.v * unitMapSiFactor(q.u) / unitMapSiFactor(u), u };
+}
+
 function eqU(a: UnitMap, b: UnitMap): boolean {
   const ka = Object.keys(a).filter((k) => a[k] !== 0).sort();
   const kb = Object.keys(b).filter((k) => b[k] !== 0).sort();
@@ -376,9 +419,9 @@ function scalarOp(a: Quantity, b: Quantity, op: '+' | '-' | '*' | '/'): Quantity
       return { v: a.v - r.v, u: addU(a.u, r.u) };
     }
     case '*':
-      return { v: a.v * b.v, u: mulU(a.u, b.u) };
+      return collapseQ({ v: a.v * b.v, u: mulU(a.u, b.u) });
     case '/':
-      return { v: a.v / b.v, u: divU(a.u, b.u) };
+      return collapseQ({ v: a.v / b.v, u: divU(a.u, b.u) });
   }
 }
 
@@ -1899,7 +1942,7 @@ class Parser {
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
-      return { v: Math.pow(t.v, exp.v), u: powU(t.u, exp.v) };
+      return collapseQ({ v: Math.pow(t.v, exp.v), u: powU(t.u, exp.v) });
     }
     return t;
   }
@@ -1925,7 +1968,7 @@ class Parser {
       if (Object.keys(exp.u).length > 0) {
         throw new Error(`Exponent must be dimensionless (got ${formatUnit(exp.u)})`);
       }
-      return { v: Math.pow(base.v, exp.v), u: powU(base.u, exp.v) };
+      return collapseQ({ v: Math.pow(base.v, exp.v), u: powU(base.u, exp.v) });
     }
     return base;
   }
@@ -2012,10 +2055,10 @@ class Parser {
           if (name === 'not') return { v: arg.v === 0 ? 1 : 0, u: {} };
 
           if (name === 'sqrt') {
-            return { v: Math.sqrt(arg.v), u: powU(arg.u, 0.5) };
+            return collapseQ({ v: Math.sqrt(arg.v), u: powU(arg.u, 0.5) });
           }
           if (name === 'cbrt') {
-            return { v: Math.cbrt(arg.v), u: powU(arg.u, 1 / 3) };
+            return collapseQ({ v: Math.cbrt(arg.v), u: powU(arg.u, 1 / 3) });
           }
           if (PRESERVE_FN[name]) {
             return { v: PRESERVE_FN[name](arg.v), u: arg.u };
@@ -2085,7 +2128,7 @@ class Parser {
             if (Object.keys(b.u).length > 0) {
               throw new Error('pow() exponent must be dimensionless');
             }
-            return { v: Math.pow(a.v, b.v), u: powU(a.u, b.v) };
+            return collapseQ({ v: Math.pow(a.v, b.v), u: powU(a.u, b.v) });
           }
           if (name === 'hypot') {
             if (Object.keys(a.u).length > 0 || Object.keys(b.u).length > 0) {
