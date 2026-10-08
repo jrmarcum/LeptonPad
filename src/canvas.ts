@@ -199,8 +199,18 @@ export class Canvas {
       el.style.top = `${snapToPageGrid(base + block.y)}px`;
       el.style.maxWidth = maxWidthFor(block, initLeft);
     } else {
-      el.style.left = `${this.snap(block.x)}px`;
-      el.style.top = `${this.snap(block.y)}px`;
+      // ⚠️ A section child's stored x/y are CONTENT-RELATIVE but already page-aligned: the
+      // drag-end path converts to absolute, snaps with the same `mSnapX`/`mSnapY` every other
+      // block uses, and converts back (`mSnapX(contentLeft + rawLeft) - contentLeft`). The
+      // section's content box starts below its header and summary, neither of which is a grid
+      // multiple, so that offset is deliberately NOT a multiple of GRID_SIZE.
+      //
+      // Re-snapping here with `this.snap()` — which rounds relative to the CONTENT box — threw
+      // that away and put the child back on a lattice offset by the section's chrome. The drag
+      // looked right and the next render moved it off the lines (known-issues § 33b). Use the
+      // stored value as `persistence.ts` and `section.ts` already do.
+      el.style.left = `${block.x}px`;
+      el.style.top = `${block.y}px`;
     }
 
     if (block.type === 'section') {

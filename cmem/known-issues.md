@@ -1107,3 +1107,31 @@ when the next would have crossed the right limit — and a deliberate click on a
 exFAT "user-mapped section open" of § 15), leaving the service-worker cache name one version
 behind while `config.js` advanced. That breaks cache-busting, which is the failure mode that
 wasted most of this session. **Check `head -1 public/sw.js` against `deno.json` after every bump.**
+
+### 33b RESOLVED — 2026-10-07 (v2.11.10)
+
+The diagnosis above was half right. The drag-END path was already correct: it converts the child to
+absolute canvas coords, snaps with the same `mSnapX`/`mSnapY` every other block uses, and converts
+back — `mSnapX(contentLeft + rawLeft) - contentLeft`. The live drag being unsnapped does not matter,
+because canvas blocks are unsnapped mid-drag too and both snap on release.
+
+🔑 **The single defect was `Canvas.addBlock`’s child branch re-snapping what that had carefully
+computed:**
+
+```js
+el.style.left = `${this.snap(block.x)}px`; // rounds relative to the CONTENT box
+```
+
+A section’s content box starts below its header and summary, **neither a grid multiple** — measured
+at `(76, 105)` against a grid origin of `(72, 24)`. So a child’s stored x/y are deliberately NOT
+multiples of `GRID_SIZE`: `(36, 119)` is what puts it at absolute `(112, 224)`, which IS on the
+grid. Rounding those to `(40, 120)` moves it to `(116, 225)` — off on both axes.
+
+That is why it was invisible during a drag and only appeared later: the drop was right, and the next
+render moved it. Fixed by using the stored value as-is, which `persistence.ts` and `section.ts`
+already did.
+
+**Verified** with a section created in the harness by clearing the sidebar item’s
+`dataset.requiresPro` — the Pro gate lives only in that handler, so no auth is involved: a figure
+dropped in a section and dragged by `(37, 53)` landed on the page grid and stayed there across a
+re-render.
