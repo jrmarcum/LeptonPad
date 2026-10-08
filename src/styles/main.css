@@ -1085,6 +1085,30 @@ main {
   cursor: default;
 }
 
+/* ⚠️ A resize handle must not swallow a click meant for the canvas.
+   Every handle is an absolutely-positioned CHILD that sticks 22–44 px OUTSIDE its block, at
+   z-index 3, so the strip just below and just right of any block was hit-testing to the handle
+   rather than to `#canvas`. `moveGridCursor` is wired to a canvas click, so it never fired there:
+   the grid cursor silently kept its previous value, and the next double-click placement used that
+   STALE position instead of the point the user picked.
+
+   Jon, 2026-10-07: "I am specifically picking a placement point two grids below the previously
+   placed figure … then it shifts it down two figure block heights below the top corner of the
+   first one." Reproduced — a click 40 px below a figure reported `under point: <block id>` and the
+   cursor readout did not change.
+
+   So handles are inert until their block is hovered or selected. Hover still reaches them because
+   `:hover` matches an ancestor while the pointer is over any hit-testable descendant: you enter the
+   block (its own box is always hit-testable), the handles switch on, and moving outward onto one
+   keeps the block hovered. Approaching a handle from open canvas no longer steals the click. */
+.block [class*='-handle'] {
+  pointer-events: none;
+}
+.block:hover [class*='-handle'],
+.block.selected [class*='-handle'] {
+  pointer-events: auto;
+}
+
 /* A labelled dropdown in the context menu — used where there are too many choices for the
    side-by-side button rows below (the two dozen unit kinds an input row can require). */
 .ctx-field {

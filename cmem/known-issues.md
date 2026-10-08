@@ -891,3 +891,30 @@ Section**.
 The fix, when confirmed: snap the child drag in ABSOLUTE page coordinates and convert back to
 content-relative, so a child lands on the same intersections as everything else rather than on a
 lattice offset by its section’s chrome.
+
+### 33c. Resize handles swallow canvas clicks — HYPOTHESIS, shipped v2.11.4, NOT confirmed
+
+Every resize handle is an absolutely-positioned CHILD that sticks **22–44 px outside its block** at
+`z-index: 3`. `moveGridCursor` is wired to a click on `#canvas`, so a click in that strip — just
+below or just right of any block — hit-tests to the handle and the cursor **silently keeps its
+previous value**. The next double-click placement then uses the stale position rather than the point
+the user picked.
+
+Jon, 2026-10-07: "I am specifically picking a placement point two grids below the previously placed
+figure … then it shifts it down two figure block heights below the top corner of the first one."
+
+**Fix shipped:** handles are `pointer-events: none` until their block is `:hover` or `.selected`.
+Hover still reaches them, because `:hover` matches an ancestor while the pointer is over any
+hit-testable descendant — you enter the block, the handles switch on, and moving outward onto one
+keeps the block hovered. Approaching from open canvas no longer steals the click.
+
+⚠️ **This is NOT verified against Jon’s symptom.** A CDP repro appeared to confirm it, but that
+harness captured the canvas bounding rect ONCE and the page scrolls as blocks are added, so the
+later clicks landed somewhere other than where they were aimed — the stale coordinate was in the
+test. Treat the fix as a plausible cause that was worth removing on its own merits, not as a closed
+issue. If the symptom survives v2.11.4, the next thing to instrument is `moveGridCursor` itself:
+log every call with its argument and compare against `gridCursor` at the moment `dropBlock` reads
+it.
+
+⚠️ **Harness lesson:** re-read `getBoundingClientRect()` immediately before every synthetic click,
+or scroll makes a passing test lie in both directions.
