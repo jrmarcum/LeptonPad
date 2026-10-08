@@ -1172,3 +1172,86 @@ at, which re-selecting from here would steal — while the cursor still follows.
 **Verified** on a pristine profile: points picked deliberately ON TOP of existing figures landed
 exactly there — `(112,104)` then `(112,144)` over a figure at `(112,64)` — while three further
 double-clicks with the cursor untouched flowed to `(352,144) (72,344) (312,344)` without stacking.
+
+## 39. A figure was the only block in normal flow — 2026-10-07 (v2.11.12)
+
+Report: "the block is not placed at the next available space to the right of the previously placed
+block … it shifts to the next available space below and to the right of the previous block."
+
+🔑 **Root cause: `.figure-block { position: relative }`** in `main.css`, there since the figure block’s
+first commit (2026-08-13). `.block` is `position: absolute`; the figure rule has the same specificity
+and comes later, so it won, and a figure was the only block left in normal flow. A relatively
+positioned box keeps its slot in the flow and is merely offset from it, so `style.left/top` were
+added to wherever the flow put the figure — directly below every figure before it in the DOM (the
+other blocks are absolute, so they take no flow space). Measured at v2.11.11, three double-clicks
+at an unmoved cursor:
+
+| Figure | stored `style.left/top` | rendered (rect − canvas rect) |
+| ------ | ----------------------- | ----------------------------- |
+| Fig 1  | (112, 64)               | (112, 64)                     |
+| Fig 2  | (352, 64)               | (352, 264)                    |
+| Fig 3  | (72, 264)               | (72, 664)                     |
+
+Rendered y = stored y + 200 × (figures earlier in the DOM). That is the whole of "below and to the
+right": the placement code put Fig 2 to the RIGHT, and the stylesheet drew it a row down.
+
+⚠️ **Why § 33–38 missed it, five releases running:** every harness check read `style.left`/`style.top`
+— the STORED position, which was right all along. One `getBoundingClientRect()` against the canvas
+rect would have shown it on day one. The flow offset also compounded through `reparentToSection`,
+which converts via rects: a figure dropped into a section after three canvas figures landed 600 px
+down inside it (content-relative y 620 for a cursor 19 px below the content top).
+
+Fixed by deleting the one declaration. Guarded by `tests/figure_position_test.ts`, which asserts
+that no `.figure-block` rule sets `position` — a source guard, since nothing here has a DOM.
+
+### 39b. Inside a section, the obstacle was the section
+
+`freeFigureSlot` excluded section children and included the section itself, which spans margin to
+margin — so nothing ever fit to its right, every repeat placement wrapped to below it, and the
+reparent then put the figure at the bottom of the section content. Always below, never right, and
+the children never counted as occupying anything. `dropBlock` now decides the target section ONCE
+from the cursor; inside a section the search uses that section’s children in absolute px
+(`section.style.left/top + content.offsetLeft/Top + child.style.left/top`, the arithmetic
+`sectionAtPoint` uses) and the row ends at the content box.
+
+**Verified** over CDP on a pristine profile against the v2.11.12 bundle: on the canvas the three
+figures are at `(112,64) (352,64) (72,264)` **stored and rendered**; in a section at y = 564 with
+the cursor 19 px below its content top, the children land at content-relative
+`(40,20) (280,20) (0,220)` — right, right, then wrap.
+
+The off-by-four this left behind — `reparentToSection` rounding a dropped child against the
+content box — is § 40, closed in the same release.
+
+## 40. A section child snaps against the PAGE grid on every path — 2026-10-07 (v2.11.12)
+
+"Make sure the blocks land on a grid intersection whether in a section space or not. That should be
+common whether in a section or not." (Jon.) Three paths converted a child between content-relative
+and page coordinates, and each did it its own way:
+
+| Path                             | Was                                                        | Error                 |
+| -------------------------------- | ---------------------------------------------------------- | --------------------- |
+| drop (`reparentToSection`)       | `round((childRect − contentRect) / 20) · 20`, clamped at 0 | 4 px right, 1 px down |
+| drag-end (`main.ts`)             | snap in absolute px, convert back, clamp at 0              | right, except at 0    |
+| unparent (`unparentFromSection`) | `round(abs / 20) · 20` — the CANVAS origin, not the margin | 8 px                  |
+
+🔑 **One rule now: `snapChildToPageGrid(absX, absY, contentLeft, contentTop)` in `state.ts`.** Snap in
+absolute canvas px against the lattice every canvas block uses (`snapToPageColumn` ×
+`snapToPageGrid`), subtract the content box, and if a line falls inside the section's chrome bump to
+the NEXT line rather than clamping to 0 — clamping is exactly what puts a block between the lines.
+All three paths call it; `mSnapX`, `moveGridCursor` and `dropBlock` share `snapToPageColumn` too.
+Guarded by `tests/section_child_snap_test.ts`.
+
+**Collapsed sections need no exception.** `.section-content.collapsed` is `display: none`, so the
+children are not rendered at all; `sectionAtPoint` and `refreshSectionHeight` already skip a collapsed
+section, and the children come back where they were.
+
+**Verified** over CDP on a pristine profile: four figures dropped in a section at content-relative
+`(36,19) (276,19) (16,219) (256,219)` — absolute `(112,164) (352,164) (92,364) (332,364)`, every one
+on a column `72 + 20n` and a line `24 + 20n`; a child dragged by an off-grid `(47,33)` re-landed on
+`(392,204)`; two canvas figures at `(352,1024)` and, wrapped onto page 2, `(72,1080)` — the first
+line of page 2, which a page-1-only grid check in the harness first flagged as off-grid. **A grid
+check must know which page it is checking.**
+
+A child cannot be dragged OUT of a section — the drag-end path keeps it inside by design — so the
+unparent path runs only when a section is deleted; it is fixed by the same helper but was not driven
+in the browser.

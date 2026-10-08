@@ -283,6 +283,37 @@ export function snapToPageGrid(top: number): number {
   return Math.min(Math.max(snapped, firstGridLine(pi)), lastGridLine(pi));
 }
 
+/** The horizontal twin of `snapToPageGrid`: the nearest vertical grid line to an absolute x. */
+export function snapToPageColumn(x: number): number {
+  return margins.left + Math.round((x - margins.left) / GRID_SIZE) * GRID_SIZE;
+}
+
+/**
+ * Content-relative coordinates that put a section child on the PAGE grid.
+ *
+ * A child's stored `x`/`y` are relative to its section's content box, which starts below the
+ * header and summary and inside a 4 px border — neither offset is a grid multiple. So the snap
+ * happens in absolute canvas px, against the same lattice every canvas block uses, and the result
+ * is converted back. Rounding the content-relative value instead (what `reparentToSection` did
+ * until v2.11.12) put every dropped child 4 px right and 1 px below the lines; the drag-end path
+ * had already been doing this and so looked like it "fixed" the drop (known-issues § 33b, § 40).
+ *
+ * Never negative: a grid line that falls inside the section's chrome is bumped to the NEXT line,
+ * not clamped to 0 — clamping is exactly what puts a block between the lines.
+ */
+export function snapChildToPageGrid(
+  absX: number,
+  absY: number,
+  contentLeft: number,
+  contentTop: number,
+): { x: number; y: number } {
+  let x = snapToPageColumn(absX) - contentLeft;
+  while (x < 0) x += GRID_SIZE;
+  let y = snapToPageGrid(absY) - contentTop;
+  while (y < 0) y += GRID_SIZE;
+  return { x, y };
+}
+
 // Setters for `let` exports that external modules need to reassign
 export function setCANVAS_W(v: number) {
   CANVAS_W = v;

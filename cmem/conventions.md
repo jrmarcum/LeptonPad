@@ -75,6 +75,13 @@ buttons, drag grips.
 hot-copies this one file. Inline `style.cssText` appears in a few dynamically-built modals
 (`license.ts`) — acceptable for modal-local styling, not for block styling.
 
+**Never set `position` on a type-specific block class.** `.block` is `position: absolute`; a
+`.figure-block { position: relative }` written later in the sheet with the same specificity won, and
+the figure became the only block in normal flow — rendered one figure-height below each figure before
+it in the DOM while its `style.left/top` were correct. Five releases chased that through the
+placement code. An absolute box is already a containing block for the handles and captions inside
+it. — [`known-issues.md`](known-issues.md) § 39, guarded by `tests/figure_position_test.ts`
+
 **Every `querySelectorAll('.block')` loop that moves, selects, or deletes must skip
 `.title-block` and section children (`childToSection.has(el.id)`).** Title-block overlays share the
 `.block` class, and section children are positioned relative to their section. Forgetting this let
@@ -249,6 +256,14 @@ dumping `PAGE_H`, `GRID_SIZE`, `TITLE_BLOCK_H`, the margins and the resulting wo
 lines per page — at which point the discrepancy was simply visible. The arithmetic had been
 checkable the whole time, and reading it took one short script against the real modules. **Reasoning
 about arithmetic is slower and less reliable than evaluating it.**
+
+**Verify a position by what is RENDERED, never by what is stored.** `style.left/top` is an input to
+layout, not its result; `getBoundingClientRect()` against the container is the result. Every harness
+check across v2.11.5–v2.11.11 read the stored value, reported it correct, and was right about the
+wrong thing — the figure was drawn 200 px lower by a stylesheet rule the placement code never
+touched. The user sees pixels; measure pixels. The same applies to any stored-versus-displayed pair:
+a `block.w` against `offsetWidth`, a saved value against the cell that shows it. —
+[`known-issues.md`](known-issues.md) § 39, [`testing.md`](testing.md)
 
 **When a report is about something only the user can see, ask what they are looking at rather than
 inferring it a fourth time.** The answer here — _"the grid guides should always be below the title

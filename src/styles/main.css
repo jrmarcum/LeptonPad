@@ -2215,6 +2215,14 @@ h2.custom-tools-heading {
 }
 
 /* ── Figure block ─────────────────────────────────────────────────────────── */
+/* ⚠️ No `position` here. `.block` is `position: absolute`, and this rule comes later with the same
+   specificity, so a `position: relative` on it WON — a figure was the only block left in normal
+   flow. A relatively positioned box keeps its place in the flow and is merely offset from it, so
+   `style.left/top` were added to wherever the flow put the figure: directly below every figure
+   before it in the DOM. Fig 2 stored at (352,64) rendered at (352,264); Fig 3 stored at (72,264)
+   rendered at (72,664). That was "the figures lock to the bottom of the previous block and to the
+   right" (2026-10-07, known-issues § 39). The handles and caption are absolutely positioned
+   against this box either way; an absolute box is a containing block too. */
 .figure-block {
   padding: 0;
   display: flex;
@@ -2222,7 +2230,6 @@ h2.custom-tools-heading {
   min-width: 80px;
   min-height: 60px;
   box-sizing: border-box;
-  position: relative;
 }
 
 .figure-label {

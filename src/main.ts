@@ -123,6 +123,8 @@ import {
   setSkipNextCanvasClick,
   setTitleBlockEnabled,
   skipNextCanvasClick,
+  snapChildToPageGrid,
+  snapToPageColumn,
   snapToPageGrid,
   state,
   titleBlockEnabled,
@@ -1298,7 +1300,7 @@ async function start() {
     });
 
     // Margin-relative snap helpers — keep blocks on the same grid the crosshair uses
-    const mSnapX = (absX: number) => margins.left + canvas.snap(absX - margins.left);
+    const mSnapX = (absX: number) => snapToPageColumn(absX);
     // The page-aware vertical snap — the SAME function blocks, the split and the grid cursor use.
     //
     // It was a fourth private copy, based at `pi * PAGE_H + margins.top`, i.e. the lattice the grid
@@ -1361,8 +1363,15 @@ async function start() {
             const contentTop = Math.round(contentRect.top - canvasRect2.top);
             const rawLeft = parseInt(el.style.left);
             const rawTop = parseInt(el.style.top);
-            const snappedLeft = clamp(mSnapX(contentLeft + rawLeft) - contentLeft, 0, maxLeft);
-            const snappedTop = clamp(mSnapY(contentTop + rawTop) - contentTop, 0, maxTop);
+            // The one rule for a child's position — shared with the drop and unparent paths.
+            const onGrid = snapChildToPageGrid(
+              contentLeft + rawLeft,
+              contentTop + rawTop,
+              contentLeft,
+              contentTop,
+            );
+            const snappedLeft = Math.min(onGrid.x, maxLeft);
+            const snappedTop = Math.min(onGrid.y, maxTop);
             el.style.left = `${snappedLeft}px`;
             el.style.top = `${snappedTop}px`;
             el.style.maxWidth = `${snapContent.offsetWidth - snappedLeft}px`;

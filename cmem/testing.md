@@ -2,7 +2,7 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**254 steps in 51 cases across 19 files** at v2.11.2 (2026-10-07), all against the real engine (pure
+**259 steps in 53 cases across 21 files** at v2.11.12 (2026-10-07), all against the real engine (pure
 functions in, `Quantity` out, no DOM).
 
 ⚠️ **Count cases and files separately when quoting this.** `deno test` prints "51 passed (250
@@ -372,6 +372,11 @@ Two companions to it, both of which also produced false results the same day:
 - **Use a throwaway Chrome profile per run** (`--user-data-dir` under temp, deleted first). A reused
   profile keeps the HTTP cache, so `main.css` and `main.js` go stale independently of the service
   worker and the page silently mixes versions.
+- **Report where a block IS, not where it was told to go.** Dump `getBoundingClientRect()` minus the
+  canvas rect beside `style.left/top`, every time. The v2.11.5–v2.11.11 runs printed only the stored
+  value, which was correct while a `position: relative` drew every figure one figure-height below
+  the one before it — the defect the whole arc was chasing, visible in one column that was never
+  printed. [`known-issues.md`](known-issues.md) § 39.
 
 ### ⚠️ `deno task sync:version` can fail silently
 

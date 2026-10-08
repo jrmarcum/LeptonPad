@@ -625,10 +625,18 @@ skips them in both roles, `maxLeftFor` lets them sit past the usual right-edge c
 gives them no `max-width` so they are never squeezed narrower the further right they go. Before adding
 any rule that moves or resizes a block on its behalf, exempt figures. § 34.
 
+🔑 **A figure is `position: absolute` like every other block, and no `.figure-block` rule may set
+`position`.** `.figure-block { position: relative }` beat `.block { position: absolute }` from the
+figure's first commit to v2.11.11, which left figures in normal flow: each rendered one figure-height
+below the previous one, while `style.left/top` — what every harness read — said it was in the right
+place. Guarded by `tests/figure_position_test.ts`. § 39.
+
 🔑 **`freeFigureSlot()` (`dnd.ts`) decides where a new figure lands.** A clear spot is never adjusted —
 click an empty point and it lands exactly there. An occupied spot advances RIGHT past what it hit, and
 only when nothing fits before `lastGridColumn()` does it wrap to the next row at `margins.left`. That
-is what makes repeated double-clicks flow instead of stacking invisibly. § 37.
+is what makes repeated double-clicks flow instead of stacking invisibly. § 37. **Inside a section the
+obstacles are that section's children and the row ends at its content box** — the section itself is
+full width, so treating it as the obstacle sent every repeat placement below it. § 39b.
 
 ⚠️ **A figure drags by its whole face.** The image wrapper used to `stopPropagation()` on `mousedown`
 so a drag could not start there — and the image area is almost the entire block, so the only draggable
@@ -639,7 +647,10 @@ own `stopPropagation` (it is a text field) and the handles keep theirs. § 36.
 content-relative, and a section's content box starts below its header and summary — measured at
 `(76, 105)` against a grid origin of `(72, 24)`, so neither axis is a grid multiple. A child at stored
 `(36, 119)` is at absolute `(112, 224)`, which IS on the grid. **Never re-snap a child against its
-content box**; `addBlock` did and moved every child off the lines on re-render. § 33b.
+content box**; `addBlock` did and moved every child off the lines on re-render. § 33b. **Every path
+that converts a child between content-relative and page coordinates — drop, drag-end, unparent — goes
+through `snapChildToPageGrid()` in `state.ts`**, which snaps in absolute px and bumps a line that falls
+inside the section chrome to the next one rather than clamping to 0. § 40.
 
 ## Resize / stretch handles
 

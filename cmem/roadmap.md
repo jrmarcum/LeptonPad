@@ -1,6 +1,6 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.11.10 (2026-10-07)
+## Where the project stands — v2.11.12 (2026-10-07)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: **ten** block types,
 a unit-aware math engine with an automated test suite, a 24-category / 163-unit catalog, SVG
@@ -13,7 +13,8 @@ codes, and AES-256-GCM encrypted purchasable template packs.
 ~19k lines across `src/` (16.3k TS + 2.8k CSS), `api/`, `db/`, `solver/`, and the build scripts.
 `dist/main.js` is **499 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
 one Deno Deploy project serving both the site and the API at `/api`, and **a push to `main` is the
-deploy**. v2.11.10 (`140dd53`) was pushed 2026-10-07 and is therefore in production.
+deploy**. v2.11.11 (`1871d9d`) was pushed 2026-10-07 and is therefore in production; v2.11.12 (§ 39)
+was built the same day and follows it.
 
 ### The 2026-10-07 session — a unit-display fix, a geometry audit, then ten releases on figures
 
@@ -38,6 +39,14 @@ Three releases, all driven by Jon's work on a drilled-shaft embedment sheet:
   **body swallowed `mousedown`**, so no drag could start; and finally the flow behaviour Jon actually
   wanted — left-to-right, wrapping only when the row is full (`freeFigureSlot`). § 33b, a child of a
   section landing off the page grid, was closed in the same run.
+- **v2.11.11 – v2.11.12** — a picked point wins outright (§ 38), and then **the cause under the whole
+  arc**: `.figure-block { position: relative }` had overridden `.block { position: absolute }` since
+  the figure's first commit, so figures sat in normal flow and each rendered one figure-height below
+  the one before it — while `style.left/top`, the only thing any harness read, was correct. One
+  deleted declaration, a source guard, and the in-section flow now searches the section's children
+  rather than the section. § 39. Then **one snap rule for a section child on every path** — drop,
+  drag-end and unparent had each rounded differently, two of them off the page lines — so a block
+  lands on a grid intersection whether in a section or not. § 40.
 
 ⚠️ **Two process lessons, and they cost more than the fixes.**
 

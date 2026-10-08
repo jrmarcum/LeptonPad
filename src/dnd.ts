@@ -29,6 +29,7 @@ import {
   setNumPages,
   setSelectedEl,
   setTitleBlockMeasuredH,
+  snapToPageColumn,
   snapToPageGrid,
   state,
   titleBlockEnabled,
@@ -635,8 +636,7 @@ export function blockAtCursor(canvasX: number, canvasY: number): HTMLElement | n
 }
 
 export function moveGridCursor(canvasX: number, canvasY: number, select = true) {
-  const snappedX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
-  gridCursor.x = clamp(snappedX, margins.left, CANVAS_W - margins.right);
+  gridCursor.x = clamp(snapToPageColumn(canvasX), margins.left, CANVAS_W - margins.right);
 
   // ⚠️ `gridOrigin` used to be defined here as `pi * PAGE_H + margins.top` and was left behind
   // when the bounds were consolidated into state.ts. So the CURSOR snapped to a lattice based at
@@ -1101,18 +1101,52 @@ const FIGURE_H = 200;
  * double-clicks without moving the cursor used to do: stack them invisibly on top of each other.
  *
  * Coordinates here are absolute canvas px, the same frame as `el.style.left` / `top`.
+ *
+ * ⚠️ `section` is the open section under the cursor, if any — the one `dropBlock` will reparent
+ * the figure into. Inside a section the obstacles are that section's CHILDREN, read in absolute
+ * px, and the row ends at its content box. Without this the section itself was the obstacle: it
+ * spans margin to margin, so nothing ever fit to its right, every repeat placement wrapped to
+ * below it, and the reparent then put the figure at the bottom of the section — "below without
+ * checking whether space to the right is even available" (2026-10-07, known-issues § 39). The
+ * children were excluded from the search, so they never counted as occupying anything.
  */
-function freeFigureSlot(x: number, y: number, w: number, h: number): { x: number; y: number } {
-  const rightLimit = lastGridColumn();
-  const taken = Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.block'))
-    .filter((el) => !el.classList.contains('title-block') && !childToSection.has(el.id))
-    .map((el) => ({
-      l: parseInt(el.style.left),
-      t: parseInt(el.style.top),
-      w: el.offsetWidth,
-      h: el.offsetHeight,
-    }))
-    .filter((r) => Number.isFinite(r.l) && Number.isFinite(r.t));
+function freeFigureSlot(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  section: HTMLElement | null,
+): { x: number; y: number } {
+  type Rect = { l: number; t: number; w: number; h: number };
+  let taken: Rect[];
+  let rightLimit = lastGridColumn();
+
+  const content = section?.querySelector<HTMLElement>('.section-content');
+  if (section && content) {
+    // A child's style.left/top are content-relative; `offsetLeft/Top` of the content box are
+    // section-relative and include the section's border — the same arithmetic `sectionAtPoint`
+    // uses, so a point this says is clear is one the reparent will agree about.
+    const contentL = parseInt(section.style.left) + content.offsetLeft;
+    const contentT = parseInt(section.style.top) + content.offsetTop;
+    rightLimit = Math.min(rightLimit, contentL + content.offsetWidth);
+    taken = Array.from(content.querySelectorAll<HTMLElement>(':scope > .block'))
+      .map((el) => ({
+        l: contentL + parseInt(el.style.left),
+        t: contentT + parseInt(el.style.top),
+        w: el.offsetWidth,
+        h: el.offsetHeight,
+      }));
+  } else {
+    taken = Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.block'))
+      .filter((el) => !el.classList.contains('title-block') && !childToSection.has(el.id))
+      .map((el) => ({
+        l: parseInt(el.style.left),
+        t: parseInt(el.style.top),
+        w: el.offsetWidth,
+        h: el.offsetHeight,
+      }));
+  }
+  taken = taken.filter((r) => Number.isFinite(r.l) && Number.isFinite(r.t));
 
   const hitAt = (px: number, py: number) =>
     taken.find((r) => px < r.l + r.w && px + w > r.l && py < r.t + r.h && py + h > r.t);
@@ -1197,12 +1231,17 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
     lastFigureDropAt.x === canvasX && lastFigureDropAt.y === canvasY;
   if (type === 'figure') lastFigureDropAt = { x: canvasX, y: canvasY };
 
+  // The section the new block will be reparented into, decided ONCE from the cursor: the flow
+  // below has to search among that section's children, and the reparent further down has to
+  // agree with it.
+  const targetSection = type === 'section' ? null : sectionAtPoint(canvasX, canvasY);
+
   let dropX = canvasX - margins.left;
   let dropY = canvasY - margins.top;
   if (type === 'figure' && sameSpotAsLast) {
-    const absX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
+    const absX = snapToPageColumn(canvasX);
     const absY = snapToPageGrid(canvasY);
-    const slot = freeFigureSlot(absX, absY, FIGURE_W, FIGURE_H);
+    const slot = freeFigureSlot(absX, absY, FIGURE_W, FIGURE_H, targetSection);
     dropX = slot.x - margins.left;
     dropY = slot.y - margins.top;
   }
@@ -1241,10 +1280,7 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
   renderBlock(block);
   const el = document.getElementById(block.id);
   if (el) {
-    if (type !== 'section') {
-      const targetSection = sectionAtPoint(canvasX, canvasY);
-      if (targetSection) reparentToSection(el, targetSection);
-    }
+    if (targetSection) reparentToSection(el, targetSection);
     selectBlock(el);
   }
   reEvalAllFormulas();

@@ -18,6 +18,9 @@ import {
   sectionSummaryVarNames,
   selectedEls,
   setMultiDragState,
+  snapChildToPageGrid,
+  snapToPageColumn,
+  snapToPageGrid,
   state,
 } from '../../state.ts';
 import { clamp } from '../../utils/units.ts';
@@ -172,14 +175,18 @@ export function reparentToSection(childEl: HTMLElement, sectionEl: HTMLElement) 
   const childBlock = state.blocks.find((b) => b.id === childEl.id);
   if (!sectionBlock || !childBlock) return;
 
-  // Convert canvas-absolute coords to section-content-relative coords
+  // Snap on the PAGE grid in absolute px, then convert to content-relative — never the other way
+  // round. The content box sits at a non-grid offset (its header, summary and border), so a value
+  // rounded relative to it is off the page lines by exactly that offset (§ 40).
+  const canvasRect = canvas.domElement.getBoundingClientRect();
   const contentRect = content.getBoundingClientRect();
   const childRect = childEl.getBoundingClientRect();
-  const relLeft = Math.max(
-    0,
-    Math.round((childRect.left - contentRect.left) / GRID_SIZE) * GRID_SIZE,
+  const { x: relLeft, y: relTop } = snapChildToPageGrid(
+    Math.round(childRect.left - canvasRect.left),
+    Math.round(childRect.top - canvasRect.top),
+    Math.round(contentRect.left - canvasRect.left),
+    Math.round(contentRect.top - canvasRect.top),
   );
-  const relTop = Math.max(0, Math.round((childRect.top - contentRect.top) / GRID_SIZE) * GRID_SIZE);
 
   content.appendChild(childEl);
   childEl.style.left = `${relLeft}px`;
@@ -201,16 +208,18 @@ export function unparentFromSection(childEl: HTMLElement, sectionEl: HTMLElement
   const childBlock = state.blocks.find((b) => b.id === childEl.id);
   if (!childBlock) return;
 
-  // Convert section-relative coords back to canvas-absolute
+  // Convert section-relative coords back to canvas-absolute, on the PAGE lattice. This used to
+  // round against the canvas origin (`Math.round(v / GRID_SIZE) * GRID_SIZE`), whose lines are
+  // 72 px from the margin lattice's — so a child left a section 8 px off the grid (§ 40).
   const contentRect = content.getBoundingClientRect();
   const canvasRect = canvas.domElement.getBoundingClientRect();
   const absLeft = clamp(
-    Math.round((contentRect.left - canvasRect.left + childBlock.x) / GRID_SIZE) * GRID_SIZE,
+    snapToPageColumn(contentRect.left - canvasRect.left + childBlock.x),
     margins.left,
     CANVAS_W - margins.right,
   );
   const absTop = clamp(
-    Math.round((contentRect.top - canvasRect.top + childBlock.y) / GRID_SIZE) * GRID_SIZE,
+    snapToPageGrid(contentRect.top - canvasRect.top + childBlock.y),
     margins.top,
     CANVAS_H,
   );
