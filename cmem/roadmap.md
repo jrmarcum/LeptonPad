@@ -1,6 +1,6 @@
 # Roadmap and Current State
 
-## Where the project stands — v2.11.2 (2026-10-07)
+## Where the project stands — v2.11.10 (2026-10-07)
 
 **Shipping and working.** LeptonPad is a functioning product, not a prototype: **ten** block types,
 a unit-aware math engine with an automated test suite, a 24-category / 163-unit catalog, SVG
@@ -13,9 +13,9 @@ codes, and AES-256-GCM encrypted purchasable template packs.
 ~19k lines across `src/` (16.3k TS + 2.8k CSS), `api/`, `db/`, `solver/`, and the build scripts.
 `dist/main.js` is **499 KB**. Live at https://leptonpad.com (also `leptonpad.jrmarcum.deno.net`) —
 one Deno Deploy project serving both the site and the API at `/api`, and **a push to `main` is the
-deploy**. v2.11.2 (`529319f`) was pushed 2026-10-07 and is therefore in production.
+deploy**. v2.11.10 (`140dd53`) was pushed 2026-10-07 and is therefore in production.
 
-### The 2026-10-07 session — a unit-display fix, then a geometry audit
+### The 2026-10-07 session — a unit-display fix, a geometry audit, then ten releases on figures
 
 Three releases, all driven by Jon's work on a drilled-shaft embedment sheet:
 
@@ -30,9 +30,26 @@ Three releases, all driven by Jon's work on a drilled-shaft embedment sheet:
   already-clamped position, so nothing could move past the end of the document; and figure numbers
   never reflowed. § 32.
 
-⚠️ The one process lesson worth keeping: several intermediate "the fix does not work" readings were
-wrong because the **service worker was serving the previous bundle** after a rebuild without a version
-bump. [`testing.md`](testing.md) now carries both the CDP recipe and that trap.
+- **v2.11.3 – v2.11.10** — one report, "the figures are locked", that turned out to be **five
+  unrelated causes**, none of them a constraint on where a figure may go. § 33–37, and the summary
+  table in § 36. In order: the bottom resize handle lay on top of the caption; `resolveOverlapsRight`
+  reflowed figures; the right-edge clamp and `max-width` pinned them; **the grid CURSOR never moved**,
+  because a handle overhanging its block ate the click, so placement used a stale point; the figure
+  **body swallowed `mousedown`**, so no drag could start; and finally the flow behaviour Jon actually
+  wanted — left-to-right, wrapping only when the row is full (`freeFigureSlot`). § 33b, a child of a
+  section landing off the page grid, was closed in the same run.
+
+⚠️ **Two process lessons, and they cost more than the fixes.**
+
+1. The **service worker served the previous bundle** after a rebuild without a version bump, and
+   `sync:version` **silently failed** to write `public/sw.js` once (the exFAT error of § 15), so the
+   cache name lagged a version while `config.js` advanced.
+2. The CDP harness dispatched **synthetic events on the canvas element**, which sets `e.target` to the
+   canvas no matter what is really under the pointer — so it sailed past the exact `closest('.block')`
+   branch that was broken, and produced four "verified fixed" reports against a live defect.
+
+Both are written up in [`testing.md`](testing.md). **Diagnostic order for "it is locked": can it be
+grabbed, does the cursor move, and only then look for something that moves it.**
 
 💰 **Pricing and tiers are decided** as of 2026-10-05 — see [`pricing.md`](pricing.md). Free / Pro
 $149-yr / Firm / Student, packs sold separately at $29–99, and **Paddle is applied for before the
@@ -264,18 +281,19 @@ checkout and one webhook landing on `redeem_license_code`. Commercial-use rights
 other commerce task. The storefront-or-Paddle question that used to sit here is answered: Paddle
 first, because Pro subscriptions never touch `packId`.
 
-**7. A growing spacing increment on each new figure placement — reported 2026-10-07, NOT
-reproduced.** Four successive double-clicks with the grid cursor untouched stacked four figures at
-exactly the same coordinates, so whatever produces the increment is not in the dblclick path. The
-drag-from-sidebar path places at the **drop point** by design, which would look like spacing if the
-pointer moves between drags — that is the first thing to rule out. Needs the placement method
-confirmed before anything is changed. [`known-issues.md`](known-issues.md) § 32d.
+**7. ~~A growing spacing increment on each new figure placement.~~ CLOSED 2026-10-07 (v2.11.7,
+v2.11.9).** It was never an increment. The grid **cursor** was not moving — a resize handle hangs
+22–44 px outside its block, and the canvas click handler tested `closest('.block')` (DOM ancestry)
+rather than the block's box, so a click in that strip returned early. Placement then used the stale
+cursor, which was wherever the previous figure went. Fixed by testing the box, plus treating a
+press-release on a handle with no travel as a click. Repeated placement now flows left-to-right and
+wraps only when the row is full. [`known-issues.md`](known-issues.md) § 35, § 37.
 
 **8. Should a figure be able to hold a fixed number? — open question, not a defect.** Figure numbers
 are now a readout of position (upper-left corner, top-to-bottom then left-to-right), which was the
 request. The consequence is that **"Fig 2 above Fig 1" is not a reachable state**: whatever sits
 highest _is_ Fig 1. That was reported as a movement lock on 2026-10-07 and is not one — the block
-moves freely, verified over CDP. If a specific figure ever needs a pinned number with the others
+moves freely — re-verified on v2.11.10 by dragging a figure from y=264 to y=24 past two others, with the labels resequencing. If a specific figure ever needs a pinned number with the others
 flowing around it, that is a manual-override feature and a deliberate departure from
 position-derived numbering. Nothing is blocked while it stays undecided. § 32c.
 

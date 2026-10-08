@@ -341,3 +341,43 @@ opened after it is set.
 five seconds after the last one aborts, so closing a driven tab kills the server mid-run. It also runs
 `cmd /c start`, which **opens a real browser window on the user’s desktop** — do not background it
 during an automated run. Use `main.ts` (port 8000) instead: static, no SSE, no auto-open.
+
+### ⚠️ Synthetic events bypass the bug you are testing for
+
+The single most expensive mistake of 2026-10-07. A driver that does this:
+
+```js
+canvasEl.dispatchEvent(new MouseEvent('click', { clientX, clientY })); // ✗
+```
+
+sets `e.target = canvasEl` **regardless of what is actually at those coordinates**. Any handler that
+branches on the target — and the canvas click handler does, with `closest('.block')` — sails
+straight past the branch under test. Four separate "verified fixed" reports were produced this way
+against a defect that was still live, and the real cause only became visible after switching to:
+
+```js
+await call('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, ... });  // ✓ real hit-testing
+```
+
+**Use `Input.dispatchMouseEvent` for anything where WHAT IS UNDER THE POINTER is part of the
+behaviour** — placement, selection, drag, hit areas, overlapping elements. A synthetic `dispatchEvent`
+is only safe for firing a handler whose target you have already chosen deliberately, such as the
+sidebar `dblclick`.
+
+Two companions to it, both of which also produced false results the same day:
+
+- **Re-read `getBoundingClientRect()` immediately before every click.** The canvas grows and the
+  page scrolls as blocks are added, so a rect captured once makes later clicks land somewhere else
+  — and the test then reports a bug that is purely its own.
+- **Use a throwaway Chrome profile per run** (`--user-data-dir` under temp, deleted first). A reused
+  profile keeps the HTTP cache, so `main.css` and `main.js` go stale independently of the service
+  worker and the page silently mixes versions.
+
+### ⚠️ `deno task sync:version` can fail silently
+
+It writes `public/sw.js`, which sits on an exFAT drive (§ 15) and intermittently refuses with the
+"user-mapped section open" error. The task then **continues**, leaving the service-worker cache name
+one version behind while `dist/config.js` advances — so the browser keeps serving the previous
+bundle from cache and every later test is wrong. It happened during v2.11.9.
+
+**After every version bump: `head -1 public/sw.js` and check it against `deno.json`.**

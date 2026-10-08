@@ -613,12 +613,35 @@ layout. The lesson is cheap to apply though: a fixed-height container with `over
 a child sized to fill it has **no room for siblings**, so anything appended after is invisible by
 construction. Check the render order against the clip whenever either changes.
 
-## Resize / stretch handles
+## Figure placement and movement (v2.11.5 – v2.11.10)
 
 🔑 **Figure numbers are a readout of POSITION, not an identity.** `renumberFigures()` assigns `Fig 1..N`
 by upper-left corner, top-to-bottom then left-to-right, from `updatePageCount`. So whatever figure sits
 highest IS Fig 1 — you cannot move "Fig 2" above "Fig 1". That reads as a movement lock and is not one;
 see [`known-issues.md`](known-issues.md) § 32c.
+
+🔑 **A figure is placed deliberately and is exempt from every auto-layout rule.** `resolveOverlapsRight`
+skips them in both roles, `maxLeftFor` lets them sit past the usual right-edge clamp, and `maxWidthFor`
+gives them no `max-width` so they are never squeezed narrower the further right they go. Before adding
+any rule that moves or resizes a block on its behalf, exempt figures. § 34.
+
+🔑 **`freeFigureSlot()` (`dnd.ts`) decides where a new figure lands.** A clear spot is never adjusted —
+click an empty point and it lands exactly there. An occupied spot advances RIGHT past what it hit, and
+only when nothing fits before `lastGridColumn()` does it wrap to the next row at `margins.left`. That
+is what makes repeated double-clicks flow instead of stacking invisibly. § 37.
+
+⚠️ **A figure drags by its whole face.** The image wrapper used to `stopPropagation()` on `mousedown`
+so a drag could not start there — and the image area is almost the entire block, so the only draggable
+strip was the thin `FIG n` label. That is what "the figures are locked" meant. The caption keeps its
+own `stopPropagation` (it is a text field) and the handles keep theirs. § 36.
+
+⚠️ **A section child's stored `x`/`y` are deliberately NOT multiples of `GRID_SIZE`.** They are
+content-relative, and a section's content box starts below its header and summary — measured at
+`(76, 105)` against a grid origin of `(72, 24)`, so neither axis is a grid multiple. A child at stored
+`(36, 119)` is at absolute `(112, 224)`, which IS on the grid. **Never re-snap a child against its
+content box**; `addBlock` did and moved every child off the lines on re-render. § 33b.
+
+## Resize / stretch handles
 
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:
 
