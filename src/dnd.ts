@@ -43,7 +43,7 @@ import {
   sectionAtPoint,
   unparentFromSection,
 } from './blocks/pro/section.ts';
-import { nextFigureNum } from './blocks/figure.ts';
+import { nextFigureNum, renumberFigures } from './blocks/figure.ts';
 
 // ---------------------------------------------------------------------------
 // Cursor visibility
@@ -286,13 +286,29 @@ export function updatePageCount() {
   let maxBottom = 0;
   for (const el of blockEls) {
     if (childToSection.has(el.id)) continue; // child blocks don't drive canvas height
-    const bot = parseInt(el.style.top) + el.offsetHeight;
+    // ⚠️ The INTENDED top, not only the rendered one. `repositionBlocks` clamps the rendered top to
+    // `CANVAS_H - el.offsetHeight`, so reading `el.style.top` alone measured a position that had
+    // ALREADY been pulled up to fit the current canvas — and the page count computed from it then
+    // never grew, which is exactly what kept it pulled up. A block therefore could not be moved
+    // past the end of the document: Shift+Enter looked ignored, and a figure dropped low landed
+    // somewhere other than the cursor (Jon, 2026-10-07). The clamp also does not write back, so
+    // `block.y` and the rendered top silently disagreed for as long as it held.
+    const b = state.blocks.find((bl) => bl.id === el.id);
+    const intendedTop = b ? margins.top + (b.type === 'section' ? titleBlockH() : 0) + b.y : NaN;
+    const top = Math.max(
+      parseInt(el.style.top) || 0,
+      Number.isFinite(intendedTop) ? intendedTop : 0,
+    );
+    const bot = top + el.offsetHeight;
     if (bot > maxBottom) maxBottom = bot;
   }
   // Before the early return below, which is the common case — a block that laps over a page
   // break usually does so without changing the page COUNT at all, so marking it after that
   // return would mean the marker only ever appeared when a page was added or removed.
   markPageOverflow();
+  // Same reasoning, and the same placement in the function: figure numbers follow document order,
+  // so every geometry change can change them, and the page COUNT usually does not change at all.
+  renumberFigures();
 
   // Trigger a new page when block bottom + bottom margin would overflow the current last page
   const needed = Math.max(1, Math.ceil((maxBottom + margins.bottom) / PAGE_H));

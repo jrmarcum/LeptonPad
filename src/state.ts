@@ -147,20 +147,27 @@ export function pageWorkArea(pageIdx: number): { top: number; bottom: number; he
 export function blockMaxBox(
   el: HTMLElement,
   block: Block,
-  minW = 0,
-  minH = 0,
+  o: { minW?: number; minH?: number; grid?: boolean } = {},
 ): { w: number; h: number } {
+  const minW = o.minW ?? 0;
+  const minH = o.minH ?? 0;
   if (block.parentSectionId) {
     const host = el.offsetParent as HTMLElement | null;
     return { w: host ? Math.max(minW, host.clientWidth - el.offsetLeft) : Infinity, h: Infinity };
   }
   const left = parseInt(el.style.left);
   const top = parseInt(el.style.top);
+  const pi = pageIndexOf(Number.isFinite(top) ? top : 0);
+  // ⚠️ `grid: true` for any caller that snaps its size to GRID_SIZE — the BOUND must sit on a line
+  // too, or the cap wins over the snap and the edge lands BETWEEN lines. v2.11.1 capped at the raw
+  // margin and figures started landing off the intersections: with the default margins the bottom
+  // margin is 1032 while the last line is 1024, so a bound of `1008 - k*20` is not a multiple of 20
+  // at all (16 px out with a title block). Same reasoning as `lastGridLine`'s own docstring.
+  const rightLimit = o.grid ? lastGridColumn() : CANVAS_W - margins.right;
+  const bottomLimit = o.grid ? lastGridLine(pi) : pageWorkArea(pi).bottom;
   return {
-    w: Number.isFinite(left) ? Math.max(minW, CANVAS_W - margins.right - left) : Infinity,
-    h: Number.isFinite(top)
-      ? Math.max(minH, pageWorkArea(pageIndexOf(top)).bottom - top)
-      : Infinity,
+    w: Number.isFinite(left) ? Math.max(minW, rightLimit - left) : Infinity,
+    h: Number.isFinite(top) ? Math.max(minH, bottomLimit - top) : Infinity,
   };
 }
 
@@ -201,6 +208,19 @@ export function firstGridLine(pageIdx: number): number {
 export function lastGridLine(pageIdx: number): number {
   const go = gridOriginOf(pageIdx);
   return go + Math.floor((pageWorkArea(pageIdx).bottom - go) / GRID_SIZE) * GRID_SIZE;
+}
+
+/**
+ * The horizontal twin of `lastGridLine`: the last VERTICAL line at or left of the right margin.
+ *
+ * Vertical lines start at `margins.left` and repeat every `GRID_SIZE`, so the right margin is only
+ * on a line when the usable width happens to be a whole number of squares. It is with the shipped
+ * Letter defaults (816 − 72 − 24 = 720 = 36 squares), which is exactly why capping at the raw right
+ * margin looked correct until the margins were changed. The same page is not so lucky vertically.
+ */
+export function lastGridColumn(): number {
+  return margins.left +
+    Math.floor((CANVAS_W - margins.right - margins.left) / GRID_SIZE) * GRID_SIZE;
 }
 
 /**

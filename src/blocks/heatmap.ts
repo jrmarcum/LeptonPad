@@ -895,7 +895,11 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
     Math.min(Math.max(min, Math.round(v / GRID_SIZE) * GRID_SIZE), max);
 
   drag('heat-resize-handle', (dx, _dy, sw) => {
-    const w = snap(sw + dx, GRID_SIZE * 8, blockMaxBox(el, block, GRID_SIZE * 8).w);
+    const w = snap(
+      sw + dx,
+      GRID_SIZE * 8,
+      blockMaxBox(el, block, { minW: GRID_SIZE * 8, grid: true }).w,
+    );
     el.style.width = `${w}px`;
     block.w = w;
   });
@@ -903,7 +907,7 @@ export function buildHeatMapBlock(el: HTMLElement, block: Block) {
     // `block.h` sizes the field (`out`), not the whole block, so the label and range rows above it
     // have to come out of the budget or the cap is short by exactly that chrome.
     const chromeH = Math.max(0, el.offsetHeight - out.offsetHeight);
-    const maxH = blockMaxBox(el, block, GRID_SIZE * 5).h - chromeH;
+    const maxH = blockMaxBox(el, block, { minH: GRID_SIZE * 5, grid: true }).h - chromeH;
     const hh = snap(sh + dy, GRID_SIZE * 5, Math.max(GRID_SIZE * 5, maxH));
     out.style.height = `${hh}px`;
     block.h = hh;

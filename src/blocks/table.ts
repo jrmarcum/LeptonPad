@@ -259,7 +259,7 @@ export function buildTableBlock(el: HTMLElement, block: Block) {
     // direction, so a table could be dragged straight off the right edge of the paper — the width
     // half of the same defect found in the figure block (audit 2026-10-07).
     const minW = GRID_SIZE * 6;
-    const maxW = blockMaxBox(el, block, minW).w;
+    const maxW = blockMaxBox(el, block, { minW, grid: true }).w;
     const onMove = (ev: PointerEvent) => {
       const w = Math.min(
         Math.max(minW, Math.round((startW + ev.clientX - startX) / GRID_SIZE) * GRID_SIZE),

@@ -14,6 +14,7 @@ import { assertEquals } from '@std/assert';
 import {
   clearTitleBlock,
   firstGridLine,
+  lastGridColumn,
   lastGridLine,
   margins,
   PAGE_H,
@@ -26,6 +27,7 @@ import {
   titleBlockH,
 } from '../src/state.ts';
 import { GRID_SIZE, TITLE_BLOCK_H } from '../src/types.ts';
+import { CANVAS_W } from '../src/state.ts';
 
 Deno.test('page geometry and the title block', async (t) => {
   await t.step('with no title block, nothing is pushed anywhere', () => {
@@ -243,6 +245,44 @@ Deno.test('page geometry and the title block', async (t) => {
     // backwards and compute a floor above the canvas.
     assertEquals(pageIndexOf(-500), 0);
     assertEquals(pageIndexOf(0), 0);
+  });
+
+  // A size bound has to land on a line, not on the margin. v2.11.1 capped a resize at the raw
+  // margin, and because the snapping blocks round their size to GRID_SIZE, the cap then won over
+  // the snap and the edge landed BETWEEN lines — reported as "figures snapping to the midpoint of
+  // the grid lines instead of the intersections" (Jon, 2026-10-07).
+  await t.step('the raw bottom margin is NOT on a grid line — which is the whole problem', () => {
+    setTitleBlockEnabled(false);
+    const area = pageWorkArea(0);
+    assertEquals((area.bottom - firstGridLine(0)) % GRID_SIZE !== 0, true);
+  });
+
+  await t.step('lastGridLine is on the grid and at or above the bottom margin', () => {
+    setTitleBlockEnabled(false);
+    for (const pi of [0, 1, 2]) {
+      const line = lastGridLine(pi);
+      assertEquals((line - firstGridLine(pi)) % GRID_SIZE, 0);
+      assertEquals(line <= pageWorkArea(pi).bottom, true);
+      assertEquals(pageWorkArea(pi).bottom - line < GRID_SIZE, true);
+    }
+  });
+
+  await t.step('and still on the grid with a title block, where the gap is bigger', () => {
+    setTitleBlockEnabled(true);
+    setTitleBlockMeasuredH(TITLE_BLOCK_H);
+    for (const pi of [0, 1]) {
+      const line = lastGridLine(pi);
+      assertEquals((line - firstGridLine(pi)) % GRID_SIZE, 0);
+      assertEquals(line <= pageWorkArea(pi).bottom, true);
+    }
+    setTitleBlockEnabled(false);
+  });
+
+  await t.step('lastGridColumn is on the grid and at or left of the right margin', () => {
+    const col = lastGridColumn();
+    assertEquals((col - margins.left) % GRID_SIZE, 0);
+    assertEquals(col <= CANVAS_W - margins.right, true);
+    assertEquals(CANVAS_W - margins.right - col < GRID_SIZE, true);
   });
 
   // Leave the module-level flag as the suite found it — state.ts is a shared singleton and a test

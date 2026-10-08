@@ -615,6 +615,11 @@ construction. Check the render order against the clip whenever either changes.
 
 ## Resize / stretch handles
 
+🔑 **Figure numbers are a readout of POSITION, not an identity.** `renumberFigures()` assigns `Fig 1..N`
+by upper-left corner, top-to-bottom then left-to-right, from `updatePageCount`. So whatever figure sits
+highest IS Fig 1 — you cannot move "Fig 2" above "Fig 1". That reads as a movement lock and is not one;
+see [`known-issues.md`](known-issues.md) § 32c.
+
 All blocks drag-to-reposition on the 20 px snap grid. Beyond that:
 
 | Block             | Right-edge (`w`)            | Bottom-edge (`h`)           |

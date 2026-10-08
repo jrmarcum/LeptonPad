@@ -10,7 +10,8 @@ const MIN_W = 80;
 const MIN_H = GRID_SIZE * 3;
 
 /** The work-area box this figure may grow into. Shared with every other resizable block. */
-const figureMaxBox = (el: HTMLElement, block: Block) => blockMaxBox(el, block, MIN_W, MIN_H);
+const figureMaxBox = (el: HTMLElement, block: Block) =>
+  blockMaxBox(el, block, { minW: MIN_W, minH: MIN_H, grid: true });
 
 /** Snap to the grid, then hard-cap — rounding UP must never re-cross the bound. */
 export function snapWithin(v: number, min: number, max: number): number {
@@ -63,6 +64,45 @@ function nextFigureNum(): number {
 }
 
 export { nextFigureNum };
+
+/** Absolute document position of a block, so a section child sorts with its section. */
+function docPos(b: Block): { y: number; x: number } {
+  if (!b.parentSectionId) return { y: b.y, x: b.x };
+  const sec = state.blocks.find((s) => s.id === b.parentSectionId);
+  return sec ? { y: sec.y + b.y, x: sec.x + b.x } : { y: b.y, x: b.x };
+}
+
+/**
+ * Renumber every figure `Fig 1…N` in document order — top to bottom, then left to right.
+ *
+ * `nextFigureNum` only ever takes the highest number in use, so deleting Fig 2 of three left
+ * "Fig 1, Fig 3" and the next figure added became Fig 4. Captions and body text cite these numbers,
+ * so a gap is wrong rather than untidy (Jon, 2026-10-07).
+ *
+ * Order-derived on purpose: the number is a consequence of where the figure sits, so moving figures
+ * into the order you want renumbers them, and inserting one between two others pushes the rest down
+ * without anything having to be renamed by hand.
+ *
+ * Called from `updatePageCount`, which is the pass that already runs after every geometry change —
+ * drag, delete, paste, resize — and which is where `markPageOverflow` does the same kind of
+ * after-the-fact consistency fix. Not called on load: it would rewrite `block.label`, which
+ * `projectFingerprint()` serializes, so opening an old sheet would report unsaved changes.
+ */
+export function renumberFigures() {
+  const figs = state.blocks.filter((b) => b.type === 'figure');
+  if (figs.length === 0) return;
+  figs.sort((a, b) => {
+    const pa = docPos(a), pb = docPos(b);
+    return pa.y - pb.y || pa.x - pb.x;
+  });
+  figs.forEach((b, i) => {
+    const label = `Fig ${i + 1}`;
+    if (b.label === label) return;
+    b.label = label;
+    const header = document.getElementById(b.id)?.querySelector<HTMLElement>('.figure-label');
+    if (header) header.textContent = label;
+  });
+}
 
 export function buildFigureBlock(el: HTMLElement, block: Block) {
   el.classList.add('figure-block');

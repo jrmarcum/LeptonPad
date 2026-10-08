@@ -2,7 +2,7 @@
 
 **There is a test suite as of 2026-09-23** — `tests/`, run by `deno task test`, and **`deno task
 check` now runs `fmt && lint && test`**, so a regression blocks a release the way a lint error does.
-**250 steps in 51 cases across 19 files** at v2.11.1 (2026-10-07), all against the real engine (pure
+**254 steps in 51 cases across 19 files** at v2.11.2 (2026-10-07), all against the real engine (pure
 functions in, `Quantity` out, no DOM).
 
 ⚠️ **Count cases and files separately when quoting this.** `deno test` prints "51 passed (250
@@ -310,3 +310,34 @@ Assertions 1 and 6 exist because both failed the first time this was run. See
 **Where to extend next:** `unit-defs.ts` (round-trip every unit through `toBase`/`fromBase` and
 assert no definition is unreachable), then `persistence.ts` (`parseProjectJson` on malformed input —
 it already has repair logic with no coverage).
+
+## Driving the real app (added 2026-10-07)
+
+The suite is DOM-free, so anything about placement, snapping or print has to be checked in a browser.
+No Playwright is installed; Chrome plus CDP over Node is enough and needs nothing added:
+
+```
+chrome.exe --headless=new --remote-debugging-port=9222 --user-data-dir=<temp> about:blank
+# then PUT /json/new?<url>, open the tab's webSocketDebuggerUrl, and Runtime.evaluate
+```
+
+🔑 **Unregister the service worker first, or the harness silently tests the LAST RELEASE.**
+`public/sw.js` caches `/main.js` under `leptonpad-v<version>`, so a rebuild **without a version bump
+is served the previous bundle** — the cache-busting design working exactly as intended. This cost
+several false "the fix does not work" conclusions on 2026-10-07 before the page was asked what it was
+running: it answered `v2.11.1` while `dist/main.js` on disk already had the new code. The check that
+settles it in one line:
+
+```js
+const src = await (await fetch(/main.js, { cache: no-store })).text(); // still SW-served!
+return { version: document.querySelector(.sidebar-version)?.textContent, hasMyChange: src.includes(…) };
+```
+
+`cache: 'no-store'` does NOT bypass a service worker. Unregister every registration and delete every
+cache in a throwaway tab, then open a fresh one. `Network.setBypassServiceWorker` helps only for a tab
+opened after it is set.
+
+⚠️ **`deno task serve` exits on its own.** `serve.ts` watches an SSE connection and calls `Deno.exit`
+five seconds after the last one aborts, so closing a driven tab kills the server mid-run. It also runs
+`cmd /c start`, which **opens a real browser window on the user’s desktop** — do not background it
+during an automated run. Use `main.ts` (port 8000) instead: static, no SSE, no auto-open.

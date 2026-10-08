@@ -792,3 +792,60 @@ sites. A self-resizing block must trigger the page-fit pass, and `src/blocks/` m
 `markPageOverflow` already flags an over-page section and letting the handle create that state only
 to mark it wrong was the worst of both. If a section needs to outgrow a page while being filled,
 this cap will fight the user — revisit here first.
+
+## 32. Four figure reports, three causes — FIXED 2026-10-07 (v2.11.2)
+
+Follow-on to § 31. Verified by driving the real app over CDP, not by reading.
+
+### 32a. The v2.11.1 cap was the raw margin, which is not on a grid line
+
+`blockMaxBox` capped at `margins`, but figure/table/heat map snap their size to `GRID_SIZE`, so **the
+cap won over the snap and the far edge landed between lines** — "figures snapping to the midpoint of
+the grid lines instead of the intersections".
+
+|                    | no title block | title block |
+| ------------------ | -------------- | ----------- |
+| grid origin        | 24             | 136         |
+| bottom margin      | 1032           | 1032        |
+| **last grid line** | **1024**       | **1016**    |
+
+So the bound was `1008 - k*20`, not a multiple of 20 — 8 px out, 16 px with a title block.
+`blockMaxBox` now takes `grid: true` and uses `lastGridLine` / the new `lastGridColumn`. Plot and
+section stay on the raw margin because their sizes are continuous, not snapped.
+
+⚠️ **Why it hid:** with the shipped Letter defaults the usable WIDTH is 816-72-24 = 720 = exactly 36
+squares, so the right margin IS on a line. Only the vertical axis was unlucky. Change the margins and
+the horizontal breaks the same way — hence `lastGridColumn` rather than trusting the arithmetic.
+
+### 32b. The page count was computed from the already-clamped position
+
+`repositionBlocks` clamps the rendered top to `CANVAS_H - offsetHeight`. `updatePageCount` then read
+`el.style.top` — the clamped value — so the canvas never grew, which is what kept the clamp biting.
+A chicken-and-egg: **a block could not be moved past the end of the document.** Shift+Enter looked
+ignored and a figure dropped low landed somewhere other than the cursor. Figures hit it hardest
+because they are the tallest blocks. `maxBottom` now uses the INTENDED top from `block.y`.
+
+⚠️ The clamp does not write back, so `block.y` and the rendered top silently disagree while it holds.
+That divergence is still there; only the cause of it biting has been removed.
+
+### 32c. Figure numbers never reflowed
+
+`nextFigureNum` only takes the highest number in use, so deleting Fig 2 of three left "Fig 1, Fig 3"
+and the next figure became Fig 4. `renumberFigures()` now assigns `Fig 1..N` by **upper-left corner,
+top-to-bottom then left-to-right** (Jon’s wording), called from `updatePageCount` beside
+`markPageOverflow`. Section children sort at their section’s absolute position via `docPos`.
+
+Not called on load: it writes `block.label`, which `projectFingerprint()` serializes, so opening an
+old sheet would report unsaved changes.
+
+⚖️ **The number is now a readout of position, not an identity.** "Fig 2 is locked below Fig 1" was
+reported as a movement bug; the block moves freely (verified: a block at y=504 walked to y=24 past
+one at y=104) — its LABEL follows it, and the other figure’s label moves the other way. Whatever is
+on top IS Fig 1. Position-derived numbering and stable figure identity cannot both hold; if a figure
+ever needs a fixed number, that is a different feature, not a bug in this one.
+
+### 32d. NOT reproduced: a growing minimum spacing per placement
+
+Four successive double-clicks with the cursor untouched stacked four figures at exactly the same
+coordinates — no increment. Whatever produces the growing gap is not in the dblclick placement path.
+Still open.

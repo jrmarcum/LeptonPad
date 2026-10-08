@@ -1467,7 +1467,7 @@ export function buildPlotBlock(el: HTMLElement, block: Block) {
     // Capped at the page's bottom margin, the same way the right handle is capped at the right
     // margin. Without it a plot could be dragged across a page break, and print cuts the canvas at
     // the sheet boundary — so whatever fell on the far side was simply lost (audit 2026-10-07).
-    const maxH = blockMaxBox(el, block, 120).h;
+    const maxH = blockMaxBox(el, block, { minH: 120 }).h;
     const onMove = (mv: PointerEvent) => {
       const newH = Math.min(Math.max(120, startH + (mv.clientY - startY)), maxH);
       block.h = newH;

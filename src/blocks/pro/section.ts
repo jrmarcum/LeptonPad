@@ -431,7 +431,7 @@ export function buildSectionBlock(el: HTMLElement, block: Block) {
     // Capped at the page's bottom margin, like every other resizable block (audit 2026-10-07).
     // `markPageOverflow` already flags a section that runs past it, so letting the handle create
     // that state only to mark it as wrong was the worst of both.
-    const maxH = blockMaxBox(el, block, 80).h;
+    const maxH = blockMaxBox(el, block, { minH: 80 }).h;
     const onMove = (mv: PointerEvent) => {
       const newH = Math.min(Math.max(80, startH + (mv.clientY - startY)), maxH);
       block.h = newH;
