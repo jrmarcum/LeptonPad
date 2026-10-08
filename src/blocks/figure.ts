@@ -354,9 +354,14 @@ export function buildFigureBlock(el: HTMLElement, block: Block) {
   el.appendChild(rightHandle);
   el.appendChild(bottomHandle);
 
-  // Stop mousedown inside img/placeholder from starting a block drag
-  imgWrap.addEventListener('mousedown', (e) => {
-    const t = e.target as HTMLElement;
-    if (t !== rightHandle && t !== bottomHandle) e.stopPropagation();
-  });
+  // ⚠️ This used to `stopPropagation()` on mousedown over the image area, to "stop mousedown
+  // inside img/placeholder from starting a block drag". But the image area IS the body of the
+  // figure — the obvious place to grab it — so the block drag never started and the only
+  // draggable strip was the thin `FIG n` label. That is what "the figures are locked" meant
+  // (Jon, 2026-10-07): not a constraint on where a figure may go, but no way to pick one up.
+  //
+  // Nothing is lost by letting it through. The drag handler ignores anything under `DRAG_SLOP`,
+  // so a click that does not move still reaches the placeholder's click-to-upload; and the two
+  // resize handles stop propagation themselves, so grabbing an edge still resizes rather than
+  // drags. A figure now moves by its body like every other block.
 }

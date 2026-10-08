@@ -1038,3 +1038,45 @@ old 552 ceiling, so § 34d holds too.
 ⚠️ **Harness note:** a local `main.ts` server reports a STALE version string, because it reads
 `deno.json` once at startup. Judge freshness by behaviour or by the bundle hash, never by the
 sidebar version, when testing locally.
+
+## 36. "The figures are locked" — they could not be PICKED UP — FIXED 2026-10-07 (v2.11.8)
+
+The end of the figure-placement series, and like § 35 it was not what it looked like. Nothing
+constrained where a figure could GO. There was no way to grab one.
+
+🔑 **`src/blocks/figure.ts`, last lines of the builder:**
+
+```js
+// Stop mousedown inside img/placeholder from starting a block drag
+imgWrap.addEventListener('mousedown', (e) => {
+  const t = e.target;
+  if (t !== rightHandle && t !== bottomHandle) e.stopPropagation();
+});
+```
+
+The image area **is** the body of a figure — almost its whole surface, and the obvious place to
+grab it. Swallowing `mousedown` there meant the block drag never started. The caption stops
+propagation too (correctly: it is a text field), so the only draggable strip left was the thin
+`FIG n` label at the top. Jon: "the figures are locked", "it still locked to the original y
+coordinate lock point" — a figure that cannot be picked up looks exactly like one pinned to where
+it was created.
+
+**Fix:** let `mousedown` through. Nothing is lost — the drag handler ignores movement under
+`DRAG_SLOP` (3 px), so a click that does not move still reaches the placeholder's click-to-upload,
+and the two resize handles stop propagation themselves, so an edge still resizes rather than drags.
+
+**Verified in a browser** (clean profile): a figure at y=464 grabbed by the middle of its image
+area dragged to y=44, passing above the figure at y=64, and the labels renumbered to match the new
+order — Fig 1 / Fig 2 by position, unforced.
+
+⚖️ **The pattern across § 34–36.** Three reports that all sounded like "the position is locked",
+three different causes, none of them a position constraint:
+
+| §  | what it looked like                       | what it was                                                                |
+| -- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| 34 | figures shoved down and to the left       | `resolveOverlapsRight` auto-reflow, plus a right-edge clamp                |
+| 35 | new figure locked below the preceding one | the grid CURSOR never moved — a handle overhanging its block ate the click |
+| 36 | figures cannot be moved at all            | the figure body swallowed `mousedown`, so no drag ever began               |
+
+When a user says "locked", check in this order: can it be **grabbed**, does the **cursor** move,
+and only then look for something that **moves** it.
