@@ -918,3 +918,57 @@ it.
 
 ⚠️ **Harness lesson:** re-read `getBoundingClientRect()` immediately before every synthetic click,
 or scroll makes a passing test lie in both directions.
+
+## 34. Figures would not go where they were put — 2026-10-07 (v2.11.5)
+
+Three symptoms, reported together, two mechanisms. Both are AUTO-LAYOUT fighting deliberate
+placement, which is the wrong trade for a figure: "There shouldn’t be any spacing at all. Just
+place at this point picked." (Jon)
+
+### 34a. `resolveOverlapsRight` reflowed figures — FIXED
+
+Runs on **Ctrl+→** only. When the moved block has no room to its right it **wraps the colliding
+block back to `margins.left`** on a new row and shoves every block below down by
+`bH + GRID_SIZE` — a whole block height plus a square. Sensible for flowing formula rows, wrong
+for a figure. It produced all three reports at once:
+
+| report                                                               | mechanism                                                 |
+| -------------------------------------------------------------------- | --------------------------------------------------------- |
+| "will not let a figure land to the right of a previous figure block" | the wrap sends it back to `margins.left`                  |
+| "shifts it down two figure block heights"                            | `otherTop + bH + GRID_SIZE`, once per pass                |
+| "won’t unlock so it can move above another figure block"             | an overlapping figure is relocated rather than left alone |
+
+**Fix:** figures are exempt in BOTH roles — as the moved block (early return) and as a block that
+could be pushed or wrapped (`inRegion`, and the shove loop). Figure-to-figure overlap is simply
+allowed now.
+
+### 34b. The right-edge clamp silently pulls a figure left — OPEN
+
+`Canvas.repositionBlocks` runs after every placement and clamps:
+
+```js
+const absLeft = clamp(
+  margins.left + snap(block.x),
+  margins.left,
+  CANVAS_W - margins.right - el.offsetWidth,
+);
+```
+
+With the Letter defaults and a 240 px figure the ceiling is **x = 552**. Click anywhere right of
+that and the figure lands at 552 — "clicking in the working area then double clicking does not
+place the new figure block where the cursor position is". And once a figure sits at 552 nothing
+can be placed to its right, ever.
+
+⚠️ **The clamp does not write back to `block.x`**, so the stored position and the rendered one
+disagree for as long as it holds — the same divergence § 32b describes on the vertical axis.
+
+Not yet changed, because keeping a block inside the right margin is correct in principle; what is
+wrong is doing it silently and leaving the data inconsistent. The options are to clamp the CURSOR
+so the user sees where it will actually go, or to write the clamped value back to `block.x`.
+Needs a decision before it is touched.
+
+### 34c. Confirmed NOT a cause
+
+Successive double-clicks **without moving the cursor stack every block at the same point** — Jon
+confirmed this independently, and a CDP run showed four figures at identical coordinates. There is
+no per-placement increment anywhere in the dblclick path; § 32d can be read with that in mind.

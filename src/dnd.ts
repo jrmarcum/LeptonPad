@@ -526,11 +526,32 @@ export function blocksOverlap(a: HTMLElement, b: HTMLElement): boolean {
   return aR > bL && aL < bR && aB > bT && aT < bB;
 }
 
+/** A figure is placed deliberately, so it is never reflowed — see `resolveOverlapsRight`. */
+function isFigure(el: HTMLElement): boolean {
+  return el.classList.contains('figure-block');
+}
+
 // When moving a block right, cascade-push any block it collides with.
+//
+// ⚠️ **Figures are exempt, in both roles** (Jon, 2026-10-07). This function is auto-layout: when a
+// block has no room to its right it WRAPS to the left margin and shoves everything below down by
+// `bH + GRID_SIZE`. That is reasonable for flowing formula rows and completely wrong for a figure,
+// which the user positions on purpose. It produced all three reports:
+//
+//   - "the placement will not let a figure block land to the right of a previous figure block"
+//     — the wrap sends it back to `margins.left` instead of leaving it beside its neighbour;
+//   - "it shifts it down two figure block heights" — `otherTop + bH + GRID_SIZE`, once per pass;
+//   - "it won't unlock so that it can move above another figure block" — a figure that overlaps
+//     another gets relocated rather than allowed to sit there.
+//
+// Overlap between figures is now simply allowed. "There shouldn't be any spacing at all. Just
+// place at this point picked."
 export function resolveOverlapsRight(movedEl: HTMLElement) {
   if (movedEl.classList.contains('title-block') || movedEl.classList.contains('section-block')) {
     return;
   }
+  // As the MOVED block: a figure dragged right never triggers a reflow of anything.
+  if (isFigure(movedEl)) return;
 
   const movedLeft = parseInt(movedEl.style.left);
   const movedTop = parseInt(movedEl.style.top);
@@ -541,6 +562,9 @@ export function resolveOverlapsRight(movedEl: HTMLElement) {
   function inRegion(el: HTMLElement): boolean {
     if (el.classList.contains('title-block')) return false;
     if (el.classList.contains('section-block')) return false;
+    // As a PUSHED block: a figure is never shoved sideways or wrapped to make room for someone
+    // else. Another block flows around it instead.
+    if (isFigure(el)) return false;
     if (childToSection.has(el.id)) return false;
     const elLeft = parseInt(el.style.left);
     const elTop = parseInt(el.style.top);
@@ -573,6 +597,9 @@ export function resolveOverlapsRight(movedEl: HTMLElement) {
           for (const other of canvas.domElement.querySelectorAll<HTMLElement>('.block')) {
             if (other === movedEl || other === b) continue;
             if (other.classList.contains('title-block')) continue;
+            // And never dragged down by someone else's wrap — this is the `bH + GRID_SIZE` shove
+            // that read as "it shifts it down two figure block heights".
+            if (isFigure(other)) continue;
             if (childToSection.has(other.id)) continue;
             const otherTop = parseInt(other.style.top);
             if (otherTop >= wrapY) {
