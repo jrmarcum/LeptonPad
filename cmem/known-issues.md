@@ -993,3 +993,48 @@ bring it back.
 figure block positions."** A figure is placed deliberately. Auto-layout — reflow, wrap, clamp,
 max-width — exists for flowing content and is wrong for it in every instance found so far. Before
 adding any rule that moves or resizes a block on its behalf, exempt figures.
+
+## 35. "Locked below the preceding block" — the cursor never moved — FIXED 2026-10-07 (v2.11.7)
+
+**The crux of four rounds of figure-placement reports, and it was never a placement bug at all.**
+Nothing relocated the new block. The grid cursor silently kept its previous value, and the next
+double-click placed at that stale point — which was wherever the previous figure had gone. Hence
+"hard coded to place it and lock it below the preceding placed block" (Jon).
+
+🔑 **Root cause, `main.ts` canvas click handler:**
+
+```js
+// Clicks inside a block are handled by the block — don’t move the cursor
+if (e.target.closest('.block')) return; // ← DOM ancestry, not geometry
+```
+
+A resize handle is a **descendant** of `.block` but hangs **22–44 px outside its box**
+(`right: -22px; width: 44px`). So a click in open space beside a figure matched `closest('.block')`,
+the handler returned, and `moveGridCursor` never ran. Jon described the hit area exactly: "when I
+click the cursor to the right of the OUTSIDE of the previous figure block".
+
+**Two fixes, both needed:**
+
+1. **Test the block’s BOX, not ancestry.** `getBoundingClientRect()` on the matched block; return
+   only if the click is genuinely inside it. A click in the overhang now falls through.
+2. **A tap on a LIVE handle must still place the cursor.** A handle’s `pointerdown` calls
+   `preventDefault()`, which suppresses the compatibility `click` entirely — so fix 1 never runs
+   when the handle is active, and `dropBlock` **selects every block it places**, so the figure you
+   just placed always has live handles. Pointer events are not suppressed: a capture-phase
+   `pointerdown`/`pointerup` pair on the canvas treats a press-release with < 3 px of travel as a
+   click and places the cursor. Capture phase, because handles `stopPropagation()`.
+
+⚠️ **v2.11.4 tried to fix this with CSS alone** (`pointer-events: none` until `:hover`) and could
+not: reaching the strip outside a block means crossing the block, which hovers it and switches the
+handles back on. A `.selected`-only variant fails for the same reason in reverse — the just-placed
+block is already selected. Geometry and the no-drag tap are what settle it; the CSS rule is kept
+only because an inert handle is the cheaper path when the block is neither hovered nor selected.
+
+**Verified in a browser** (clean Chrome profile, no service worker, fresh `getBoundingClientRect`
+before every synthetic click): clicking 10 px right of each figure moved the cursor to that exact
+point and the next block landed there — `(352,104)`, `(592,344)`, `(792,784)`. The last is past the
+old 552 ceiling, so § 34d holds too.
+
+⚠️ **Harness note:** a local `main.ts` server reports a STALE version string, because it reads
+`deno.json` once at startup. Judge freshness by behaviour or by the bundle hash, never by the
+sidebar version, when testing locally.

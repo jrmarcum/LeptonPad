@@ -1104,6 +1104,12 @@ main {
 .block [class*='-handle'] {
   pointer-events: none;
 }
+/* Grabbable on hover as well as when selected, so an edge can be taken without selecting first.
+   This rule alone never fixed the click-stealing it was introduced for in v2.11.4 — reaching the
+   strip outside a block means crossing the block, which hovers it and switches the handles back
+   on. The two fixes that DO settle it are in `main.ts`: the canvas click handler tests the
+   block's BOX rather than DOM ancestry, and a press-release on a handle with no movement between
+   is treated as a click and placed like any other. See known-issues § 35. */
 .block:hover [class*='-handle'],
 .block.selected [class*='-handle'] {
   pointer-events: auto;

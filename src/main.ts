@@ -1625,12 +1625,50 @@ async function start() {
         setSkipNextCanvasClick(false);
         return;
       }
-      // Clicks inside a block are handled by the block — don't move the cursor
-      if ((e.target as HTMLElement).closest('.block')) return;
+      // Clicks inside a block are handled by the block — don't move the cursor.
+      //
+      // ⚠️ Test the block's BOX, not DOM ancestry. A resize handle is a descendant of `.block`
+      // but hangs 22–44 px OUTSIDE it, so `closest('.block')` was true for clicks in open space
+      // beside a figure — and this returned without moving the cursor. The next double-click
+      // placement then used the STALE cursor, which was wherever the previous figure had gone.
+      // That is the whole of "it is hard coded to place it and lock it below the preceding placed
+      // block" (Jon, 2026-10-07): nothing relocated the new block, the cursor never moved.
+      const overBlock = (e.target as HTMLElement).closest<HTMLElement>('.block');
+      if (overBlock) {
+        const r = overBlock.getBoundingClientRect();
+        const insideBox = e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top && e.clientY <= r.bottom;
+        if (insideBox) return;
+      }
       const rect = canvas.domElement.getBoundingClientRect();
       moveGridCursor(e.clientX - rect.left, e.clientY - rect.top);
       if (e.target === canvas.domElement) clearSelection();
     });
+
+    // A resize handle calls `preventDefault()` on pointerdown, which suppresses the compatibility
+    // `click` — so when the handle is live (its block is selected, which `dropBlock` does to every
+    // block it places) a CLICK in the overhang strip never reaches the handler above at all, and
+    // the geometric test there never runs. Pointer events are not suppressed, so recover the case
+    // here: a press and release on a handle with no movement between them is a click, not a drag,
+    // and must place the cursor like any other click on open canvas.
+    //
+    // Capture phase, because the handles call `stopPropagation()` on pointerdown.
+    let handleTap: { x: number; y: number } | null = null;
+    canvas.domElement.addEventListener('pointerdown', (e) => {
+      const t = e.target as HTMLElement;
+      handleTap = typeof t.className === 'string' && t.className.includes('-handle')
+        ? { x: e.clientX, y: e.clientY }
+        : null;
+    }, true);
+    canvas.domElement.addEventListener('pointerup', (e) => {
+      const start = handleTap;
+      handleTap = null;
+      if (!start) return;
+      // 3 px of slop: a deliberate resize always travels further than this.
+      if (Math.abs(e.clientX - start.x) > 3 || Math.abs(e.clientY - start.y) > 3) return;
+      const r = canvas.domElement.getBoundingClientRect();
+      moveGridCursor(e.clientX - r.left, e.clientY - r.top);
+    }, true);
 
     // Sidebar dblclick → place block immediately at current cursor position
     document.getElementById('sidebar-left')!.addEventListener('dblclick', (e) => {
