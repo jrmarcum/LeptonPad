@@ -15,6 +15,7 @@ import {
   gridCursor,
   lastGridLine,
   margins,
+  maxWidthFor,
   numPages,
   PAGE_H,
   pageIndexOf,
@@ -511,7 +512,7 @@ export function placeBlock(el: HTMLElement, newLeft: number, newTop: number) {
   }
   el.style.left = `${newLeft}px`;
   el.style.top = `${newTop}px`;
-  el.style.maxWidth = `${CANVAS_W - margins.right - newLeft}px`;
+  el.style.maxWidth = maxWidthFor(b, newLeft);
   if (b) {
     b.x = newLeft - margins.left;
     b.y = newTop - margins.top;

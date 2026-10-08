@@ -88,6 +88,8 @@ import {
   gridCursor,
   margins,
   marginUnit,
+  maxLeftFor,
+  maxWidthFor,
   multiDragState,
   numPages,
   PAGE_H,
@@ -1271,11 +1273,11 @@ async function start() {
             const dragLeft = clamp(
               orig.left + dx,
               margins.left,
-              CANVAS_W - margins.right - el.offsetWidth,
+              maxLeftFor(el, state.blocks.find((b) => b.id === el.id)),
             );
             el.style.left = `${dragLeft}px`;
             el.style.top = `${clamp(orig.top + dy, dragTopMin, CANVAS_H + PAGE_H)}px`;
-            el.style.maxWidth = `${CANVAS_W - margins.right - dragLeft}px`;
+            el.style.maxWidth = maxWidthFor(blk, dragLeft);
           }
         }
       }
@@ -1381,7 +1383,7 @@ async function start() {
               const snappedLeft = clamp(
                 mSnapX(parseInt(el.style.left)),
                 margins.left,
-                CANVAS_W - margins.right - el.offsetWidth,
+                maxLeftFor(el, state.blocks.find((b) => b.id === el.id)),
               );
               const snappedTop = clamp(
                 mSnapY(parseInt(el.style.top)),
@@ -1493,7 +1495,7 @@ async function start() {
               const newLeft = clamp(
                 parseInt(el.style.left) + d[0],
                 margins.left,
-                CANVAS_W - margins.right - el.offsetWidth,
+                maxLeftFor(el, state.blocks.find((b) => b.id === el.id)),
               );
               const newTop = clamp(parseInt(el.style.top) + d[1], margins.top, CANVAS_H + PAGE_H);
               placeBlock(el, newLeft, newTop);

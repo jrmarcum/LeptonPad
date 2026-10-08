@@ -972,3 +972,24 @@ Needs a decision before it is touched.
 Successive double-clicks **without moving the cursor stack every block at the same point** — Jon
 confirmed this independently, and a CDP run showed four figures at identical coordinates. There is
 no per-placement increment anywhere in the dblclick path; § 32d can be read with that in mind.
+
+### 34d. The right-edge clamp and max-width — FIXED v2.11.6
+
+§ 34b, now closed. Two locks, both from keeping a block inside the right margin:
+
+- **`clamp(..., CANVAS_W - margins.right - el.offsetWidth)`** in `Canvas.repositionBlocks`, the
+  live drag, the drag-end snap and Ctrl+Arrow. With the Letter defaults a 240 px figure could
+  never have a left edge past **552**, so it could not be put to the right of another figure and a
+  click further right silently pulled it back. Now `maxLeftFor(el, block)`: ordinary blocks are
+  unchanged, a figure may sit anywhere on the lined page.
+- **`el.style.maxWidth`** tied to the right margin would then SQUEEZE a figure narrower the
+  further right it went — the width lock that replaces the position lock. Now `maxWidthFor(block,
+  absLeft)`, which returns `''` for a figure.
+
+The left edge still cannot leave the work area: a block starting off the page cannot be grabbed to
+bring it back.
+
+🔑 **The principle, after four rounds of this (Jon, 2026-10-07): "You have to stop locking the
+figure block positions."** A figure is placed deliberately. Auto-layout — reflow, wrap, clamp,
+max-width — exists for flowing content and is wrong for it in every instance found so far. Before
+adding any rule that moves or resizes a block on its behalf, exempt figures.

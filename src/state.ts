@@ -224,6 +224,38 @@ export function lastGridColumn(): number {
 }
 
 /**
+ * The furthest LEFT edge a block may be given.
+ *
+ * An ordinary block is kept wholly inside the right margin, which is right for flowing content.
+ * **A figure is not.** That clamp is `CANVAS_W - margins.right - offsetWidth`, so with the Letter
+ * defaults a 240 px figure could never have a left edge past **552** — it could not be put to the
+ * right of another figure, and a click further right than that silently pulled it back without
+ * updating `block.x`, so the stored and rendered positions then disagreed.
+ *
+ * "You have to stop locking the figure block positions." (Jon, 2026-10-07.) A figure is placed
+ * deliberately, so it may sit anywhere on the lined part of the page; if it overhangs the right
+ * margin that is the author's call and it is plainly visible. The left edge still cannot leave the
+ * work area, because a block that starts off the page cannot be grabbed to bring it back.
+ */
+export function maxLeftFor(el: HTMLElement, block: Block | undefined): number {
+  const inside = CANVAS_W - margins.right - el.offsetWidth;
+  if (block?.type !== 'figure') return inside;
+  return Math.max(inside, lastGridColumn() - GRID_SIZE);
+}
+
+/**
+ * The inline `max-width` a positioned block should carry.
+ *
+ * Every block gets one so flowing content cannot run past the right margin. A figure must NOT:
+ * now that `maxLeftFor` lets it sit further right, a `max-width` tied to the right margin would
+ * silently squeeze it narrower the further right it goes — the width lock that replaces the
+ * position lock. A figure's width is whatever the author set.
+ */
+export function maxWidthFor(block: Block | undefined, absLeft: number): string {
+  return block?.type === 'figure' ? '' : `${CANVAS_W - margins.right - absLeft}px`;
+}
+
+/**
  * Snap an absolute canvas y to the grid of the page it lands on, then keep it inside that page's
  * lined band. Page-relative on purpose — see the note above about `PAGE_H` and `GRID_SIZE`.
  */

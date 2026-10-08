@@ -8,6 +8,8 @@ import {
   CANVAS_W,
   childToSection,
   margins,
+  maxLeftFor,
+  maxWidthFor,
   onAddToSelection,
   onSelectBlock,
   PAGE_H,
@@ -141,7 +143,7 @@ export class Canvas {
       const absLeft = clamp(
         margins.left + this.snap(block.x),
         margins.left,
-        CANVAS_W - margins.right - el.offsetWidth,
+        maxLeftFor(el, block),
       );
       // block.y is stored as (newTop - margins.top), so restore without adding tbH again — then
       // snap, with the SAME function addBlock uses.
@@ -160,7 +162,7 @@ export class Canvas {
       );
       el.style.left = `${absLeft}px`;
       el.style.top = `${absTop}px`;
-      el.style.maxWidth = `${CANVAS_W - margins.right - absLeft}px`;
+      el.style.maxWidth = maxWidthFor(block, absLeft);
     });
     // Reposition title block overlays for each page
     this.element.querySelectorAll<HTMLElement>('.title-block-overlay').forEach((el, i) => {
@@ -195,7 +197,7 @@ export class Canvas {
       // page's grid lines — the further down the document, the further off. snapToPageGrid also
       // floors at the first line below the title block, which supersedes clearTitleBlock here.
       el.style.top = `${snapToPageGrid(base + block.y)}px`;
-      el.style.maxWidth = `${CANVAS_W - margins.right - initLeft}px`;
+      el.style.maxWidth = maxWidthFor(block, initLeft);
     } else {
       el.style.left = `${this.snap(block.x)}px`;
       el.style.top = `${this.snap(block.y)}px`;
