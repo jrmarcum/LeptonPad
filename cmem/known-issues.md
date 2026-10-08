@@ -849,3 +849,45 @@ ever needs a fixed number, that is a different feature, not a bug in this one.
 Four successive double-clicks with the cursor untouched stacked four figures at exactly the same
 coordinates — no increment. Whatever produces the growing gap is not in the dblclick placement path.
 Still open.
+
+## 33. A figure resize handle you cannot grab, and section children that never snap — 2026-10-07
+
+### 33a. The bottom handle lived on top of the caption — FIXED (v2.11.3)
+
+`.figure-bottom-handle` was `bottom: -22px; height: 44px`, so **22 px of it sat inside the block, on
+top of the caption**. The caption has to win that overlap or it cannot be edited at all (§ 29, the
+opposite complaint from 2026-10-06), so the handle’s upper half was dead. Measured: 22 px of
+overlap, and a hit test down the block’s centre line returned `.figure-caption` for every pixel from
+the block bottom up to −25 px. "I can’t stretch the figure block from the bottom without entering
+the caption area" (Jon) is that dead half.
+
+The handle now sits **entirely below the block** (`bottom: -24px; height: 24px`), so the two never
+contend: the caption owns everything inside, the handle owns the strip below. A `pointer: coarse`
+breakpoint grows it to 44 px **downward only** — growing it upward is how it got over the caption in
+the first place.
+
+### 33b. A section child is never snapped when dragged — OPEN, needs confirmation
+
+`src/main.ts` child-drag branch:
+
+```js
+const newLeft = clamp(orig.left + dx, 0, maxLeft); // raw pointer delta, NO snap()
+const newTop = clamp(orig.top + dy, 0, maxTop);
+```
+
+Every other drag path goes through `placeBlock`, which snaps with the same function `addBlock` uses.
+This one does not, so a child lands wherever the pointer left it. **And even when it is snapped** —
+`Canvas.addBlock`’s child branch does `this.snap(block.x)` — that is relative to the section’s
+CONTENT box, whose origin is below the section header and summary, neither a grid multiple. So a
+child is off the page grid twice over: unsnapped on drag, and snapped to the wrong origin on reload.
+
+⚠️ **Not yet confirmed as the cause of Jon’s report** ("it is definitely the drag and drop", "the
+upper left corner of the block is not snapping to the grid intersection", 2026-10-07). Sections are
+Pro-gated, so the anonymous CDP harness cannot create one — every path that WAS testable (sidebar
+drop, block drag, Ctrl+Arrow, Shift+Enter, dblclick, with and without a title block) landed exactly
+on intersections. The question that settles it is simply **whether the figures are inside a
+Section**.
+
+The fix, when confirmed: snap the child drag in ABSOLUTE page coordinates and convert back to
+content-relative, so a child lands on the same intersections as everything else rather than on a
+lattice offset by its section’s chrome.

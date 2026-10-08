@@ -2304,13 +2304,25 @@ h2.custom-tools-heading {
   opacity: 1;
 }
 
-/* Bottom resize handle for figure blocks */
+/* Bottom resize handle for figure blocks.
+
+   ⚠️ It sits ENTIRELY BELOW the block edge. At `bottom: -22px; height: 44px` it straddled the
+   edge, putting 22px of itself on top of the caption — and since the caption has to win that
+   overlap to be editable at all (see `.figure-caption`), the upper half of the handle was dead.
+   Measured 2026-10-07: 22px of overlap, and a hit test down the block's centre line returned
+   `.figure-caption` for every pixel from the block bottom up to −25px. "I can't stretch the figure
+   block from the bottom without entering the caption area" (Jon) is that dead half.
+
+   Moving it fully outside means the two never contend: the caption owns everything inside the
+   block, the handle owns the strip below it, and neither needs a z-index fight. The grab target is
+   24px rather than 44px, which is under the 44px touch guideline — the mobile breakpoint below
+   grows it DOWNWARD, away from the caption, rather than back over it. */
 .figure-bottom-handle {
   position: absolute;
-  bottom: -22px;
+  bottom: -24px;
   left: 0;
   right: 0;
-  height: 44px;
+  height: 24px;
   cursor: ns-resize;
   display: flex;
   align-items: center;
@@ -2330,6 +2342,15 @@ h2.custom-tools-heading {
 .block:hover .figure-bottom-handle::after,
 .block.selected .figure-bottom-handle::after {
   opacity: 1;
+}
+
+/* Touch needs a bigger grab strip, but it must grow DOWNWARD only — growing it upward is exactly
+   how it ended up on top of the caption in the first place. */
+@media (pointer: coarse) {
+  .figure-bottom-handle {
+    bottom: -44px;
+    height: 44px;
+  }
 }
 
 @media print {
