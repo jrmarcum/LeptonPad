@@ -1634,13 +1634,20 @@ async function start() {
       // That is the whole of "it is hard coded to place it and lock it below the preceding placed
       // block" (Jon, 2026-10-07): nothing relocated the new block, the cursor never moved.
       const overBlock = (e.target as HTMLElement).closest<HTMLElement>('.block');
+      const rect = canvas.domElement.getBoundingClientRect();
       if (overBlock) {
         const r = overBlock.getBoundingClientRect();
         const insideBox = e.clientX >= r.left && e.clientX <= r.right &&
           e.clientY >= r.top && e.clientY <= r.bottom;
-        if (insideBox) return;
+        if (insideBox) {
+          // Inside a block the block keeps the click — it focuses the cell the user aimed at, and
+          // re-selecting from here would steal that. But the CURSOR still follows, or the next
+          // placement goes wherever it was stranded. A figure is 200 px tall, so "two squares
+          // below the previous figure" is inside it, and this used to return without moving.
+          moveGridCursor(e.clientX - rect.left, e.clientY - rect.top, false);
+          return;
+        }
       }
-      const rect = canvas.domElement.getBoundingClientRect();
       moveGridCursor(e.clientX - rect.left, e.clientY - rect.top);
       if (e.target === canvas.domElement) clearSelection();
     });

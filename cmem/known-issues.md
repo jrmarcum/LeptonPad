@@ -1135,3 +1135,40 @@ already did.
 `dataset.requiresPro` — the Pro gate lives only in that handler, so no auth is involved: a figure
 dropped in a section and dragged by `(37, 53)` landed on the page grid and stayed there across a
 re-render.
+
+## 38. A picked point now wins outright — 2026-10-07 (v2.11.11)
+
+Two regressions from my own v2.11.7/v2.11.9 work, reported together as "the figures not only lock
+to the bottom of the previously added block, but are positioned to the right edge also" and "it
+seems to be creating an assumed space is occupied on the first placement".
+
+### 38a. An EMPTY placeholder reserved space
+
+`freeFigureSlot` (§ 37) ran its occupancy test on **every** placement, so the 240x200 default
+placeholder blocked a point the user had deliberately chosen — before it holds any image at all.
+It now runs **only when the cursor has not moved since the last figure was placed**
+(`lastFigureDropAt`), which is the one case it exists for: a repeat double-click that would
+otherwise stack figures invisibly.
+
+🔑 The two requests only conflict where the picked point is occupied:
+
+- "There shouldn’t be any spacing at all. Just place at this point picked."
+- "left to right then top to bottom if no space remains"
+
+**Deliberate point → exact placement, overlap and all. Repeat at an unmoved cursor → flow.**
+
+### 38b. The cursor could not be put inside an existing block
+
+The canvas click handler returned early for a click inside a block (§ 35 narrowed it to the block’s
+BOX, but it still returned). **A figure is 200 px tall, so "two grid squares below the previous
+figure" is INSIDE it** — the cursor stayed stranded wherever it last was, the double-click placed
+there, and the flow then tiled that off to the right and down. Every symptom in the report comes
+from this one early return.
+
+`moveGridCursor(x, y, select = false)` now moves the cursor and nothing else, and the click handler
+uses it for the inside-a-block case. The block keeps the click — it focuses the cell the user aimed
+at, which re-selecting from here would steal — while the cursor still follows.
+
+**Verified** on a pristine profile: points picked deliberately ON TOP of existing figures landed
+exactly there — `(112,104)` then `(112,144)` over a figure at `(112,64)` — while three further
+double-clicks with the cursor untouched flowed to `(352,144) (72,344) (312,344)` without stacking.

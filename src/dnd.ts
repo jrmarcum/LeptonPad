@@ -634,7 +634,7 @@ export function blockAtCursor(canvasX: number, canvasY: number): HTMLElement | n
   return null;
 }
 
-export function moveGridCursor(canvasX: number, canvasY: number) {
+export function moveGridCursor(canvasX: number, canvasY: number, select = true) {
   const snappedX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
   gridCursor.x = clamp(snappedX, margins.left, CANVAS_W - margins.right);
 
@@ -665,6 +665,18 @@ export function moveGridCursor(canvasX: number, canvasY: number) {
   canvas.moveGhost(gridCursor.x, gridCursor.y);
   const el = document.getElementById('cursor-coords');
   if (el) el.textContent = `x: ${gridCursor.x}px  y: ${gridCursor.y}px`;
+
+  // `select: false` moves the cursor and nothing else. Used for a click that landed INSIDE an
+  // existing block: the block's own handlers must keep that click (focusing the cell the user
+  // actually aimed at), but the cursor still has to follow, or the next placement goes to
+  // wherever the cursor was stranded.
+  //
+  // A figure is 200 px tall, so "two grid squares below the previous figure" is INSIDE it. The
+  // click handler used to return early there, the cursor stayed put, and the double-click then
+  // placed at the stale point — which the left-to-right flow tiled off to the right and down.
+  // That is the "locks to the bottom of the previous block and to the right edge" report
+  // (Jon, 2026-10-07).
+  if (!select) return;
 
   const hit = blockAtCursor(gridCursor.x, gridCursor.y);
   if (hit) {
@@ -1064,6 +1076,13 @@ export function pasteBlocks(): number {
   return made.filter((b) => !b.parentSectionId).length;
 }
 
+/**
+ * The cursor position the last figure was placed at. A repeat placement at the SAME position means
+ * the user double-clicked again without moving the cursor, which is the only case the left-to-right
+ * flow applies to — a deliberately picked point is always honoured exactly, overlap and all.
+ */
+let lastFigureDropAt: { x: number; y: number } | null = null;
+
 /** The size a new figure is created at — also what the free-slot search must reserve. */
 const FIGURE_W = 240;
 const FIGURE_H = 200;
@@ -1162,12 +1181,25 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
     return;
   }
 
-  // A figure lands at the cursor when the spot is clear, and flows right — then down only when
-  // the row is full — when it is not. Computed in absolute canvas px, snapped the same way
-  // `addBlock` will snap it, so the overlap test sees the rect the block will really occupy.
+  // ⚠️ **A picked point always wins.** The flow below runs ONLY when this placement is at the very
+  // same cursor position as the last one — i.e. the user double-clicked again without moving the
+  // cursor, which otherwise stacks figures invisibly on top of each other.
+  //
+  // Without that condition the two things Jon asked for contradict each other: "there shouldn't be
+  // any spacing at all, just place at this point picked", and "left to right then top to bottom if
+  // no space remains". They only collide when the chosen point is already occupied — and a figure
+  // is 200 px tall, so picking a spot two grid squares below the previous one DOES overlap it. In
+  // v2.11.9 the flow then shoved it right, and down once the row filled, which is exactly the
+  // "locks to the bottom of the previous block and to the right edge" report (2026-10-07).
+  //
+  // Deliberate point → exact placement, overlap and all. Repeat at an unmoved cursor → flow.
+  const sameSpotAsLast = lastFigureDropAt !== null &&
+    lastFigureDropAt.x === canvasX && lastFigureDropAt.y === canvasY;
+  if (type === 'figure') lastFigureDropAt = { x: canvasX, y: canvasY };
+
   let dropX = canvasX - margins.left;
   let dropY = canvasY - margins.top;
-  if (type === 'figure') {
+  if (type === 'figure' && sameSpotAsLast) {
     const absX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
     const absY = snapToPageGrid(canvasY);
     const slot = freeFigureSlot(absX, absY, FIGURE_W, FIGURE_H);
