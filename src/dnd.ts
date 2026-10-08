@@ -13,6 +13,7 @@ import {
   deletionStack,
   firstGridLine,
   gridCursor,
+  lastGridColumn,
   lastGridLine,
   margins,
   maxWidthFor,
@@ -1063,6 +1064,57 @@ export function pasteBlocks(): number {
   return made.filter((b) => !b.parentSectionId).length;
 }
 
+/** The size a new figure is created at — also what the free-slot search must reserve. */
+const FIGURE_W = 240;
+const FIGURE_H = 200;
+
+/**
+ * Where a newly placed figure actually lands: at the cursor, unless something is already there.
+ *
+ * When the chosen spot is occupied it advances to the RIGHT along the same row, past the right
+ * edge of whatever it hit, and only when nothing fits before the last grid column does it wrap to
+ * the next row. "It should be able to be placed left to right then top to bottom if no space
+ * remains. And only if no space remains, instead of forcing it to go below automatically."
+ * (Jon, 2026-10-07.)
+ *
+ * An EMPTY spot is never adjusted — pick a clear point and the figure lands exactly there. This
+ * only decides what happens when two figures would occupy the same place, which is what repeated
+ * double-clicks without moving the cursor used to do: stack them invisibly on top of each other.
+ *
+ * Coordinates here are absolute canvas px, the same frame as `el.style.left` / `top`.
+ */
+function freeFigureSlot(x: number, y: number, w: number, h: number): { x: number; y: number } {
+  const rightLimit = lastGridColumn();
+  const taken = Array.from(canvas.domElement.querySelectorAll<HTMLElement>('.block'))
+    .filter((el) => !el.classList.contains('title-block') && !childToSection.has(el.id))
+    .map((el) => ({
+      l: parseInt(el.style.left),
+      t: parseInt(el.style.top),
+      w: el.offsetWidth,
+      h: el.offsetHeight,
+    }))
+    .filter((r) => Number.isFinite(r.l) && Number.isFinite(r.t));
+
+  const hitAt = (px: number, py: number) =>
+    taken.find((r) => px < r.l + r.w && px + w > r.l && py < r.t + r.h && py + h > r.t);
+
+  let px = x, py = y;
+  // Bounded: a pathological sheet must not hang the placement.
+  for (let i = 0; i < 200; i++) {
+    const hit = hitAt(px, py);
+    if (!hit) return { x: px, y: py };
+    const nextX = margins.left +
+      Math.ceil((hit.l + hit.w - margins.left) / GRID_SIZE) * GRID_SIZE;
+    if (nextX + w <= rightLimit) {
+      px = nextX; // room remains on this row — go right, not down
+      continue;
+    }
+    py = snapToPageGrid(hit.t + hit.h); // the row is full, and only then: next row
+    px = margins.left;
+  }
+  return { x: px, y: py };
+}
+
 export function dropBlock(type: Block['type'], subtype: string, canvasX: number, canvasY: number) {
   // A Summary block is the Section's companion (pro+): it only has meaning inside a section, where it
   // feeds the section summary line. Refuse other placements — but say so; this used to be silent,
@@ -1110,6 +1162,19 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
     return;
   }
 
+  // A figure lands at the cursor when the spot is clear, and flows right — then down only when
+  // the row is full — when it is not. Computed in absolute canvas px, snapped the same way
+  // `addBlock` will snap it, so the overlap test sees the rect the block will really occupy.
+  let dropX = canvasX - margins.left;
+  let dropY = canvasY - margins.top;
+  if (type === 'figure') {
+    const absX = margins.left + Math.round((canvasX - margins.left) / GRID_SIZE) * GRID_SIZE;
+    const absY = snapToPageGrid(canvasY);
+    const slot = freeFigureSlot(absX, absY, FIGURE_W, FIGURE_H);
+    dropX = slot.x - margins.left;
+    dropY = slot.y - margins.top;
+  }
+
   const block: Block = {
     // Date.now() alone collides for two blocks created in the same millisecond — and block ids
     // are DOM element ids, so getElementById then resolves to whichever came first and a child
@@ -1118,8 +1183,8 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
     id: `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type,
     subtype,
-    x: canvasX - margins.left,
-    y: canvasY - margins.top,
+    x: dropX,
+    y: dropY,
     content: customMod
       ? customMod.content
       : type === 'formula'
@@ -1136,8 +1201,8 @@ export function dropBlock(type: Block['type'], subtype: string, canvasX: number,
       : type === 'figure'
       ? `Fig ${nextFigureNum()}`
       : undefined,
-    w: type === 'figure' ? 240 : undefined,
-    h: type === 'figure' ? 200 : undefined,
+    w: type === 'figure' ? FIGURE_W : undefined,
+    h: type === 'figure' ? FIGURE_H : undefined,
     sectionName: type === 'section' ? nextSectionName() : undefined,
   };
   state.blocks.push(block);

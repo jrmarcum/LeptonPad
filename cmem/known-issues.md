@@ -1080,3 +1080,30 @@ three different causes, none of them a position constraint:
 
 When a user says "locked", check in this order: can it be **grabbed**, does the **cursor** move,
 and only then look for something that **moves** it.
+
+## 37. Figure placement flows left-to-right, wrapping only when full — 2026-10-07 (v2.11.9)
+
+The behaviour Jon actually wanted, stated plainly after § 34–36 removed the locks: "It should be
+able to be placed left to right then top to bottom if no space remains. And only if no space
+remains, instead of forcing it to go below automatically."
+
+`freeFigureSlot()` in `dnd.ts`, used by `dropBlock` for figures only:
+
+- **A clear spot is never adjusted.** Pick an empty point and the figure lands exactly there.
+- **An occupied spot advances RIGHT**, past the right edge of whatever it hit, snapped to the grid.
+- **Only when nothing fits before `lastGridColumn()`** does it wrap to the next row, at
+  `margins.left`, below the block it collided with.
+- Bounded at 200 iterations so a pathological sheet cannot hang placement.
+
+This is what repeated double-clicks should have done all along; they used to stack every figure
+invisibly at the same coordinates (§ 32d, § 34c — confirmed independently by Jon and by CDP).
+
+**Verified** on a pristine browser profile at v2.11.9: five double-clicks with the cursor parked
+gave `(112,64) (352,64)` then `(72,264) (312,264) (552,264)` — two on the first row, wrapping only
+when the next would have crossed the right limit — and a deliberate click on a clear spot at
+`(152,644)` landed exactly there.
+
+⚠️ **`deno task sync:version` silently failed to write `public/sw.js`** during this release (the
+exFAT "user-mapped section open" of § 15), leaving the service-worker cache name one version
+behind while `config.js` advanced. That breaks cache-busting, which is the failure mode that
+wasted most of this session. **Check `head -1 public/sw.js` against `deno.json` after every bump.**
